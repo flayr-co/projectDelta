@@ -9,6 +9,7 @@
 import Foundation
 import Firebase
 import FirebaseFirestoreSwift
+import FirebaseStorage
 
 protocol AuthenticationFormProtocol {
     var formIsValid: Bool { get }
@@ -88,6 +89,51 @@ class AuthViewModel: ObservableObject {
         } catch {
             print("Error updating user points: \(error.localizedDescription)")
             throw error
+        }
+    }
+    
+    func uploadProfileImage(_ image: UIImage, for user: User) {
+        // 1. Convert UIImage to Data
+        guard let imageData = image.jpegData(compressionQuality: 0.5) else { return }
+        
+        // 2. Create a reference to the Firebase Storage location
+        let storageRef = Storage.storage().reference().child("profile_images/\(user.id).jpg")
+        
+        // 3. Upload the image data
+        storageRef.putData(imageData, metadata: nil) { [weak self] metadata, error in
+            guard let self = self else { return }
+            if let error = error {
+                print("Error uploading image: \(error)")
+                return
+            }
+            
+            // 4. Retrieve the download URL
+            storageRef.downloadURL { url, error in
+                if let error = error {
+                    print("Error fetching download URL: \(error)")
+                    return
+                }
+                
+                if let url = url {
+                    // 5. Update user's profile picture URL in Firestore
+                    self.updateUserProfilePictureUrl(url.absoluteString, for: user)
+                }
+            }
+        }
+    }
+
+    private func updateUserProfilePictureUrl(_ url: String, for user: User) {
+        // Update the Firestore user document with the new URL
+        let userRef = Firestore.firestore().collection("users").document(user.id)
+        userRef.updateData(["profilePictureUrl": url]) { error in
+            if let error = error {
+                print("Error updating user profile picture URL: \(error)")
+            } else {
+                // Optionally, update the currentUser in the app
+                DispatchQueue.main.async {
+                    self.currentUser?.profilePictureUrl = url
+                }
+            }
         }
     }
     

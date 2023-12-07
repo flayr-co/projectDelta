@@ -15,4 +15,5 @@ struct Subject: Identifiable, Codable, Hashable {
     var name: String
     var description: String
     var difficulty: Int
+    var subjectArea: String
 }

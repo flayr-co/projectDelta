@@ -14,6 +14,7 @@ struct User: Identifiable, Hashable, Codable {
     let email: String
     var points: Int = 0
     var pointsHistory: [String: Int] = [:]
+    var profilePictureUrl: String?
     
     var initials: String {
         let formatter = PersonNameComponentsFormatter()
