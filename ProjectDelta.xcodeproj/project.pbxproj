@@ -77,6 +77,7 @@
 		52D998F32ADB353E007F90A6 /* FirestoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998F22ADB353E007F90A6 /* FirestoreManager.swift */; };
 		52D998F52ADB359D007F90A6 /* Views+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998F42ADB359D007F90A6 /* Views+Extensions.swift */; };
 		52E371B92B215253004CFDDA /* PhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E371B82B215253004CFDDA /* PhotoPicker.swift */; };
+		52E371BB2B228AD0004CFDDA /* UserProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E371BA2B228AD0004CFDDA /* UserProgress.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -123,6 +124,7 @@
 		52D998F22ADB353E007F90A6 /* FirestoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirestoreManager.swift; sourceTree = "<group>"; };
 		52D998F42ADB359D007F90A6 /* Views+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views+Extensions.swift"; sourceTree = "<group>"; };
 		52E371B82B215253004CFDDA /* PhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPicker.swift; sourceTree = "<group>"; };
+		52E371BA2B228AD0004CFDDA /* UserProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProgress.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -282,6 +284,7 @@
 				5258BD442ADF403B00F21A50 /* Question.swift */,
 				5258BD5D2AE4753F00F21A50 /* User.swift */,
 				527F98772AEC518E0031F9E6 /* Subject.swift */,
+				52E371BA2B228AD0004CFDDA /* UserProgress.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -431,6 +434,7 @@
 				527F98762AEC4E080031F9E6 /* QuizViewModel.swift in Sources */,
 				5254A5D72AF1D43100AAAA72 /* LeaderboardView.swift in Sources */,
 				5254A5CD2AF19F4200AAAA72 /* MainTabView.swift in Sources */,
+				52E371BB2B228AD0004CFDDA /* UserProgress.swift in Sources */,
 				527F98862AEF3EA90031F9E6 /* DarkModeBackground.swift in Sources */,
 				5258BD582AE32F0100F21A50 /* RegistrationView.swift in Sources */,
 				5297E43C2AD6473500220FC6 /* TestView.swift in Sources */,

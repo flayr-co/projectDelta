@@ -19,53 +19,51 @@ struct ProfileView: View {
             if let user = viewModel.currentUser {
                 List {
                     Section {
-                        HStack {
+                        VStack(spacing: 16) {
                             Button {
-                                 showImagePicker = true
+                                showImagePicker = true
                             } label: {
-                                // Using AsyncImage for profile picture
+                                // Profile picture or initials
                                 if let urlString = user.profilePictureUrl, let url = URL(string: urlString) {
                                     AsyncImage(url: url) { image in
                                         image.resizable()
                                     } placeholder: {
-                                        // Show user initials if image isn't loaded or URL is nil
                                         Text(user.initials)
-                                            .font(.title)
+                                            .font(.largeTitle)
                                             .fontWeight(.semibold)
-                                            .foregroundColor(colorScheme == .dark ? Color.black : Color.white)
+                                            .foregroundColor(colorScheme == .dark ? .white : .black)
                                     }
-                                    .frame(width: 72, height: 72)
-                                    .background(Color(.systemGray))
+                                    .scaledToFit()
+                                    .frame(width: 120, height: 120)
                                     .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.gray, lineWidth: 1))
                                 } else {
                                     Text(user.initials)
-                                        .font(.title)
+                                        .font(.largeTitle)
                                         .fontWeight(.semibold)
-                                        .foregroundColor(colorScheme == .dark ? Color.black : Color.white)
-                                        .frame(width: 72, height: 72)
-                                        .background(Color(.systemGray))
-                                        .clipShape(Circle())
+                                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                                        .frame(width: 120, height: 120)
+                                        .background(Circle().fill(Color.gray))
                                 }
                             }
+                            .padding(.top, 50)
                             .sheet(isPresented: $showImagePicker) {
                                 PhotoPicker(selectedImage: $pickedImage) { image in
                                     viewModel.uploadProfileImage(image, for: user)
                                 }
                             }
                             
-                            VStack(alignment: .leading) {
-                                Text(user.fullname)
-                                    .font(.subheadline)
-                                    .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
-                                    .fontWeight(.semibold)
-                                    .padding(.top, 4)
-                                
-                                Text(user.email)
-                                    .font(.footnote)
-                                    .foregroundColor(colorScheme == .dark ? Color.white : Color.gray)
-                            }
-                        }
-                    }
+                            Text(user.fullname)
+                                .font(.title)
+                                .fontWeight(.semibold)
+                                .foregroundColor(colorScheme == .dark ? .white : .black)
+                            
+                            Text(user.email)
+                                .font(.callout)
+                                .foregroundColor(colorScheme == .dark ? .gray : .secondary)
+                        } //:VSTACK
+                        .frame(maxWidth: .infinity)
+                    } //: SECTION 1
                     
                     Section("General") {
                         HStack {
@@ -79,7 +77,7 @@ struct ProfileView: View {
                                 .font(.subheadline)
                                 .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
                         }
-                    }
+                    } //: SECTION 2
                     
                     Section("Account") {
                         Button {
@@ -97,7 +95,7 @@ struct ProfileView: View {
                             SettingsRowView(imageName: "chart.bar.xaxis", title: "View your progress", tintColor: .cyan)
                         }
                         .navigationBarBackButtonHidden(true)
-                    }
+                    } //: SECTION 3
                 }
             }
         } //: NAVIGATIONSTACK

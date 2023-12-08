@@ -20,6 +20,8 @@ class AuthViewModel: ObservableObject {
     @Published var userSession: FirebaseAuth.User?
     @Published var currentUser: User?
     
+    private var db = Firestore.firestore()
+    
     init() {
         self.userSession = Auth.auth().currentUser
         Task {
@@ -117,6 +119,26 @@ class AuthViewModel: ObservableObject {
                 if let url = url {
                     // 5. Update user's profile picture URL in Firestore
                     self.updateUserProfilePictureUrl(url.absoluteString, for: user)
+                }
+            }
+        }
+    }
+    
+    func createUserProgress(userId: String) {
+        let userProgressRef = db.collection("UserProgress").document(userId)
+        
+        // Check if a user progress document already exists
+        userProgressRef.getDocument { (document, error) in
+            if let document = document, document.exists {
+                // The user progress document already exists
+                print("Document already exists")
+            } else {
+                // The user progress document does not exist, create it
+                let newUserProgress = UserProgress(userId: userId, progress: [:])
+                do {
+                    try userProgressRef.setData(from: newUserProgress)
+                } catch let error {
+                    print("Error writing user progress to Firestore: \(error)")
                 }
             }
         }
