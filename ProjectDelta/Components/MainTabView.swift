@@ -32,5 +32,5 @@ struct MainTabView: View {
 #Preview {
     MainTabView()
         .environmentObject(AuthViewModel())
-        .environmentObject(QuizViewModel())
+        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
 }

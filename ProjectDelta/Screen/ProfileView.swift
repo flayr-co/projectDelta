@@ -13,6 +13,7 @@ struct ProfileView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var showImagePicker = false
     @State private var pickedImage: UIImage?
+    @AppStorage("isDarkMode") private var isDarkMode = false // AppStorage to save theme preference
     
     var body: some View {
         NavigationStack {
@@ -66,28 +67,27 @@ struct ProfileView: View {
                     } //: SECTION 1
                     
                     Section("General") {
-                        HStack {
-                            SettingsRowView(imageName: "gear",
-                                            title: "Version",
+                        NavigationLink {
+                            
+                        } label: {
+                            SettingsRowView(imageName: "person",
+                                            title: "Your Stats",
                                             tintColor: colorScheme == .dark ? Color.white : Color(.systemGray))
+                        }
+                        
+                        HStack {
+                            SettingsRowView(imageName: "paintbrush", title: "Theme", tintColor: .blue)
                             
-                            Spacer()
-                            
-                            Text("1.0.0")
-                                .font(.subheadline)
-                                .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
+                            // Toggle for Dark Mode and Light Mode
+                            Toggle(isOn: $isDarkMode) {
+                                Image(systemName: isDarkMode ? "moon.fill" : "sun.max.fill")
+                                    .foregroundColor(isDarkMode ? .yellow : .orange)
+                            }
+                            .toggleStyle(SwitchToggleStyle(tint: .purple))
                         }
                     } //: SECTION 2
                     
                     Section("Account") {
-                        Button {
-                            viewModel.signOut()
-                        } label: {
-                            SettingsRowView(imageName: "arrow.left.circle.fill",
-                                            title: "Sign Out",
-                                            tintColor: .red)
-                        }
-                        
                         NavigationLink {
                             UserStatsView()
                                 .navigationBarBackButtonHidden(true)
@@ -95,6 +95,14 @@ struct ProfileView: View {
                             SettingsRowView(imageName: "chart.bar.xaxis", title: "View your progress", tintColor: .cyan)
                         }
                         .navigationBarBackButtonHidden(true)
+                        
+                        Button {
+                            viewModel.signOut()
+                        } label: {
+                            SettingsRowView(imageName: "arrow.left.circle.fill",
+                                            title: "Sign Out",
+                                            tintColor: .red)
+                        }
                     } //: SECTION 3
                 }
             }

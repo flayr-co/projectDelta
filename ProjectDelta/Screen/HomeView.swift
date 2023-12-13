@@ -75,7 +75,7 @@ struct HomeView: View {
                             }
                             
                             NavigationLink {
-                                PracticeView()
+                                UserStatsView()
                                     .navigationBarBackButtonHidden(true)
                             } label: {
                                 DisplayCards(imageName: "eyeglasses", title: "Practice", tintColor: .purple)

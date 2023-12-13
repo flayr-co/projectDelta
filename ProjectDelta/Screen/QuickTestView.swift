@@ -197,6 +197,10 @@ struct QuickTestView: View {
                         } else {
                             // End of test
                             quizEnded = true
+                            quizViewModel.updateUserProgressForSubject(
+                                userId: viewModel.currentUser?.id ?? "",
+                                subjectArea: self.subject,
+                                answeredCorrectly: score > 0)
                             currentQuestionIndex = 0
                         }
                         userAnswer = nil
@@ -227,6 +231,6 @@ struct QuickTestView: View {
 #Preview {
     QuickTestView(subject: "Arithmetic")
         .environmentObject(AuthViewModel())
-        .environmentObject(QuizViewModel())
+        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
 //        .preferredColorScheme(.dark)
 }

@@ -12,7 +12,7 @@ import Firebase
 @main
 struct ProjectDeltaApp: App {
     @StateObject var viewModel = AuthViewModel()
-    @StateObject var quizViewModel = QuizViewModel()
+    @StateObject var quizViewModel = QuizViewModel(authViewModel: AuthViewModel())
     
     init() {
         FirebaseApp.configure()

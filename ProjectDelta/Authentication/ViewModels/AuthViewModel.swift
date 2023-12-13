@@ -10,6 +10,7 @@ import Foundation
 import Firebase
 import FirebaseFirestoreSwift
 import FirebaseStorage
+import FirebaseAuth
 
 protocol AuthenticationFormProtocol {
     var formIsValid: Bool { get }
@@ -17,8 +18,8 @@ protocol AuthenticationFormProtocol {
 
 @MainActor
 class AuthViewModel: ObservableObject {
-    @Published var userSession: FirebaseAuth.User?
-    @Published var currentUser: User?
+    @Published var userSession: Firebase.User?
+    @Published var currentUser: User?  // Assuming you rename your custom User to AppUser
     
     private var db = Firestore.firestore()
     
@@ -134,7 +135,7 @@ class AuthViewModel: ObservableObject {
                 print("Document already exists")
             } else {
                 // The user progress document does not exist, create it
-                let newUserProgress = UserProgress(userId: userId, progress: [:])
+                let newUserProgress = UserProgress(userId: userId, progress: [:], answeredQuestions: [:], questionsAttempted: 0)
                 do {
                     try userProgressRef.setData(from: newUserProgress)
                 } catch let error {

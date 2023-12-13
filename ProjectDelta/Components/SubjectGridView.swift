@@ -57,6 +57,6 @@ struct SubjectGridView: View {
 
 #Preview {
     SubjectGridView()
-        .environmentObject(QuizViewModel())
+        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
         .preferredColorScheme(.dark)
 }
