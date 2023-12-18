@@ -11,7 +11,8 @@ import Foundation
 struct UserProgress: Codable {
     var userId: String
     var progress: [String: SubjectProgress] // using SubjectArea as the key
-    var answeredQuestions: [String: Bool] // QuestionID as key, Bool for correct/incorrect
+    var answeredQuestions: [String: Bool]? // QuestionID as key, Bool for correct/incorrect
+    var answeredQuestionsCorrectly: [String: Bool]
     var questionsAttempted: Int
 }
 

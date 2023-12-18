@@ -29,9 +29,7 @@ class FirestoreManager {
                 questionText: "Placeholder Question",
                 type: "Placeholder Type",
                 subject: test.subject,
-                hint: "Placeholder Hint",
-                hasUserAnswered: false,
-                hasUserAnsweredCorrectly: false
+                hint: "Placeholder Hint"
             )
             try db.collection("Subjects")
                    .document(subjectId)

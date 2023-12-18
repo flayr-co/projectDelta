@@ -169,38 +169,44 @@ struct QuickTestView: View {
                     .disabled(currentQuestionIndex == 0) // Disable the button when on the first question
                     
                     Button {
-                        if userAnswer == quizViewModel.questions[currentQuestionIndex].correctOptionIndex {
+                        let currentQuestion = quizViewModel.questions[currentQuestionIndex]
+                        let answeredCorrectly = userAnswer == currentQuestion.correctOptionIndex
+
+                        // Update score and user points
+                        if answeredCorrectly {
                             score += 1
                             viewModel.currentUser?.points += 10
+                        } else {
+                            viewModel.currentUser?.points -= 5
+                        }
+
+                        // Check if we have the current subject information
+                        if let currentSubject = quizViewModel.currentSubject {
+                            // Handle the question answered logic
                             Task {
+                                await quizViewModel.handleQuestionAnswered(question: currentQuestion, subject: currentSubject, answeredCorrectly: answeredCorrectly)
+                                
                                 do {
                                     try await viewModel.updateUserPointsInFirestore(newPoints: viewModel.currentUser?.points ?? 0)
                                 } catch {
-                                    // Handle errors if necessary
                                     print(error.localizedDescription)
                                 }
                             }
                         } else {
-                            viewModel.currentUser?.points -= 5
-                            Task {
-                                do {
-                                    try await viewModel.updateUserPointsInFirestore(newPoints: viewModel.currentUser?.points ?? 0)
-                                } catch {
-                                    // Handle errors if necessary
-                                    print(error.localizedDescription)
-                                }
-                            }
+                            print("Error: Subject data is not available.")
                         }
-                        
+
+                        // Navigate to the next question or end the quiz
                         if currentQuestionIndex < quizViewModel.questions.count - 1 {
                             currentQuestionIndex += 1
                         } else {
-                            // End of test
                             quizEnded = true
-                            quizViewModel.updateUserProgressForSubject(
-                                userId: viewModel.currentUser?.id ?? "",
-                                subjectArea: self.subject,
-                                answeredCorrectly: score > 0)
+                            if let selectedSubjectDocId = quizViewModel.selectedSubjectDocId {
+                                quizViewModel.updateUserProgressForSubject(
+                                    userId: viewModel.currentUser?.id ?? "",
+                                    subjectDocId: selectedSubjectDocId,
+                                    answeredCorrectly: score > 0)
+                            }
                             currentQuestionIndex = 0
                         }
                         userAnswer = nil
@@ -208,7 +214,7 @@ struct QuickTestView: View {
                         HStack {
                             Text("Next")
                                 .fontWeight(.bold)
-                            
+
                             Image(systemName: "arrow.right")
                                 .resizable()
                                 .frame(width: 15, height: 12)
@@ -216,7 +222,7 @@ struct QuickTestView: View {
                         }
                         .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
                     }
-                    .padding()
+                    .padding() 
                 } //: HSTACK WITH BUTTONS
             } //: BIG VSTACK
         } //: NAVIGATIONSTACK

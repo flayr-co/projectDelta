@@ -135,7 +135,7 @@ class AuthViewModel: ObservableObject {
                 print("Document already exists")
             } else {
                 // The user progress document does not exist, create it
-                let newUserProgress = UserProgress(userId: userId, progress: [:], answeredQuestions: [:], questionsAttempted: 0)
+                let newUserProgress = UserProgress(userId: userId, progress: [:], answeredQuestions: [:], answeredQuestionsCorrectly: [:], questionsAttempted: 0)
                 do {
                     try userProgressRef.setData(from: newUserProgress)
                 } catch let error {

@@ -19,22 +19,24 @@ struct Question: Identifiable, Codable {
     var questionText: String
     var type: String
     var subject: String
-    var hint: String
-    var hasUserAnswered: Bool
-    var hasUserAnsweredCorrectly: Bool
-    
+    var hint: String?
+
     // Computed property to convert Question to dictionary
     var dictionary: [String: Any] {
-        return [
+        var dict: [String: Any] = [
             "correctOptionIndex": correctOptionIndex,
             "options": options,
             "points": points,
             "questionText": questionText,
-            "subject": subject,
             "type": type,
-            "hint": hint,
-            "hasUserAnswered": hasUserAnswered,
-            "hasUserAnsweredCorrectly": hasUserAnsweredCorrectly
+            "subject": subject
         ]
+
+        if let hint = hint {
+            dict["hint"] = hint
+        }
+        
+        return dict
     }
 }
+

@@ -105,9 +105,7 @@ class QuestionGeneratorViewModel: ObservableObject {
                         questionText: questionText,
                         type: "Multiple Choice",
                         subject: subjectName,
-                        hint: "",
-                        hasUserAnswered: false,
-                        hasUserAnsweredCorrectly: false
+                        hint: ""
                     )
                     self?.generatedQuestion = question
                     self?.isApprovalViewPresented = true

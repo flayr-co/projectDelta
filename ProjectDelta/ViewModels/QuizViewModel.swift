@@ -18,6 +18,7 @@ class QuizViewModel: ObservableObject {
     @Published var selectedSubjectDocId: String?
     @Published var userProgress: UserProgress?
     @Published var userProgressBySubject: [String: SubjectProgress] = [:]
+    @Published var currentSubject: Subject?
     @Published var currentSubjectArea: String?
     
     private var db = Firestore.firestore()
@@ -162,7 +163,11 @@ class QuizViewModel: ObservableObject {
                 
                 // Filter out questions that have been answered
                 self.questions = fetchedQuestions.filter { question in
-                    return !(userProgress.answeredQuestions.keys.contains(question.id ?? ""))
+                    // If answeredQuestions is nil, we assume no questions have been answered
+                    guard let answeredQuestions = userProgress.answeredQuestions else {
+                        return true // Include all questions since none have been answered
+                    }
+                    return !answeredQuestions.keys.contains(question.id ?? "")
                 }
             }
         }
@@ -189,39 +194,87 @@ class QuizViewModel: ObservableObject {
     }
     
     // Now, when you need to access the user's UID, you can do so like this:
-    func handleQuestionAnswered(question: Question, answeredCorrectly: Bool) async {
-        guard let currentUserID = await authViewModel.userSession?.uid else { return }
-        await updateUserProgress(questionID: question.id ?? "", answeredCorrectly: answeredCorrectly, userID: currentUserID)
+    // This function no longer needs the 'userID' parameter since it's fetched within the function.
+    func handleQuestionAnswered(question: Question, subject: Subject, answeredCorrectly: Bool) {
+        Task {
+            // Ensure we are on the main thread when accessing the main actor isolated "userSession"
+            guard let currentUserID = await authViewModel.userSession?.uid else { return }
+            updateUserAnswerForQuestion(questionID: question.id ?? "", answeredCorrectly: answeredCorrectly, question: question, subject: subject)
+        }
     }
-    
+
+    // Update the function signature to match the parameters being passed.
+    func updateUserAnswerForQuestion(questionID: String, answeredCorrectly: Bool, question: Question, subject: Subject) {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+
+        let userProgressRef = db.collection("UserProgress").document(userID)
+        let answeredQuestionsRef = userProgressRef.collection("answeredQuestions").document(questionID)
+
+        let questionData = [
+            "hasUserAttempted": true,
+            "hasUserAttemptedCorrectly": answeredCorrectly,
+            // You can add more fields here if needed, like subject or subjectArea
+        ] as [String : Any]
+
+        answeredQuestionsRef.setData(questionData) { error in
+            if let error = error {
+                print("Error updating answered question: \(error.localizedDescription)")
+            } else {
+                print("Successfully updated answered question.")
+            }
+        }
+    }
+
     func updateUserProgress(questionID: String, answeredCorrectly: Bool, userID: String) async {
         // Asynchronous logic to update progress on Firestore goes here
     }
     
-    // Add a function in QuizViewModel to update the user's progress for a given subject.
-    func updateUserProgressForSubject(userId: String, subjectArea: String, answeredCorrectly: Bool) {
-        // Fetch the current user progress
-        let userProgressRef = db.collection("UserProgress").document(userId)
-        userProgressRef.getDocument { (document, error) in
-            if let document = document, document.exists {
-                var userProgress = try? document.data(as: UserProgress.self)
-                // Update the progress for the specific subject area
-                if let progress = userProgress?.progress[subjectArea] {
-                    let updatedProgress = SubjectProgress(questionsAttempted: progress.questionsAttempted + 1,
-                                                          questionsCorrect: progress.questionsCorrect + (answeredCorrectly ? 1 : 0))
-                    userProgress?.progress[subjectArea] = updatedProgress
+    // MARK: - UPDATE USER PROGRESS FOR SAT MATH SUBJECT AREA
+    func updateUserProgressForSubject(userId: String, subjectDocId: String, answeredCorrectly: Bool) {
+        // Fetch the subject document to get the overarching SAT subject area
+        db.collection("Subjects").document(subjectDocId).getDocument { [weak self] (subjectSnapshot, error) in
+            guard let self = self else { return }
+            if let error = error {
+                print("Error fetching subject: \(error)")
+                return
+            }
+            
+            guard let subjectSnapshot = subjectSnapshot,
+                  let subjectData = subjectSnapshot.data(),
+                  let subjectArea = subjectData["subjectArea"] as? String else {
+                print("Could not retrieve subject area for the subject document ID provided.")
+                return
+            }
+            
+            // Update the user's progress for the overarching SAT subject area
+            let userProgressRef = self.db.collection("UserProgress").document(userId)
+            userProgressRef.getDocument { (document, error) in
+                if let document = document, document.exists {
+                    do {
+                        var userProgress = try document.data(as: UserProgress.self)
+                        let currentProgress = userProgress.progress[subjectArea] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
+                        let updatedProgress = SubjectProgress(questionsAttempted: currentProgress.questionsAttempted + 1,
+                                                              questionsCorrect: currentProgress.questionsCorrect + (answeredCorrectly ? 1 : 0))
+                        userProgress.progress[subjectArea] = updatedProgress
+
+                        // Write the updated progress back to Firestore
+                        try userProgressRef.setData(from: userProgress)
+                    } catch let error {
+                        print("Error updating user progress: \(error)")
+                    }
                 } else {
-                    // If there's no progress for this subject yet, create a new entry
-                    userProgress?.progress[subjectArea] = SubjectProgress(questionsAttempted: 1, questionsCorrect: answeredCorrectly ? 1 : 0)
+                    // If no document exists, create a new progress record for this SAT subject area
+                    let newUserProgress = UserProgress(userId: userId,
+                                                       progress: [subjectArea: SubjectProgress(questionsAttempted: 1, questionsCorrect: answeredCorrectly ? 1 : 0)],
+                                                       answeredQuestions: [:],
+                                                       answeredQuestionsCorrectly: [:],
+                                                       questionsAttempted: 0)
+                    do {
+                        try userProgressRef.setData(from: newUserProgress)
+                    } catch let error {
+                        print("Error creating user progress: \(error)")
+                    }
                 }
-                // Write the updated progress back to Firestore
-                do {
-                    try userProgressRef.setData(from: userProgress)
-                } catch let error {
-                    print("Error updating user progress: \(error)")
-                }
-            } else {
-                print("Document does not exist")
             }
         }
     }
@@ -235,6 +288,7 @@ class QuizViewModel: ObservableObject {
                 // Add more subjects as needed
             ],
             answeredQuestions: [:], // Populate with dummy question IDs and true/false values as needed
+            answeredQuestionsCorrectly: [:],
             questionsAttempted: 0 // This should be calculated based on the sum of questionsAttempted in progress
         )
 

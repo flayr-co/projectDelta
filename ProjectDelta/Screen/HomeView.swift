@@ -88,7 +88,7 @@ struct HomeView: View {
                                 DisplayCards(imageName: "trophy", title: "Leaderboard", tintColor: .yellow)
                             }
                         }
-                    }
+                    } //: VSTACK
                 }
             }
         } //: NavigationStack

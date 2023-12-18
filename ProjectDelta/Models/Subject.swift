@@ -15,5 +15,12 @@ struct Subject: Identifiable, Codable, Hashable {
     var name: String
     var description: String
     var difficulty: Int
-    var subjectArea: String
+    var subjectArea: String // where we determine which of the SAT Subject Areas the Subject belongs to -- Algebra, Advanced Math, Problem Solving & Data Analysis, Geometry & Trigonometry
+}
+
+enum SubjectArea: String, Codable {
+    case algebra = "Algebra"
+    case advancedMath = "Advanced Math"
+    case problemSolvingDataAnalysis = "Problem Solving & Data Analysis"
+    case geometryTrigonometry = "Geometry & Trigonometry"
 }
