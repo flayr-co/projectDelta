@@ -20,6 +20,9 @@ class QuizViewModel: ObservableObject {
     @Published var userProgressBySubject: [String: SubjectProgress] = [:]
     @Published var currentSubject: Subject?
     @Published var currentSubjectArea: String?
+    @Published var currentQuestionDocId: String?
+    @Published var answeredCorrectly: Bool?
+    @Published var score = 0
     
     private var db = Firestore.firestore()
     
@@ -49,6 +52,41 @@ class QuizViewModel: ObservableObject {
         }
     }
     
+    func fetchSubjectArea(for subjectName: String) async throws -> SubjectArea? {
+        let subjectsRef = Firestore.firestore().collection("Subjects")
+        
+        let snapshot = try await subjectsRef.whereField("name", isEqualTo: subjectName).getDocuments()
+        guard let document = snapshot.documents.first else {
+            print("Subject not found for name: \(subjectName)")
+            return nil
+        }
+        
+        let fetchedSubjectName = (document.data()["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "N/A"
+        print("Fetched subject name: '\(fetchedSubjectName)'")
+        
+        guard let subjectArea = SubjectArea(rawValue: fetchedSubjectName) else {
+            print("Subject area does not match any known SubjectArea enum case. Fetched subject area: '\(fetchedSubjectName)'")
+            return nil
+        }
+        
+        print("Successfully matched subject area to enum case: \(subjectArea.rawValue)")
+        return subjectArea
+    }
+    
+//    func fetchSubjectArea(for subjectName: String) async throws -> String {
+//        let subjectsRef = Firestore.firestore().collection("Subjects")
+//        let snapshot = try await subjectsRef.whereField("name", isEqualTo: subjectName).getDocuments()
+//
+//        guard let document = snapshot.documents.first,
+//              let subjectArea = document.data()["subjectArea"] as? String else {
+//            throw NSError(domain: "AppErrorDomain", code: -1, userInfo: [
+//                NSLocalizedDescriptionKey: "Subject area for subject \(subjectName) not found."
+//            ])
+//        }
+//        
+//        return subjectArea
+//    }
+    
     // MARK: - FETCH TESTS
 
     func fetchRandomTest(for subject: String) {
@@ -76,7 +114,7 @@ class QuizViewModel: ObservableObject {
     private func fetchTestsForSubjectID(_ subjectID: String, subjectName: String) {
         db.collection("Subjects").document(subjectID).collection("Tests").getDocuments(completion: { (testsSnapshot, error) in
             if let error = error {
-                print("Error fetching tests for subject \(subjectName): \(error)")
+                print("Error fetching tests for subject \(subjectName): \(error.localizedDescription)")
             } else if let testsSnapshot = testsSnapshot, !testsSnapshot.isEmpty {
                 let tests = testsSnapshot.documents
                 print("Fetched \(tests.count) tests for subject: \(subjectName)")
@@ -84,12 +122,29 @@ class QuizViewModel: ObservableObject {
 
                 if let testDocumentID = randomTest?.documentID {
                     print("Random test document ID for subject \(subjectName): \(testDocumentID)")
-                    self.fetchQuestions(forTestID: testDocumentID, subjectID: subjectID) // Corrected this line
+                    self.fetchQuestions(forTestID: testDocumentID, subjectID: subjectID)
                 }
             } else {
                 print("No tests found for subject: \(subjectName)")
             }
         })
+        
+        db.collection("Subjects").document(subjectID).getDocument { [weak self] (subjectSnapshot, error) in
+            if let error = error {
+                print("Error fetching subject details: \(error.localizedDescription)")
+            } else if let subjectSnapshot = subjectSnapshot, subjectSnapshot.exists {
+                do {
+                    var subject = try subjectSnapshot.data(as: Subject.self)
+                    subject.id = subjectSnapshot.documentID // Manually set the id here
+                    self?.currentSubject = subject
+                    print("Successfully fetched and decoded subject details: \(subject)")
+                } catch {
+                    print("Error decoding subject for \(subjectName): \(error.localizedDescription)")
+                }
+            } else {
+                print("Document for subject \(subjectName) does not exist.")
+            }
+        }
     }
     
     // MARK: - FETCH QUESTIONS
@@ -102,14 +157,12 @@ class QuizViewModel: ObservableObject {
                 self.questions.removeAll() // Clear existing questions
                 for document in snapshot.documents {
                     print("Question document ID: \(document.documentID)")
-                    
                     // Create a Question instance from the document data
                     var question = try? document.data(as: Question.self)
                     print("Fetched Question: \(question?.questionText ?? "N/A"), Options: \(question?.options.joined(separator: ", ") ?? "N/A")")
                     if question?.id == nil {
-                        question?.id = document.documentID  // Explicitly set the document ID if it's not set
+                        question?.id = document.documentID // Explicitly set the document ID if it's not set
                     }
-                    
                     if let fetchedQuestion = question {
                         print("Fetched question for testID \(testID) and subject \(subjectID): \(fetchedQuestion)")
                         self.questions.append(fetchedQuestion)
@@ -120,6 +173,31 @@ class QuizViewModel: ObservableObject {
         }
     }
     
+    
+    
+    // This function would be called when the user navigates to a different question, for example:
+    // setCurrentQuestionDocId(for: currentIndex + 1) // for next question
+    // setCurrentQuestionDocId(for: currentIndex - 1) // for previous question
+    
+    func setCurrentQuestionDocId(for index: Int) {
+        guard index >= 0 && index < questions.count else { return }
+        DispatchQueue.main.async {
+            self.currentQuestionDocId = self.questions[index].id
+        }
+    }
+    
+    func checkAnswerAndUpdateScore(userAnswer: Int?, currentQuestionIndex: Int) {
+        if let userAnswer = userAnswer,
+           userAnswer == questions[currentQuestionIndex].correctOptionIndex {
+            // Increment score if the answer is correct
+            score += 1
+        }
+    }
+    
+    
+    
+    // MARK: - FETCH QUESTIONS FOR USER
+
     func fetchQuestionsForUser(forTestID testID: String, subjectID: String, userID: String) {
         // Fetch UserProgress first to determine which questions have been answered
         self.db.collection("UserProgress").document(userID).getDocument { (progressSnapshot, error) in
@@ -127,12 +205,12 @@ class QuizViewModel: ObservableObject {
                 print("Error fetching user progress: \(error)")
                 return
             }
-            
+
             guard let progressSnapshot = progressSnapshot else {
                 print("Error: DocumentSnapshot is nil or couldn't retrieve data")
                 return
             }
-            
+
             // Decode the UserProgress
             guard let userProgress = try? progressSnapshot.data(as: UserProgress.self) else {
                 print("Error decoding user progress")
@@ -143,69 +221,67 @@ class QuizViewModel: ObservableObject {
             DispatchQueue.main.async {
                 self.userProgress = userProgress
             }
-            
+
             // Then fetch questions excluding the ones already answered
             self.db.collection("Subjects").document(subjectID).collection("Tests").document(testID).collection("Questions").getDocuments { (snapshot, error) in
                 if let error = error {
                     print("Error fetching questions: \(error)")
                     return
                 }
-                
+
                 guard let questionDocuments = snapshot?.documents else {
                     print("Error: No questions found or couldn't retrieve documents")
                     return
                 }
-                
-                // Existing code to fetch questions
-                let fetchedQuestions = questionDocuments.compactMap { document -> Question? in
-                    return try? document.data(as: Question.self)
-                }
-                
-                // Filter out questions that have been answered
-                self.questions = fetchedQuestions.filter { question in
-                    // If answeredQuestions is nil, we assume no questions have been answered
-                    guard let answeredQuestions = userProgress.answeredQuestions else {
-                        return true // Include all questions since none have been answered
+
+                // Fetch questions
+                self.questions.removeAll() // Clear existing questions
+                for document in questionDocuments {
+                    // Create a Question instance from the document data
+                    if var question = try? document.data(as: Question.self) {
+                        question.id = document.documentID  // Explicitly set the document ID
+                        self.questions.append(question)
                     }
-                    return !answeredQuestions.keys.contains(question.id ?? "")
                 }
+
+                // Now `self.questions` array contains all questions with their document IDs set
+                // You can now use these document IDs in your UI code as needed
             }
         }
     }
     
     // MARK: - FETCH USER PROGRESS
     
-    func fetchUserProgress(forUserID userID: String) {
+    func fetchUserProgress(forUserID userID: String) async throws -> UserProgress? {
         let userProgressRef = db.collection("UserProgress").document(userID)
-        userProgressRef.getDocument { [weak self] documentSnapshot, error in
-            guard let self = self, let snapshot = documentSnapshot else {
-                print("Error fetching user progress: \(error?.localizedDescription ?? "Unknown error")")
-                return
-            }
-            do {
-                let userProgress = try snapshot.data(as: UserProgress.self)
-                DispatchQueue.main.async {
-                    self.userProgress = userProgress
-                }
-            } catch {
-                print("Error decoding user progress: \(error)")
-            }
+        
+        // Asynchronously getting the data snapshot
+        let documentSnapshot = try await userProgressRef.getDocument()
+        
+        // Decoding the user progress into our model
+        guard let userProgress = try? documentSnapshot.data(as: UserProgress.self) else {
+            print("Error decoding user progress")
+            return nil
         }
+        
+        return userProgress
     }
     
     // Now, when you need to access the user's UID, you can do so like this:
     // This function no longer needs the 'userID' parameter since it's fetched within the function.
-    func handleQuestionAnswered(question: Question, subject: Subject, answeredCorrectly: Bool) {
-        Task {
-            // Ensure we are on the main thread when accessing the main actor isolated "userSession"
-            guard let currentUserID = await authViewModel.userSession?.uid else { return }
-            updateUserAnswerForQuestion(questionID: question.id ?? "", answeredCorrectly: answeredCorrectly, question: question, subject: subject)
+    func handleQuestionAnswered(question: Question, subject: Subject, answeredCorrectly: Bool) async {
+        do {
+            try await updateUserAnswerForQuestion(questionID: question.id ?? "", answeredCorrectly: answeredCorrectly, question: question, subject: subject)
+        } catch {
+            print("Error updating answered question: \(error.localizedDescription)")
         }
     }
 
     // Update the function signature to match the parameters being passed.
-    func updateUserAnswerForQuestion(questionID: String, answeredCorrectly: Bool, question: Question, subject: Subject) {
-        guard let userID = Auth.auth().currentUser?.uid else { return }
+    func updateUserAnswerForQuestion(questionID: String, answeredCorrectly: Bool, question: Question, subject: Subject) async throws {
+        guard let userID = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "AppError", code: -1, userInfo: [NSLocalizedDescriptionKey: "User ID not found"])
+        }
 
         let userProgressRef = db.collection("UserProgress").document(userID)
         let answeredQuestionsRef = userProgressRef.collection("answeredQuestions").document(questionID)
@@ -213,83 +289,99 @@ class QuizViewModel: ObservableObject {
         let questionData = [
             "hasUserAttempted": true,
             "hasUserAttemptedCorrectly": answeredCorrectly,
-            // You can add more fields here if needed, like subject or subjectArea
-        ] as [String : Any]
+            // Add more fields here if needed, like subject or subjectArea
+        ] as [String: Any]
 
-        answeredQuestionsRef.setData(questionData) { error in
-            if let error = error {
-                print("Error updating answered question: \(error.localizedDescription)")
-            } else {
-                print("Successfully updated answered question.")
+        // Use a Task to handle the completion-based method call
+        return try await withCheckedThrowingContinuation { continuation in
+            answeredQuestionsRef.setData(questionData) { error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
             }
         }
     }
 
-    func updateUserProgress(questionID: String, answeredCorrectly: Bool, userID: String) async {
-        // Asynchronous logic to update progress on Firestore goes here
+    func updateUserProgress(forUserID userID: String, subjectName: String, answeredCorrectly: Bool, questionDocumentID: String) async throws {
+        do {
+            // Fetch the user progress
+            guard (try await fetchUserProgress(forUserID: userID)) != nil else {
+                throw NSError(domain: "AppErrorDomain", code: -1, userInfo: [
+                    NSLocalizedDescriptionKey: "User progress not found."
+                ])
+            }
+
+            // Fetch the subject area using the subject name
+            guard let subjectArea = try await fetchSubjectArea(for: subjectName) else {
+                // Handle the error, maybe throw a custom error or return early
+                throw NSError(domain: "YourErrorDomain", code: 1001, userInfo: [NSLocalizedDescriptionKey: "Subject area not found."])
+            }
+
+            // Update the user progress for the subject
+            try await updateUserProgressForSubject(
+                userID: userID,
+                subjectArea: subjectArea,
+                answeredCorrectly: answeredCorrectly,
+                questionDocumentID: questionDocumentID
+            )
+            
+        } catch {
+            throw error
+        }
     }
     
     // MARK: - UPDATE USER PROGRESS FOR SAT MATH SUBJECT AREA
-    func updateUserProgressForSubject(userId: String, subjectDocId: String, answeredCorrectly: Bool) {
-        // Fetch the subject document to get the overarching SAT subject area
-        db.collection("Subjects").document(subjectDocId).getDocument { [weak self] (subjectSnapshot, error) in
-            guard let self = self else { return }
-            if let error = error {
-                print("Error fetching subject: \(error)")
-                return
-            }
-            
-            guard let subjectSnapshot = subjectSnapshot,
-                  let subjectData = subjectSnapshot.data(),
-                  let subjectArea = subjectData["subjectArea"] as? String else {
-                print("Could not retrieve subject area for the subject document ID provided.")
-                return
-            }
-            
-            // Update the user's progress for the overarching SAT subject area
-            let userProgressRef = self.db.collection("UserProgress").document(userId)
-            userProgressRef.getDocument { (document, error) in
-                if let document = document, document.exists {
-                    do {
-                        var userProgress = try document.data(as: UserProgress.self)
-                        let currentProgress = userProgress.progress[subjectArea] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
-                        let updatedProgress = SubjectProgress(questionsAttempted: currentProgress.questionsAttempted + 1,
-                                                              questionsCorrect: currentProgress.questionsCorrect + (answeredCorrectly ? 1 : 0))
-                        userProgress.progress[subjectArea] = updatedProgress
+    func updateUserProgressForSubject(userID: String, subjectArea: SubjectArea, answeredCorrectly: Bool, questionDocumentID: String) async throws {
+        let userProgressRef = self.db.collection("UserProgress").document(userID)
 
-                        // Write the updated progress back to Firestore
-                        try userProgressRef.setData(from: userProgress)
-                    } catch let error {
-                        print("Error updating user progress: \(error)")
-                    }
-                } else {
-                    // If no document exists, create a new progress record for this SAT subject area
-                    let newUserProgress = UserProgress(userId: userId,
-                                                       progress: [subjectArea: SubjectProgress(questionsAttempted: 1, questionsCorrect: answeredCorrectly ? 1 : 0)],
-                                                       answeredQuestions: [:],
-                                                       answeredQuestionsCorrectly: [:],
-                                                       questionsAttempted: 0)
-                    do {
-                        try userProgressRef.setData(from: newUserProgress)
-                    } catch let error {
-                        print("Error creating user progress: \(error)")
-                    }
-                }
+        // Firestore supports dot notation for accessing nested fields within a document.
+        // Define the keys for the nested fields you want to update.
+        let attemptedKey = "progress.\(subjectArea.rawValue).questionsAttempted"
+        let correctKey = "progress.\(subjectArea.rawValue).questionsCorrect"
+        let answeredQuestionsKey = "answeredQuestions.\(questionDocumentID)"
+
+        // Create the update data for incrementing the attempted questions
+        var updateData: [String: Any] = [
+            attemptedKey: FieldValue.increment(Int64(1))
+        ]
+
+        // If the question was answered correctly, also increment the correct questions count
+        if answeredCorrectly {
+            updateData[correctKey] = FieldValue.increment(Int64(1))
+        }
+        
+        // Update the answeredQuestions map with the question document ID and correctness
+        updateData[answeredQuestionsKey] = answeredCorrectly
+
+        // Perform the update with the constructed data
+        try await userProgressRef.updateData(updateData)
+    }
+
+    // JUST IN CASE A USER NEEDS PROGRESS RESET
+    func resetUserProgress(userId: String) {
+        let userProgressRef = db.collection("UserProgress").document(userId)
+        
+        let resetData = [
+            "Algebra": ["questionsAttempted": 0, "questionsCorrect": 0],
+            "Advanced Math": ["questionsAttempted": 0, "questionsCorrect": 0],
+            "Problem Solving & Data Analysis": ["questionsAttempted": 0, "questionsCorrect": 0],
+            "Geometry & Trigonometry": ["questionsAttempted": 0, "questionsCorrect": 0]
+        ]
+        
+        userProgressRef.updateData(["progress": resetData]) { error in
+            if let error = error {
+                print("Error resetting user progress: \(error.localizedDescription)")
+            } else {
+                print("User progress reset successfully.")
             }
         }
     }
     
     func addDummyDataForUser(userId: String) {
         let dummyProgress = UserProgress(
-            userId: userId,
-            progress: [
-                "Advanced Math": SubjectProgress(questionsAttempted: 5, questionsCorrect: 3),
-                "Algebra": SubjectProgress(questionsAttempted: 10, questionsCorrect: 7),
-                // Add more subjects as needed
-            ],
-            answeredQuestions: [:], // Populate with dummy question IDs and true/false values as needed
-            answeredQuestionsCorrectly: [:],
-            questionsAttempted: 0 // This should be calculated based on the sum of questionsAttempted in progress
+            userId: userId
         )
 
         let userProgressRef = db.collection("UserProgress").document(userId)

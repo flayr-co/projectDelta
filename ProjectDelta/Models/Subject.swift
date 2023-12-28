@@ -11,16 +11,20 @@ import Firebase
 import FirebaseFirestoreSwift
 
 struct Subject: Identifiable, Codable, Hashable {
-    var id: String
+    @DocumentID var id: String?
     var name: String
     var description: String
     var difficulty: Int
-    var subjectArea: String // where we determine which of the SAT Subject Areas the Subject belongs to -- Algebra, Advanced Math, Problem Solving & Data Analysis, Geometry & Trigonometry
+    var subjectArea: String // where we determine which of the SAT Subject Areas the Subject belongs to -- Algebra, Advanced Math, Problem Solving and Data Analysis, Geometry and Trigonometry
 }
 
-enum SubjectArea: String, Codable {
+public enum SubjectArea: String, Codable, Comparable, CaseIterable {
     case algebra = "Algebra"
     case advancedMath = "Advanced Math"
-    case problemSolvingDataAnalysis = "Problem Solving & Data Analysis"
-    case geometryTrigonometry = "Geometry & Trigonometry"
+    case problemSolvingDataAnalysis = "Problem Solving and Data Analysis"
+    case geometryTrigonometry = "Geometry and Trigonometry"
+    
+    public static func < (lhs: SubjectArea, rhs: SubjectArea) -> Bool {
+        return lhs.rawValue < rhs.rawValue
+    }
 }

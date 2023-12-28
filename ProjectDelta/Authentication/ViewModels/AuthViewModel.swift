@@ -125,23 +125,34 @@ class AuthViewModel: ObservableObject {
         }
     }
     
-    func createUserProgress(userId: String) {
+    func createUserProgress(userId: String) async throws {
         let userProgressRef = db.collection("UserProgress").document(userId)
         
-        // Check if a user progress document already exists
-        userProgressRef.getDocument { (document, error) in
-            if let document = document, document.exists {
-                // The user progress document already exists
-                print("Document already exists")
-            } else {
-                // The user progress document does not exist, create it
-                let newUserProgress = UserProgress(userId: userId, progress: [:], answeredQuestions: [:], answeredQuestionsCorrectly: [:], questionsAttempted: 0)
-                do {
-                    try userProgressRef.setData(from: newUserProgress)
-                } catch let error {
-                    print("Error writing user progress to Firestore: \(error)")
-                }
-            }
+        // Initialize the new UserProgress struct
+        let newUserProgress = UserProgress(userId: userId)
+        
+        // Manually prepare the data for Firestore, since Firestore doesn't understand Swift enums directly
+        let progressData: [String: Any] = newUserProgress.progress.reduce(into: [:]) { result, entry in
+            result[entry.key.rawValue] = [
+                "questionsAttempted": entry.value.questionsAttempted,
+                "questionsCorrect": entry.value.questionsCorrect
+            ]
+        }
+        
+        let firestoreProgressData: [String: Any] = [
+            "userId": userId,
+            "progress": progressData,
+            "answeredQuestions": newUserProgress.answeredQuestions ?? [:],
+            "questionsAttempted": newUserProgress.questionsAttempted
+        ]
+        
+        do {
+            // Set the data to Firestore
+            try await userProgressRef.setData(firestoreProgressData)
+            print("User progress successfully created for user ID: \(userId)")
+        } catch let error {
+            print("Error writing user progress to Firestore: \(error)")
+            throw error // Propagate the error up to handle it accordingly
         }
     }
 

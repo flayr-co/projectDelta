@@ -169,69 +169,131 @@ struct QuickTestView: View {
                     .disabled(currentQuestionIndex == 0) // Disable the button when on the first question
                     
                     Button {
-                        let currentQuestion = quizViewModel.questions[currentQuestionIndex]
-                        let answeredCorrectly = userAnswer == currentQuestion.correctOptionIndex
-
-                        // Update score and user points
-                        if answeredCorrectly {
-                            score += 1
-                            viewModel.currentUser?.points += 10
-                        } else {
-                            viewModel.currentUser?.points -= 5
-                        }
-
-                        // Check if we have the current subject information
-                        if let currentSubject = quizViewModel.currentSubject {
-                            // Handle the question answered logic
-                            Task {
-                                await quizViewModel.handleQuestionAnswered(question: currentQuestion, subject: currentSubject, answeredCorrectly: answeredCorrectly)
-                                
-                                do {
-                                    try await viewModel.updateUserPointsInFirestore(newPoints: viewModel.currentUser?.points ?? 0)
-                                } catch {
-                                    print(error.localizedDescription)
-                                }
-                            }
-                        } else {
-                            print("Error: Subject data is not available.")
-                        }
-
-                        // Navigate to the next question or end the quiz
                         if currentQuestionIndex < quizViewModel.questions.count - 1 {
-                            currentQuestionIndex += 1
-                        } else {
-                            quizEnded = true
-                            if let selectedSubjectDocId = quizViewModel.selectedSubjectDocId {
-                                quizViewModel.updateUserProgressForSubject(
-                                    userId: viewModel.currentUser?.id ?? "",
-                                    subjectDocId: selectedSubjectDocId,
-                                    answeredCorrectly: score > 0)
+                            // Check the answer for the current question before moving to the next one
+                            if userAnswer == quizViewModel.questions[currentQuestionIndex].correctOptionIndex && !quizEnded {
+                                score += 1
+                                quizViewModel.setCurrentQuestionDocId(for: currentQuestionIndex) // (SHOULD I HAVE THIS CALL HERE AS WELL?
                             }
-                            currentQuestionIndex = 0
+                            // Move to the next question
+                            currentQuestionIndex += 1
+                            // Reset the answer for the next question
+                            userAnswer = nil
+                        } else {
+                            // This is the last question
+                            if !quizEnded {
+                                // Check the answer for the last question and end the quiz
+                                if userAnswer == quizViewModel.questions[currentQuestionIndex].correctOptionIndex {
+                                    score += 1
+                                }
+                                quizViewModel.setCurrentQuestionDocId(for: currentQuestionIndex) // ADDED THIS LINE
+                                quizEnded = true
+
+                                // Post-quiz update logic
+                                postQuizUpdate()
+                            }
                         }
-                        userAnswer = nil
                     } label: {
                         HStack {
-                            Text("Next")
+                            Text(currentQuestionIndex < quizViewModel.questions.count - 1 ? "Next" : "Finish")
                                 .fontWeight(.bold)
-
+                            
                             Image(systemName: "arrow.right")
                                 .resizable()
                                 .frame(width: 15, height: 12)
                                 .fontWeight(.heavy)
                         }
+                        .disabled(userAnswer == nil)
                         .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
                     }
-                    .padding() 
+                    .padding()
                 } //: HSTACK WITH BUTTONS
             } //: BIG VSTACK
         } //: NAVIGATIONSTACK
         .onAppear {
+            // Fetch random test first, which is needed for the current view.
             quizViewModel.fetchRandomTest(for: subject)
+
+            // Then, handle user progress.
+            Task {
+                guard let userId = viewModel.userSession?.uid else {
+                    print("User ID is nil or empty")
+                    return
+                }
+
+                // Fetch User's Progress first
+                do {
+                    let userProgress = try await quizViewModel.fetchUserProgress(forUserID: userId)
+                    if let userProgress = userProgress {
+                        // User progress exists
+                        print("User progress fetched: \(userProgress)")
+                        quizViewModel.userProgress = userProgress
+                    } else {
+                        // User progress does not exist, create it
+                        print("No user progress exists for user ID: \(userId), creating new one.")
+                        try await viewModel.createUserProgress(userId: userId)
+                    }
+                } catch {
+                    // Handle the error more specifically if possible
+                    print("Error fetching user progress: \(error.localizedDescription)")
+                }
+            }
         }
         .navigationBarBackButtonHidden(true)
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
     } //: BODY
+    
+    private func postQuizUpdate() {
+        quizEnded = true
+        print("Quiz has ended. Points and progress will now be updated....\n")
+        
+        // Update user's total points and progress after the quiz is over
+        Task {
+            // Ensure we have a valid user ID
+            guard let userId = viewModel.currentUser?.id, !userId.isEmpty else {
+                print("User ID is nil or empty")
+                return
+            }
+            
+            // Calculate the total points change based on the score
+            let totalPointsChange = score * 10 - (quizViewModel.questions.count - score) * 5
+            
+            // Update the points in Firestore
+            do {
+                try await viewModel.updateUserPointsInFirestore(newPoints: (viewModel.currentUser?.points ?? 0) + totalPointsChange)
+            } catch {
+                print("Failed to update points in Firestore: \(error.localizedDescription)")
+            }
+            
+            // Update the user progress in Firestore
+            if let currentSubjectArea = quizViewModel.currentSubject?.subjectArea {
+                if let subjectAreaEnum = SubjectArea(rawValue: currentSubjectArea) {
+                    if let currentQuestionDocId = quizViewModel.currentQuestionDocId { // Safely unwrapped
+                        do {
+                            try await quizViewModel.updateUserProgressForSubject(
+                                userID: userId,
+                                subjectArea: subjectAreaEnum,
+                                answeredCorrectly: score == quizViewModel.questions.count,
+                                questionDocumentID: currentQuestionDocId
+                            )
+                        } catch {
+                            print("Failed to update user progress in Firestore: \(error.localizedDescription)")
+                        }
+                    } else {
+                        print("Current question document ID is nil.")
+                    }
+                } else {
+                    print("Subject area does not match any known SubjectArea enum case.")
+                    print("Current subject area: \(currentSubjectArea)")
+                    print("Available subject areas: \(SubjectArea.allCases.map { $0.rawValue })")
+                }
+            } else {
+                print("Subject area is not set.")
+            }
+                }
+                // Reset the quiz state
+                currentQuestionIndex = 0 // Reset for the next time quiz is taken
+    }
 } //: QUICKTESTVIEW
 
 #Preview {
