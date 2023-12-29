@@ -24,7 +24,14 @@ struct MainTabView: View {
                 .tabItem { Label("Profile", systemImage: "person") }
         }
             .onAppear() {
-                quizViewModel.fetchSubjectsFromFirestore()
+                Task {
+                    do {
+                        let subjects = try await quizViewModel.fetchSubjectsFromFirestore()
+                        print("Fetched subjects: \(subjects)")
+                    } catch {
+                        print("An error occurred while fetching subjects: \(error.localizedDescription)")
+                    }
+                }
             }
     }
 }

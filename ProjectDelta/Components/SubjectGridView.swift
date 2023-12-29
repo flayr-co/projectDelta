@@ -52,6 +52,15 @@ struct SubjectGridView: View {
                 }
             }
         } //: NAVIGATIONSTACK
+        .onAppear {
+            Task {
+                do {
+                    quizViewModel.subjects = try await quizViewModel.fetchSubjectsFromFirestore()
+                } catch {
+                    print("Error fetching subjects in SubjectGridView: \(error.localizedDescription)")
+                }
+            }
+        }
     } //: BODY
 }
 

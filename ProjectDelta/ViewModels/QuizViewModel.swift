@@ -36,21 +36,25 @@ class QuizViewModel: ObservableObject {
     
     // MARK: - FETCH SUBJECTS
 
-    func fetchSubjectsFromFirestore() {
-        db.collection("Subjects").getDocuments() { (querySnapshot, err) in
-            if let err = err {
-                print("Error getting subjects: \(err)")
-            } else {
-                for document in querySnapshot!.documents {
-                    if let subjectName = document.data()["name"] as? String {
-                        self.subjects.append(subjectName)
-                        print("Fetched subject: \(subjectName)")
-                    }
-                }
-                print("Total subjects fetched: \(self.subjects.count)")
+    func fetchSubjectsFromFirestore() async throws -> [String] {
+        let subjectsRef = Firestore.firestore().collection("Subjects")
+        
+        let querySnapshot = try await subjectsRef.getDocuments()
+        var fetchedSubjects = [String]()
+        
+        for document in querySnapshot.documents {
+            if let subjectName = document.data()["name"] as? String {
+                fetchedSubjects.append(subjectName)
             }
         }
+        
+        if fetchedSubjects.isEmpty {
+            throw NSError(domain: "com.yourdomain.yourapp", code: 1001, userInfo: [NSLocalizedDescriptionKey: "No subjects were fetched from Firestore."])
+        }
+        
+        return fetchedSubjects
     }
+
     
     func fetchSubjectArea(for subjectName: String) async throws -> SubjectArea? {
         let subjectsRef = Firestore.firestore().collection("Subjects")
@@ -255,55 +259,31 @@ class QuizViewModel: ObservableObject {
     func fetchUserProgress(forUserID userID: String) async throws -> UserProgress? {
         let userProgressRef = db.collection("UserProgress").document(userID)
         
-        // Asynchronously getting the data snapshot
-        let documentSnapshot = try await userProgressRef.getDocument()
-        
-        // Decoding the user progress into our model
-        guard let userProgress = try? documentSnapshot.data(as: UserProgress.self) else {
-            print("Error decoding user progress")
-            return nil
+        do {
+            let documentSnapshot = try await userProgressRef.getDocument()
+            guard let userProgress = try? documentSnapshot.data(as: UserProgress.self) else {
+                print("Error: User progress data is missing or has an unexpected format.")
+                return nil
+            }
+            return userProgress
+        } catch let error as NSError where error.domain == FirestoreErrorDomain {
+            // Handle Firestore-specific errors
+            print("Firestore error: \(error.localizedDescription), \(error.userInfo)")
+        } catch let DecodingError.dataCorrupted(context) {
+            print("Decoding error: Data corrupted - \(context.debugDescription)")
+        } catch let DecodingError.keyNotFound(key, context) {
+            print("Decoding error: Key '\(key.stringValue)' not found - \(context.debugDescription), path: \(context.codingPath)")
+        } catch let DecodingError.typeMismatch(type, context) {
+            print("Decoding error: Type '\(type)' mismatch - \(context.debugDescription), path: \(context.codingPath)")
+        } catch let DecodingError.valueNotFound(value, context) {
+            print("Decoding error: Value '\(value)' not found - \(context.debugDescription), path: \(context.codingPath)")
+        } catch {
+            // Handle any other errors
+            print("Error: \(error.localizedDescription)")
         }
-        
-        return userProgress
+        return nil
     }
     
-    // Now, when you need to access the user's UID, you can do so like this:
-    // This function no longer needs the 'userID' parameter since it's fetched within the function.
-    func handleQuestionAnswered(question: Question, subject: Subject, answeredCorrectly: Bool) async {
-        do {
-            try await updateUserAnswerForQuestion(questionID: question.id ?? "", answeredCorrectly: answeredCorrectly, question: question, subject: subject)
-        } catch {
-            print("Error updating answered question: \(error.localizedDescription)")
-        }
-    }
-
-    // Update the function signature to match the parameters being passed.
-    func updateUserAnswerForQuestion(questionID: String, answeredCorrectly: Bool, question: Question, subject: Subject) async throws {
-        guard let userID = Auth.auth().currentUser?.uid else {
-            throw NSError(domain: "AppError", code: -1, userInfo: [NSLocalizedDescriptionKey: "User ID not found"])
-        }
-
-        let userProgressRef = db.collection("UserProgress").document(userID)
-        let answeredQuestionsRef = userProgressRef.collection("answeredQuestions").document(questionID)
-
-        let questionData = [
-            "hasUserAttempted": true,
-            "hasUserAttemptedCorrectly": answeredCorrectly,
-            // Add more fields here if needed, like subject or subjectArea
-        ] as [String: Any]
-
-        // Use a Task to handle the completion-based method call
-        return try await withCheckedThrowingContinuation { continuation in
-            answeredQuestionsRef.setData(questionData) { error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: ())
-                }
-            }
-        }
-    }
-
     func updateUserProgress(forUserID userID: String, subjectName: String, answeredCorrectly: Bool, questionDocumentID: String) async throws {
         do {
             // Fetch the user progress
@@ -357,6 +337,43 @@ class QuizViewModel: ObservableObject {
 
         // Perform the update with the constructed data
         try await userProgressRef.updateData(updateData)
+    }
+    
+    // Now, when you need to access the user's UID, you can do so like this:
+    // This function no longer needs the 'userID' parameter since it's fetched within the function.
+    func handleQuestionAnswered(question: Question, subject: Subject, answeredCorrectly: Bool) async {
+        do {
+            try await updateUserAnswerForQuestion(questionID: question.id ?? "", answeredCorrectly: answeredCorrectly, question: question, subject: subject)
+        } catch {
+            print("Error updating answered question: \(error.localizedDescription)")
+        }
+    }
+
+    // Update the function signature to match the parameters being passed.
+    func updateUserAnswerForQuestion(questionID: String, answeredCorrectly: Bool, question: Question, subject: Subject) async throws {
+        guard let userID = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "AppError", code: -1, userInfo: [NSLocalizedDescriptionKey: "User ID not found"])
+        }
+
+        let userProgressRef = db.collection("UserProgress").document(userID)
+        let answeredQuestionsRef = userProgressRef.collection("answeredQuestions").document(questionID)
+
+        let questionData = [
+            "hasUserAttempted": true,
+            "hasUserAttemptedCorrectly": answeredCorrectly,
+            // Add more fields here if needed, like subject or subjectArea
+        ] as [String: Any]
+
+        // Use a Task to handle the completion-based method call
+        return try await withCheckedThrowingContinuation { continuation in
+            answeredQuestionsRef.setData(questionData) { error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
     }
 
     // JUST IN CASE A USER NEEDS PROGRESS RESET
