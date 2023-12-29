@@ -28,3 +28,4 @@ public enum SubjectArea: String, Codable, Comparable, CaseIterable {
         return lhs.rawValue < rhs.rawValue
     }
 }
+

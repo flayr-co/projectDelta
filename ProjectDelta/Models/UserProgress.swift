@@ -14,7 +14,35 @@ struct UserProgress: Codable {
     var answeredQuestions: [String: Bool]? // QuestionID as key, Bool for correct/incorrect
     var questionsAttempted: Int
     
-    // Initialize progress with each subject area starting at 0 attempts and correct answers
+    // Define the coding keys that correspond to the properties
+    enum CodingKeys: String, CodingKey {
+        case userId
+        case progress
+        case answeredQuestions
+        case questionsAttempted
+    }
+    
+    // Custom initializer for decoding from a decoder
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        userId = try container.decode(String.self, forKey: .userId)
+        questionsAttempted = try container.decode(Int.self, forKey: .questionsAttempted)
+        answeredQuestions = try container.decodeIfPresent([String: Bool].self, forKey: .answeredQuestions)
+        
+        let progressContainer = try container.nestedContainer(keyedBy: DynamicCodingKeys.self, forKey: .progress)
+        var tempProgress = [SubjectArea: SubjectProgress]()
+        for key in progressContainer.allKeys {
+            if let subjectArea = SubjectArea(rawValue: key.stringValue) {
+                let subjectProgress = try progressContainer.decode(SubjectProgress.self, forKey: key)
+                tempProgress[subjectArea] = subjectProgress
+            } else {
+                throw DecodingError.dataCorruptedError(forKey: key, in: progressContainer, debugDescription: "Cannot initialize SubjectArea from invalid String value \(key.stringValue)")
+            }
+        }
+        progress = tempProgress
+    }
+    
+    // Custom initializer for creating a new instance manually
     init(userId: String) {
         self.userId = userId
         self.progress = [
@@ -26,9 +54,36 @@ struct UserProgress: Codable {
         self.answeredQuestions = [:]
         self.questionsAttempted = 0
     }
+    
+    // Encode function to encode the instance to an encoder
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(userId, forKey: .userId)
+        try container.encode(questionsAttempted, forKey: .questionsAttempted)
+        try container.encodeIfPresent(answeredQuestions, forKey: .answeredQuestions)
+        
+        var progressContainer = container.nestedContainer(keyedBy: DynamicCodingKeys.self, forKey: .progress)
+        for (key, value) in progress {
+            let keyString = key.rawValue
+            try progressContainer.encode(value, forKey: DynamicCodingKeys(stringValue: keyString)!)
+        }
+    }
+    
+    // DynamicCodingKeys to handle the keys of the 'progress' dictionary
+    struct DynamicCodingKeys: CodingKey {
+        var stringValue: String
+        init?(stringValue: String) {
+            self.stringValue = stringValue
+        }
+        var intValue: Int?
+        init?(intValue: Int) {
+            return nil
+        }
+    }
 }
 
 struct SubjectProgress: Codable {
     var questionsAttempted: Int
     var questionsCorrect: Int
 }
+

@@ -261,6 +261,10 @@ class QuizViewModel: ObservableObject {
         
         do {
             let documentSnapshot = try await userProgressRef.getDocument()
+            // Log the raw data for debugging purposes
+            print("Raw document data: \(documentSnapshot.data() ?? [:])")
+            
+            // Attempt to decode the document data into a UserProgress object
             guard let userProgress = try? documentSnapshot.data(as: UserProgress.self) else {
                 print("Error: User progress data is missing or has an unexpected format.")
                 return nil
@@ -278,8 +282,12 @@ class QuizViewModel: ObservableObject {
         } catch let DecodingError.valueNotFound(value, context) {
             print("Decoding error: Value '\(value)' not found - \(context.debugDescription), path: \(context.codingPath)")
         } catch {
-            // Handle any other errors
-            print("Error: \(error.localizedDescription)")
+            // Handle any other errors more verbosely
+            print("An error occurred: \(error)")
+            // If you have a debug description available, print that as well
+            if let decodingError = error as? DecodingError {
+                print(decodingError.localizedDescription)
+            }
         }
         return nil
     }
