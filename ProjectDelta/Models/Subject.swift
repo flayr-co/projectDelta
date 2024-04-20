@@ -18,14 +18,17 @@ struct Subject: Identifiable, Codable, Hashable {
     var subjectArea: String // where we determine which of the SAT Subject Areas the Subject belongs to -- Algebra, Advanced Math, Problem Solving and Data Analysis, Geometry and Trigonometry
 }
 
-public enum SubjectArea: String, Codable, Comparable, CaseIterable {
+public enum SubjectArea: String, Codable, Comparable, CaseIterable, Identifiable {
     case algebra = "Algebra"
     case advancedMath = "Advanced Math"
     case problemSolvingDataAnalysis = "Problem Solving and Data Analysis"
     case geometryTrigonometry = "Geometry and Trigonometry"
-    
+
+    public var id: String { self.rawValue }
+
     public static func < (lhs: SubjectArea, rhs: SubjectArea) -> Bool {
         return lhs.rawValue < rhs.rawValue
     }
 }
+
 

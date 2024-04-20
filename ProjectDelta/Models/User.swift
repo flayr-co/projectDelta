@@ -28,7 +28,27 @@ struct User: Identifiable, Hashable, Codable {
 }
 
 extension User {
-    static var MOCK_USERS: [User] = [
-        .init(id: NSUUID().uuidString, fullname: "Donna Henderson", email: "donna@icloud.com", points: 0)
-    ]
+    static var MOCK_USERS: [User] = {
+        var donna = User(id: NSUUID().uuidString, fullname: "Donna Henderson", email: "donna@icloud.com", points: 100) // Assuming Donna starts with 100 points.
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let calendar = Calendar.current
+        
+        // Generate points history for the last 7 days with non-zero values
+        for dayOffset in -6...0 {
+            if let date = calendar.date(byAdding: .day, value: dayOffset, to: Date()) {
+                let dateKey = dateFormatter.string(from: date)
+                donna.pointsHistory[dateKey] = Int.random(in: 1...100) // Random points for each day
+            }
+        }
+        
+        // Donna's current points should be the sum of all points history plus starting points.
+        donna.points = donna.pointsHistory.values.reduce(0, +) + 100
+        
+        return [donna]
+    }()
 }
+
+
+

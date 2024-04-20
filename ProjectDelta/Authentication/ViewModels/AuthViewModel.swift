@@ -74,26 +74,7 @@ class AuthViewModel: ObservableObject {
         guard let snapshot = try? await Firestore.firestore().collection("users").document(uid).getDocument() else { return }
         self.currentUser = try? snapshot.data(as: User.self)
     }
-    
-    func incrementPoints(by value: Int, on day: String) {
-        currentUser?.points += value
-        currentUser?.pointsHistory[day, default: 0] += value
-    }
-    
-    func updateUserPointsInFirestore(newPoints: Int) async throws {
-        guard let userId = self.currentUser?.id else {
-            throw NSError(domain: "YourErrorDomain", code: 1001, userInfo: [NSLocalizedDescriptionKey: "User ID is unavailable."])
-        }
-        
-        let userRef = Firestore.firestore().collection("users").document(userId)
-        do {
-            try await userRef.updateData(["points": newPoints])
-            print("User points successfully updated.")
-        } catch {
-            print("Error updating user points: \(error.localizedDescription)")
-            throw error
-        }
-    }
+
     
     func uploadProfileImage(_ image: UIImage, for user: User) {
         // 1. Convert UIImage to Data
@@ -171,22 +152,46 @@ class AuthViewModel: ObservableObject {
         }
     }
     
-    func storeTodaysPoints() async throws {
+    func incrementPoints(by value: Int, on day: String) {
+        let updatedPoints = max(0, (currentUser?.points ?? 0) + value)
+        currentUser?.points = updatedPoints
+        
+        // Ensure points history for the day doesn't go below 0
+        let updatedDayPoints = max(0, (currentUser?.pointsHistory[day] ?? 0) + value)
+        currentUser?.pointsHistory[day] = updatedDayPoints
+    }
+    
+    func updateUserPointsInFirestore(newPoints: Int) async throws {
         guard let userId = self.currentUser?.id else {
             throw NSError(domain: "YourErrorDomain", code: 1001, userInfo: [NSLocalizedDescriptionKey: "User ID is unavailable."])
         }
         
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd" // ISO 8601 format
-        let today = dateFormatter.string(from: Date())
-        
-        let currentPoints = self.currentUser?.points ?? 0
-        self.currentUser?.pointsHistory[today] = currentPoints
+        // Ensure the new points value doesn't go below 0
+        let safePoints = max(0, newPoints)
         
         let userRef = Firestore.firestore().collection("users").document(userId)
         do {
-            // Prepare the update for Firestore
-            let pointsHistoryUpdate = ["pointsHistory.\(today)": currentPoints]
+            try await userRef.updateData(["points": safePoints])
+            print("User points successfully updated.")
+        } catch {
+            print("Error updating user points: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    func storeTodaysPoints(pointsGainedToday: Int) async throws {
+        guard let userId = self.currentUser?.id else {
+            throw NSError(domain: "YourErrorDomain", code: 1001, userInfo: [NSLocalizedDescriptionKey: "User ID is unavailable."])
+        }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let today = dateFormatter.string(from: Date())
+
+        // Update Firestore with today's gained points
+        let userRef = Firestore.firestore().collection("users").document(userId)
+        do {
+            let pointsHistoryUpdate = ["pointsHistory.\(today)": FieldValue.increment(Int64(pointsGainedToday))]
             try await userRef.updateData(pointsHistoryUpdate)
             print("Today's points successfully stored.")
         } catch {

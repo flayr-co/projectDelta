@@ -31,7 +31,7 @@ struct QuickTestView: View {
             VStack {
                 HStack {
                     NavigationLink {
-                        SubjectGridView()
+                        SubjectGridView(navigationSource: .cardView)
                             .navigationBarBackButtonHidden(true)
                     } label: {
                         CloseButtonView()
@@ -52,28 +52,29 @@ struct QuickTestView: View {
                 
                 // MARK: - MAIN CONTENT
                 ScrollView {
-                    VStack(spacing: 20) {
+                    VStack(spacing: 5) {
                         if !quizEnded {
-                            Menu {
-                                Picker("Select Question", selection: $selectedQuestionIndex) {
-                                    ForEach(0..<quizViewModel.questions.count, id: \.self) { index in
-                                        Text("Question \(index + 1)")
-                                            .tag(index)
+                            HStack(spacing: 70) {
+                                Menu {
+                                    Picker("Select Question", selection: $selectedQuestionIndex) {
+                                        ForEach(0..<quizViewModel.questions.count, id: \.self) { index in
+                                            Text("Question \(index + 1)")
+                                                .tag(index)
+                                        }
                                     }
+                                } label: {
+                                    Label("Question \(currentQuestionIndex + 1)", systemImage: "chevron.down")
+                                        .font(.headline)
+                                        .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
                                 }
-                            } label: {
-                                Label("Question \(currentQuestionIndex + 1)", systemImage: "chevron.down")
-                                    .font(.headline)
-                                    .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
-                                    .padding(.trailing, 25)
+                                .onChange(of: selectedQuestionIndex) { newIndex in
+                                    currentQuestionIndex = newIndex
+                                }
+                                
+                                // Display Current Question
+                                Text("Question \(currentQuestionIndex + 1) of \(quizViewModel.questions.count)")
+                                    .font(.subheadline)
                             }
-                            .onChange(of: selectedQuestionIndex) { newIndex in
-                                currentQuestionIndex = newIndex
-                            }
-                            
-                            // Display Current Question
-                            Text("Question \(currentQuestionIndex + 1) of \(quizViewModel.questions.count)")
-                                .font(.subheadline)
                             
                             if currentQuestionIndex < quizViewModel.questions.count {
                                 Spacer()
@@ -247,9 +248,8 @@ struct QuickTestView: View {
         quizEnded = true
         print("Quiz has ended. Points and progress will now be updated....\n")
         
-        // Update user's total points and progress after the quiz is over
+        // Ensure we have a valid user ID
         Task {
-            // Ensure we have a valid user ID
             guard let userId = viewModel.currentUser?.id, !userId.isEmpty else {
                 print("User ID is nil or empty")
                 return
@@ -257,42 +257,39 @@ struct QuickTestView: View {
             
             // Calculate the total points change based on the score
             let totalPointsChange = score * 10 - (quizViewModel.questions.count - score) * 5
-            
-            // Update the points in Firestore
+
+            // Assume updateUserPointsInFirestore now also updates the total points
+            // alongside calling storeTodaysPoints internally or through another mechanism.
             do {
                 try await viewModel.updateUserPointsInFirestore(newPoints: (viewModel.currentUser?.points ?? 0) + totalPointsChange)
             } catch {
-                print("Failed to update points in Firestore: \(error.localizedDescription)")
+                print("Failed to update points: \(error.localizedDescription)")
             }
             
             // Update the user progress in Firestore
             if let currentSubjectArea = quizViewModel.currentSubject?.subjectArea {
-                if let subjectAreaEnum = SubjectArea(rawValue: currentSubjectArea) {
-                    if let currentQuestionDocId = quizViewModel.currentQuestionDocId { // Safely unwrapped
-                        do {
-                            try await quizViewModel.updateUserProgressForSubject(
-                                userID: userId,
-                                subjectArea: subjectAreaEnum,
-                                answeredCorrectly: score == quizViewModel.questions.count,
-                                questionDocumentID: currentQuestionDocId
-                            )
-                        } catch {
-                            print("Failed to update user progress in Firestore: \(error.localizedDescription)")
-                        }
-                    } else {
-                        print("Current question document ID is nil.")
+                if let subjectAreaEnum = SubjectArea(rawValue: currentSubjectArea),
+                   let currentQuestionDocId = quizViewModel.currentQuestionDocId { // Safely unwrapped
+                    do {
+                        try await quizViewModel.updateUserProgressForSubject(
+                            userID: userId,
+                            subjectArea: subjectAreaEnum,
+                            answeredCorrectly: score == quizViewModel.questions.count,
+                            questionDocumentID: currentQuestionDocId
+                        )
+                    } catch {
+                        print("Failed to update user progress in Firestore: \(error.localizedDescription)")
                     }
                 } else {
-                    print("Subject area does not match any known SubjectArea enum case.")
-                    print("Current subject area: \(currentSubjectArea)")
-                    print("Available subject areas: \(SubjectArea.allCases.map { $0.rawValue })")
+                    print("Subject area or current question document ID is not valid.")
                 }
             } else {
                 print("Subject area is not set.")
             }
-                }
-                // Reset the quiz state
-                currentQuestionIndex = 0 // Reset for the next time quiz is taken
+            
+            // Reset the quiz state
+            currentQuestionIndex = 0 // Reset for the next time quiz is taken
+        }
     }
 } //: QUICKTESTVIEW
 

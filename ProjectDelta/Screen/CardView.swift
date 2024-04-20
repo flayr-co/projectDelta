@@ -51,7 +51,7 @@ struct CardView: View {
                     .padding(.bottom, 10)
                 
                 NavigationLink {
-                    SubjectGridView()
+                    SubjectGridView(navigationSource: .cardView)
                         .navigationBarBackButtonHidden(true)
                 } label: {
                     Image(systemName: "cross.fill")
@@ -74,4 +74,5 @@ struct CardView: View {
 #Preview {
     CardView()
         .environmentObject(AuthViewModel())
+        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
 }

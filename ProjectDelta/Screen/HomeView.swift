@@ -13,6 +13,10 @@ struct HomeView: View {
     @EnvironmentObject var viewModel: AuthViewModel
     @EnvironmentObject var quizViewModel: QuizViewModel
     
+    @State private var selectedSubject: String? // Holds user's selected subject
+    @State private var isShowingSubjectGrid = false
+    @State private var refreshKey = UUID()
+    
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
     
     var body: some View {
@@ -26,16 +30,15 @@ struct HomeView: View {
                 
                 VStack {
                     HStack {
-                        Text("\(viewModel.currentUser?.points ?? 0)") // perhaps points (displayed till next level here) will increase by a certain percentage each level (thus making it harder to advance the next level from 100 than 10 for example)
-                        
-                        Text("Level 2")
-                    } // filler here, where users points until next level will be displayed
+                        Text("\(viewModel.currentUser?.points ?? 0)")
+                            .font(.subheadline)
+                        Text("Level \((viewModel.currentUser?.points ?? 0) / 100 + 1)")
+                            .font(.subheadline)
+                    }
                     
-                    RoundedRectangle(cornerSize: CGSize(width: 20, height: 10))
-                        .frame(width: 150, height: 15)  // this will display the users progress on points visually until achieving the next level
-                        .foregroundColor(.blue)
-                    
-                    Text("Your points")
+                    // Updated to use ProgressBar
+                    ProgressBar(points: viewModel.currentUser?.points ?? 0)
+                        .frame(width: 150) // Specify the desired width of the progress bar
                 }
             }
             
@@ -48,7 +51,9 @@ struct HomeView: View {
                             .font(.headline)
                         
                         // SLIDER SWIPE HERE
-                        BarChartView()
+                        BarChartView(user: viewModel.currentUser ?? User.MOCK_USERS[0])
+                            .id(refreshKey)
+//                        UserProgressPieChart()
                     }
                     .padding(.top, 10)
                     .padding(.bottom, 33)
@@ -67,15 +72,21 @@ struct HomeView: View {
                                 DisplayCards(imageName: "pencil", title: "Quick Test", tintColor: .red)
                             }
                             
-                            NavigationLink {
-                                AddTestView()
-                                    .navigationBarBackButtonHidden(true)
-                            } label: {
+                        // We use an empty string as the default value and it will be replaced when a subject is selected
+                            Button(action: {
+                                isShowingSubjectGrid = true // When "Learn" is tapped, show the SubjectGridView
+                            }) {
                                 DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
+                            }
+                            .navigationDestination(isPresented: $isShowingSubjectGrid) {
+                                // Navigate to SubjectGridView when isShowingSubjectGrid is true
+                                SubjectGridView(navigationSource: .homeView)
+                                    .environmentObject(quizViewModel)
                             }
                             
                             NavigationLink {
-                                UserStatsView()
+//                                UserStatsView()
+                                AdminView()
                                     .navigationBarBackButtonHidden(true)
                             } label: {
                                 DisplayCards(imageName: "eyeglasses", title: "Practice", tintColor: .purple)
@@ -90,6 +101,9 @@ struct HomeView: View {
                         }
                     } //: VSTACK
                 }
+                .onChange(of: viewModel.currentUser) { _ in
+                    refreshKey = UUID() // Change the key to refresh the view
+                }
             }
         } //: NavigationStack
     }
@@ -98,4 +112,5 @@ struct HomeView: View {
 #Preview {
     HomeView()
         .environmentObject(AuthViewModel())
+        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
 }

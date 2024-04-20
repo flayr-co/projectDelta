@@ -9,9 +9,16 @@
 import SwiftUI
 import Firebase
 
+enum NavigationSource {
+    case homeView
+    case cardView
+}
+
 struct SubjectGridView: View {
     @EnvironmentObject var quizViewModel: QuizViewModel
     @Environment(\.colorScheme) var colorScheme
+    
+    @State var navigationSource: NavigationSource
     
     var body: some View {
         NavigationStack {
@@ -36,9 +43,13 @@ struct SubjectGridView: View {
             ScrollView {
                 ForEach(quizViewModel.subjects, id: \.self) { subject in
                     NavigationLink {
-                        QuickTestView(subject: subject)
-                            .environmentObject(quizViewModel)
-                            .navigationBarBackButtonHidden(true)
+                        if navigationSource == .homeView {
+                            LessonView(subjectName: subject, lessonVM: LessonViewModel(subjectName: subject))
+                                .environmentObject(quizViewModel)
+                        } else {
+                            QuickTestView(subject: subject)
+                                .environmentObject(quizViewModel)
+                        }
                     } label: {
                         Text(subject)
                             .background(
@@ -65,7 +76,7 @@ struct SubjectGridView: View {
 }
 
 #Preview {
-    SubjectGridView()
+    SubjectGridView(navigationSource: .homeView)
         .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
         .preferredColorScheme(.dark)
 }

@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		520B96842BA5375600332AF3 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520B96832BA5375600332AF3 /* AdminView.swift */; };
+		520B96862BA538BD00332AF3 /* AdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520B96852BA538BD00332AF3 /* AdminViewModel.swift */; };
+		5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */; };
+		5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */; };
 		5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */; };
 		5229BB0A2AD0CC8A0094395D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB092AD0CC8A0094395D /* ContentView.swift */; };
 		5229BB0C2AD0CC8B0094395D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5229BB0B2AD0CC8B0094395D /* Assets.xcassets */; };
@@ -39,6 +43,7 @@
 		5284D28B2B212C0800409048 /* UserStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5284D28A2B212C0800409048 /* UserStatsView.swift */; };
 		52920AE72B155B7700B60A14 /* QuestionGeneratorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52920AE62B155B7700B60A14 /* QuestionGeneratorViewModel.swift */; };
 		52920AE92B15662900B60A14 /* AddQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52920AE82B15662900B60A14 /* AddQuestionView.swift */; };
+		529376592B3F6ADC001CC66A /* UserProgressDonut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 529376582B3F6ADC001CC66A /* UserProgressDonut.swift */; };
 		5297E4382AD63C8B00220FC6 /* CardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5297E4372AD63C8B00220FC6 /* CardView.swift */; };
 		5297E43A2AD6434A00220FC6 /* CustomButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5297E4392AD6434A00220FC6 /* CustomButtonView.swift */; };
 		5297E43C2AD6473500220FC6 /* TestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5297E43B2AD6473500220FC6 /* TestView.swift */; };
@@ -71,6 +76,7 @@
 		5297E4752AD7A9A300220FC6 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 5297E4742AD7A9A300220FC6 /* FirebaseStorage */; };
 		5297E4772AD7A9A300220FC6 /* FirebaseStorageCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = 5297E4762AD7A9A300220FC6 /* FirebaseStorageCombine-Community */; };
 		5297E4792AD7AA2800220FC6 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 5297E4782AD7AA2800220FC6 /* GoogleService-Info.plist */; };
+		52AFCA0A2BBF381B0081A309 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AFCA092BBF381B0081A309 /* ProgressBar.swift */; };
 		52C72D682AFB014800BDC77E /* BarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C72D672AFB014800BDC77E /* BarChartView.swift */; };
 		52CF267C2B1BCD6B00E7C99D /* AddTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */; };
 		52D998F02ADB3120007F90A6 /* Test.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998EF2ADB3120007F90A6 /* Test.swift */; };
@@ -78,9 +84,15 @@
 		52D998F52ADB359D007F90A6 /* Views+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998F42ADB359D007F90A6 /* Views+Extensions.swift */; };
 		52E371B92B215253004CFDDA /* PhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E371B82B215253004CFDDA /* PhotoPicker.swift */; };
 		52E371BB2B228AD0004CFDDA /* UserProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E371BA2B228AD0004CFDDA /* UserProgress.swift */; };
+		52F903DE2BA521D70093E976 /* Lesson.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F903DD2BA521D70093E976 /* Lesson.swift */; };
+		52FA58232BBC993D0063091C /* TableOfContentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52FA58222BBC993D0063091C /* TableOfContentsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		520B96832BA5375600332AF3 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
+		520B96852BA538BD00332AF3 /* AdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminViewModel.swift; sourceTree = "<group>"; };
+		5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonViewModel.swift; sourceTree = "<group>"; };
+		5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedActionButton.swift; sourceTree = "<group>"; };
 		5229BB042AD0CC8A0094395D /* ProjectDelta.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProjectDelta.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDeltaApp.swift; sourceTree = "<group>"; };
 		5229BB092AD0CC8A0094395D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -113,11 +125,13 @@
 		5284D28A2B212C0800409048 /* UserStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatsView.swift; sourceTree = "<group>"; };
 		52920AE62B155B7700B60A14 /* QuestionGeneratorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionGeneratorViewModel.swift; sourceTree = "<group>"; };
 		52920AE82B15662900B60A14 /* AddQuestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddQuestionView.swift; sourceTree = "<group>"; };
+		529376582B3F6ADC001CC66A /* UserProgressDonut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProgressDonut.swift; sourceTree = "<group>"; };
 		5297E4372AD63C8B00220FC6 /* CardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardView.swift; sourceTree = "<group>"; };
 		5297E4392AD6434A00220FC6 /* CustomButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomButtonView.swift; sourceTree = "<group>"; };
 		5297E43B2AD6473500220FC6 /* TestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestView.swift; sourceTree = "<group>"; };
 		5297E43D2AD64F4F00220FC6 /* TestContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestContent.swift; sourceTree = "<group>"; };
 		5297E4782AD7AA2800220FC6 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		52AFCA092BBF381B0081A309 /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
 		52C72D672AFB014800BDC77E /* BarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartView.swift; sourceTree = "<group>"; };
 		52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTestView.swift; sourceTree = "<group>"; };
 		52D998EF2ADB3120007F90A6 /* Test.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Test.swift; sourceTree = "<group>"; };
@@ -125,6 +139,8 @@
 		52D998F42ADB359D007F90A6 /* Views+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views+Extensions.swift"; sourceTree = "<group>"; };
 		52E371B82B215253004CFDDA /* PhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPicker.swift; sourceTree = "<group>"; };
 		52E371BA2B228AD0004CFDDA /* UserProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProgress.swift; sourceTree = "<group>"; };
+		52F903DD2BA521D70093E976 /* Lesson.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lesson.swift; sourceTree = "<group>"; };
+		52FA58222BBC993D0063091C /* TableOfContentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableOfContentsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -166,6 +182,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		520B96822BA5372600332AF3 /* Admin */ = {
+			isa = PBXGroup;
+			children = (
+				520B96832BA5375600332AF3 /* AdminView.swift */,
+				520B96852BA538BD00332AF3 /* AdminViewModel.swift */,
+			);
+			path = Admin;
+			sourceTree = "<group>";
+		};
 		5229BAFB2AD0CC8A0094395D = {
 			isa = PBXGroup;
 			children = (
@@ -185,6 +210,7 @@
 		5229BB062AD0CC8A0094395D /* ProjectDelta */ = {
 			isa = PBXGroup;
 			children = (
+				520B96822BA5372600332AF3 /* Admin */,
 				524207932AE49A8600E004EF /* App */,
 				5229BB0B2AD0CC8B0094395D /* Assets.xcassets */,
 				5258BD462AE08D6400F21A50 /* Authentication */,
@@ -254,6 +280,10 @@
 				5254A5CC2AF19F4200AAAA72 /* MainTabView.swift */,
 				5254A5D02AF1C19300AAAA72 /* DisplayCards.swift */,
 				52C72D672AFB014800BDC77E /* BarChartView.swift */,
+				529376582B3F6ADC001CC66A /* UserProgressDonut.swift */,
+				5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */,
+				52FA58222BBC993D0063091C /* TableOfContentsView.swift */,
+				52AFCA092BBF381B0081A309 /* ProgressBar.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -285,6 +315,7 @@
 				5258BD5D2AE4753F00F21A50 /* User.swift */,
 				527F98772AEC518E0031F9E6 /* Subject.swift */,
 				52E371BA2B228AD0004CFDDA /* UserProgress.swift */,
+				52F903DD2BA521D70093E976 /* Lesson.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -295,6 +326,7 @@
 				527F98732AEB33590031F9E6 /* TestViewModel.swift */,
 				527F98752AEC4E080031F9E6 /* QuizViewModel.swift */,
 				52920AE62B155B7700B60A14 /* QuestionGeneratorViewModel.swift */,
+				5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -378,7 +410,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1430;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1510;
 				TargetAttributes = {
 					5229BB032AD0CC8A0094395D = {
 						CreatedOnToolsVersion = 14.3;
@@ -433,19 +465,24 @@
 				5229BB0A2AD0CC8A0094395D /* ContentView.swift in Sources */,
 				527F98762AEC4E080031F9E6 /* QuizViewModel.swift in Sources */,
 				5254A5D72AF1D43100AAAA72 /* LeaderboardView.swift in Sources */,
+				520B96862BA538BD00332AF3 /* AdminViewModel.swift in Sources */,
 				5254A5CD2AF19F4200AAAA72 /* MainTabView.swift in Sources */,
 				52E371BB2B228AD0004CFDDA /* UserProgress.swift in Sources */,
 				527F98862AEF3EA90031F9E6 /* DarkModeBackground.swift in Sources */,
 				5258BD582AE32F0100F21A50 /* RegistrationView.swift in Sources */,
 				5297E43C2AD6473500220FC6 /* TestView.swift in Sources */,
+				52FA58232BBC993D0063091C /* TableOfContentsView.swift in Sources */,
 				52CF267C2B1BCD6B00E7C99D /* AddTestView.swift in Sources */,
 				52D998F52ADB359D007F90A6 /* Views+Extensions.swift in Sources */,
+				529376592B3F6ADC001CC66A /* UserProgressDonut.swift in Sources */,
 				5297E4382AD63C8B00220FC6 /* CardView.swift in Sources */,
 				5297E43E2AD64F4F00220FC6 /* TestContent.swift in Sources */,
 				527F987E2AEC85030031F9E6 /* CloseButtonView.swift in Sources */,
 				5254A5D52AF1D41B00AAAA72 /* PracticeView.swift in Sources */,
+				52AFCA0A2BBF381B0081A309 /* ProgressBar.swift in Sources */,
 				5258BD432ADF382600F21A50 /* QuickTestView.swift in Sources */,
 				5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */,
+				5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */,
 				52D998F02ADB3120007F90A6 /* Test.swift in Sources */,
 				527F98782AEC518E0031F9E6 /* Subject.swift in Sources */,
 				527F98842AED97D50031F9E6 /* OpenAIService.swift in Sources */,
@@ -456,6 +493,7 @@
 				5297E43A2AD6434A00220FC6 /* CustomButtonView.swift in Sources */,
 				5258BD562AE3264400F21A50 /* InputView.swift in Sources */,
 				5254A5D32AF1D40300AAAA72 /* LessonView.swift in Sources */,
+				5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */,
 				527F98742AEB33590031F9E6 /* TestViewModel.swift in Sources */,
 				5258BD612AE4858300F21A50 /* AuthViewModel.swift in Sources */,
 				5258BD5E2AE4753F00F21A50 /* User.swift in Sources */,
@@ -465,6 +503,8 @@
 				5284D28B2B212C0800409048 /* UserStatsView.swift in Sources */,
 				5258BD5A2AE340D700F21A50 /* ProfileView.swift in Sources */,
 				5256AD8A2B041B57008523F7 /* Constants.swift in Sources */,
+				52F903DE2BA521D70093E976 /* Lesson.swift in Sources */,
+				520B96842BA5375600332AF3 /* AdminView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -507,6 +547,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -567,6 +608,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -601,6 +643,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -630,6 +673,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
