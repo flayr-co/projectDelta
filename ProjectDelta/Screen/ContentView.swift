@@ -12,6 +12,7 @@ import FirebaseFirestoreSwift
 
 struct ContentView: View {
     @EnvironmentObject var viewModel: AuthViewModel
+    @EnvironmentObject var lessonVM: LessonViewModel
     
     var body: some View {
         Group {
@@ -28,5 +29,6 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .environmentObject(AuthViewModel())
+            .environmentObject(LessonViewModel(subjectName: "Geometry"))
     }
 }

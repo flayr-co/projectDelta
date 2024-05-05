@@ -45,7 +45,7 @@ struct TableOfContentsView: View {
 #Preview {
     let page1 = Page(id: "1", content: "Page 1 Content", pageNumber: 1, readyButtonDisplayed: false, example: nil, graphics: nil)
     let page2 = Page(id: "2", content: "Page 2 Content", pageNumber: 2, readyButtonDisplayed: false, example: nil, graphics: nil)
-    let lesson = Lesson(id: "1", name: "Introduction", description: "", completed: false, pages: [page1, page2])
+    let lesson = Lesson(id: "1", name: "Introduction", description: "", completed: false, lessonNumber: 1, pages: [page1, page2])
     
     let lessonVM = LessonViewModel(subjectName: "Pre-Algebra")
     lessonVM.currentSubjectLessons = [lesson]

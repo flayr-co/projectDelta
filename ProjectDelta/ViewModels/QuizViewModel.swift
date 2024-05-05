@@ -21,7 +21,8 @@ class QuizViewModel: ObservableObject {
     @Published var currentSubject: Subject?
     @Published var currentSubjectArea: String?
     @Published var currentQuestionDocId: String?
-    @Published var answeredCorrectly: Bool?
+//    @Published var answeredCorrectly: Bool?
+    @Published var answeredCorrectly = Set<Int>()
     @Published var score = 0
     
     private var db = Firestore.firestore()

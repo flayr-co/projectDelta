@@ -11,6 +11,7 @@ import SwiftUI
 struct MainTabView: View {
     @EnvironmentObject var viewModel: AuthViewModel
     @EnvironmentObject var quizViewModel: QuizViewModel
+    @EnvironmentObject var lessonVM: LessonViewModel
     @State private var selectedTab = 0
     @State private var homeRefreshKey = UUID()
     @State private var cardRefreshKey = UUID()
@@ -98,4 +99,5 @@ struct TabBarButton: View {
     MainTabView()
         .environmentObject(AuthViewModel())
         .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
+        .environmentObject(LessonViewModel(subjectName: "Geometry"))
 }

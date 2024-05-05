@@ -14,10 +14,11 @@ struct Lesson: Identifiable, Decodable {
     var name: String
     var description: String
     var completed: Bool
+    var lessonNumber: Int  // Use a separate property for "Lesson1", "Lesson2", etc.
     var pages: [Page]?
 }
 
-struct Page: Decodable {
+struct Page: Decodable, Equatable {
     var id: String
     var content: String
     var pageNumber: Int

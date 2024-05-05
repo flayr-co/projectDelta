@@ -16,19 +16,34 @@ enum NavigationSource {
 
 struct SubjectGridView: View {
     @EnvironmentObject var quizViewModel: QuizViewModel
+    @EnvironmentObject var lessonVM: LessonViewModel
+
     @Environment(\.colorScheme) var colorScheme
-    
-    @State var navigationSource: NavigationSource
+    @Environment(\.presentationMode) var presentationMode  // To programmatically dismiss the view
+    var navigationSource: NavigationSource
     
     var body: some View {
         NavigationStack {
             // MARK: - HEADER
             HStack {
-                NavigationLink {
-                    CardView()
-                        .navigationBarBackButtonHidden(true)
-                } label: {
-                    BackButtonView()
+                if navigationSource == .cardView {
+                    // If navigated from CardView, show a back button to CardView
+                    Button(action: {
+                        // Custom action to navigate back to CardView
+                        // If using a NavigationStack, you could pop back
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        BackButtonView()
+                    }
+                } else {
+                    // If navigated from HomeView, show a back button to HomeView
+                    Button(action: {
+                        // Custom action to navigate back to HomeView
+                        // If using a NavigationStack, you could pop back
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        BackButtonView()
+                    }
                 }
                 
                 Spacer()
@@ -44,8 +59,8 @@ struct SubjectGridView: View {
                 ForEach(quizViewModel.subjects, id: \.self) { subject in
                     NavigationLink {
                         if navigationSource == .homeView {
-                            LessonView(subjectName: subject, lessonVM: LessonViewModel(subjectName: subject))
-                                .environmentObject(quizViewModel)
+                            LessonView(subjectName: subject)
+                                .environmentObject(lessonVM)
                         } else {
                             QuickTestView(subject: subject)
                                 .environmentObject(quizViewModel)
@@ -62,6 +77,7 @@ struct SubjectGridView: View {
                     }
                 }
             }
+            .navigationBarBackButtonHidden(true)
         } //: NAVIGATIONSTACK
         .onAppear {
             Task {

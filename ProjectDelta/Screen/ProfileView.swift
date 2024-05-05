@@ -70,9 +70,9 @@ struct ProfileView: View {
                         NavigationLink {
                             
                         } label: {
-                            SettingsRowView(imageName: "person",
-                                            title: "Your Stats",
-                                            tintColor: colorScheme == .dark ? Color.white : Color(.systemGray))
+                            SettingsRowView(imageName: "plus",
+                                            title: "About Vrtex",
+                                            tintColor: Color.green)
                         }
                         
                         HStack {
@@ -88,6 +88,13 @@ struct ProfileView: View {
                     } //: SECTION 2
                     
                     Section("Account") {
+                        NavigationLink {
+                            
+                        } label: {
+                            SettingsRowView(imageName: "person",
+                                            title: "Profile",
+                                            tintColor: colorScheme == .dark ? Color.white : Color(.systemGray))
+                        }
                         NavigationLink {
                             UserStatsView()
                                 .navigationBarBackButtonHidden(true)

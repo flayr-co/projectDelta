@@ -22,74 +22,78 @@ class LessonViewModel: ObservableObject {
         fetchAllLessons(for: subjectName)
     }
     
-    func fetchLessonContent(for subjectName: String, lessonName: String) {
+    func fetchLessonContent(for subjectName: String, lessonName: String) async {
         let db = Firestore.firestore()
 
-        // Find the document ID for the subject named "Pre-Algebra"
-        db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments { [weak self] (subjectSnapshot, error) in
-            if let error = error {
-                print("Error finding subject \(subjectName): \(error)")
-                return
-            }
-
-            guard let subjectDocument = subjectSnapshot?.documents.first else {
+        do {
+            let subjectQuerySnapshot = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
+            guard let subjectDocument = subjectQuerySnapshot.documents.first else {
                 print("Subject \(subjectName) not found.")
                 return
             }
 
-            // Find the document ID for the lesson named "Introduction" within "Pre-Algebra"
-            db.collection("Subjects").document(subjectDocument.documentID).collection("Lessons")
-                .whereField("name", isEqualTo: lessonName)
-                .getDocuments { [weak self] (lessonSnapshot, error) in
-                    if let error = error {
-                        print("Error getting lessons for subject \(subjectName): \(error)")
-                        return
-                    }
+            let lessonQuerySnapshot = try await db.collection("Subjects").document(subjectDocument.documentID)
+                .collection("Lessons").whereField("name", isEqualTo: lessonName).getDocuments()
+            guard let lessonDocument = lessonQuerySnapshot.documents.first else {
+                print("Lesson \(lessonName) not found within \(subjectName).")
+                return
+            }
 
-                    guard let lessonDocument = lessonSnapshot?.documents.first else {
-                        print("Lesson \(lessonName) not found within \(subjectName).")
-                        return
-                    }
+            let pagesQuerySnapshot = try await db.collection("Subjects").document(subjectDocument.documentID)
+                .collection("Lessons").document(lessonDocument.documentID)
+                .collection("Pages").order(by: "pageNumber").getDocuments()
+            let fetchedPages = pagesQuerySnapshot.documents.map { document in
+                return Page(
+                    id: document.documentID,
+                    content: document.data()["content"] as? String ?? "",
+                    pageNumber: document.data()["pageNumber"] as? Int ?? 0,
+                    readyButtonDisplayed: document.data()["readyButtonDisplayed"] as? Bool ?? false,
+                    example: document.data()["example"] as? String,
+                    explanation: document.data()["explanation"] as? String,
+                    graphics: document.data()["graphics"] as? String
+                )
+            }
 
-                    // Now, fetch the pages for the specific lesson
-                    db.collection("Subjects").document(subjectDocument.documentID)
-                        .collection("Lessons").document(lessonDocument.documentID)
-                        .collection("Pages").order(by: "pageNumber")
-                        .getDocuments { [weak self] (pageSnapshot, error) in
-                            if let error = error {
-                                print("Error getting pages for lesson \(lessonName): \(error)")
-                                return
-                            }
-
-                            var fetchedPages = [Page]()
-                            if let documents = pageSnapshot?.documents {
-                                for document in documents {
-                                    var page = Page(
-                                        id: document.documentID,
-                                        content: document.data()["content"] as? String ?? "",
-                                        pageNumber: document.data()["pageNumber"] as? Int ?? 0,
-                                        readyButtonDisplayed: document.data()["readyButtonDisplayed"] as? Bool ?? false,
-                                        example: document.data()["example"] as? String,
-                                        explanation: document.data()["explanation"] as? String,
-                                        graphics: document.data()["graphics"] as? String
-                                    )
-                                    fetchedPages.append(page)
-                                    
-                                    // Debugging print statement
-                                    print("Page number: \(page.pageNumber), Explanation: \(String(describing: page.explanation))")
-                                }
-                            }
-
-                            DispatchQueue.main.async {
-                                self?.lessonPages = fetchedPages
-                                if !fetchedPages.isEmpty {
-                                    print("Fetched \(fetchedPages.count) pages for lesson \(lessonName) within \(subjectName)")
-                                } else {
-                                    print("No pages found for lesson \(lessonName) within \(subjectName)")
-                                }
-                            }
-                        }
+            DispatchQueue.main.async {
+                self.lessonPages = fetchedPages
+                if !fetchedPages.isEmpty {
+                    print("Fetched \(fetchedPages.count) pages for lesson \(lessonName) within \(subjectName).")
+                } else {
+                    print("No pages found for lesson \(lessonName) within \(subjectName).")
                 }
+            }
+        } catch {
+            print("Firestore query error: \(error.localizedDescription)")
+        }
+    }
+    
+    func fetchFirstIncompleteLesson(for subjectName: String) async -> String {
+        let db = Firestore.firestore()
+        let subjectsRef = db.collection("Subjects")
+        
+        do {
+            // Attempt to fetch the document ID for the subject
+            let subjectSnapshot = try await subjectsRef.whereField("name", isEqualTo: subjectName).getDocuments()
+            guard let subjectDocument = subjectSnapshot.documents.first else {
+                print("Subject \(subjectName) not found.")
+                return ""
+            }
+            
+            // Fetch lessons within the subject
+            let lessonsRef = subjectsRef.document(subjectDocument.documentID).collection("Lessons")
+            let lessonsSnapshot = try await lessonsRef.whereField("completed", isEqualTo: false).getDocuments()
+            
+            // Get the first incomplete lesson
+            guard let firstIncompleteLessonDocument = lessonsSnapshot.documents.first else {
+                print("No incomplete lessons found for \(subjectName).")
+                return ""
+            }
+            
+            // Extract the lesson name
+            return firstIncompleteLessonDocument.data()["name"] as? String ?? ""
+        } catch {
+            print("Error fetching lessons for \(subjectName): \(error)")
+            return ""
         }
     }
     
@@ -135,10 +139,15 @@ class LessonViewModel: ObservableObject {
                             let name = document.data()["name"] as? String ?? ""
                             let description = document.data()["description"] as? String ?? ""
                             let completed = document.data()["completed"] as? Bool ?? false
+                            let lessonNumber = document.data()["lessonNumber"] as? Int ?? 1
                             let id = document.documentID
 
                             // Assuming Lesson is a struct with these properties
-                            return Lesson(id: id, name: name, description: description, completed: completed)
+                            return Lesson(id: id, 
+                                          name: name,
+                                          description: description,
+                                          completed: completed,
+                                          lessonNumber: lessonNumber)
                         } ?? []
 
                         if let lessons = self?.lessons, !lessons.isEmpty {
@@ -206,7 +215,12 @@ class LessonViewModel: ObservableObject {
                                     return Page(id: document.documentID, content: content, pageNumber: pageNumber, readyButtonDisplayed: readyButtonDisplayed, example: example, graphics: graphics)
                                 } ?? []
 
-                                let lesson = Lesson(id: lessonID, name: lessonName, description: document.data()["description"] as? String ?? "", completed: document.data()["completed"] as? Bool ?? false, pages: pages)
+                                let lesson = Lesson(id: lessonID,
+                                                    name: lessonName,
+                                                    description: document.data()["description"] as? String ?? "", 
+                                                    completed: document.data()["completed"] as? Bool ?? false,
+                                                    lessonNumber: document.data()["lessonNumber"] as? Int ?? 1,
+                                                    pages: pages)
                                 lessonsWithPages.append(lesson)
                                 group.leave()
                             }
@@ -301,46 +315,6 @@ class LessonViewModel: ObservableObject {
             }
         }
     }
-    
-    func fetchFirstIncompleteLesson(for subjectName: String, completion: @escaping (String) -> Void) {
-        let db = Firestore.firestore()
-        let subjectsRef = db.collection("Subjects")
-        
-        // Attempt to fetch the document ID for the subject
-        subjectsRef.whereField("name", isEqualTo: subjectName).getDocuments { (subjectSnapshot, error) in
-            if let error = error {
-                print("Error finding subject \(subjectName): \(error)")
-                completion("")
-                return
-            }
-            
-            guard let subjectDocument = subjectSnapshot?.documents.first else {
-                print("Subject \(subjectName) not found.")
-                completion("")
-                return
-            }
-            
-            // Fetch lessons within the subject
-            let lessonsRef = subjectsRef.document(subjectDocument.documentID).collection("Lessons")
-            lessonsRef.whereField("completed", isEqualTo: false).getDocuments { (lessonsSnapshot, error) in
-                if let error = error {
-                    print("Error getting incomplete lessons for subject \(subjectName): \(error)")
-                    completion("")
-                    return
-                }
-                
-                // Get the first incomplete lesson
-                guard let firstIncompleteLessonDocument = lessonsSnapshot?.documents.first else {
-                    print("No incomplete lessons found for \(subjectName).")
-                    completion("")
-                    return
-                }
-                
-                // Extract the lesson name
-                let lessonName = firstIncompleteLessonDocument.data()["name"] as? String ?? ""
-                completion(lessonName)
-            }
-        }
-    }
 }
+
 

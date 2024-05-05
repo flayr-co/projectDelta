@@ -18,6 +18,7 @@ struct QuickTestView: View {
     @Environment(\.colorScheme) var colorScheme
     
     @State private var currentQuestionIndex = 0
+    @State private var userAnswers = [Int?](repeating: nil, count: 10)  // Assuming 10 questions for simplicity
     @State private var userAnswer: Int?
     @State private var score: Int = 0
     @State private var quizEnded: Bool = false
@@ -31,7 +32,7 @@ struct QuickTestView: View {
             VStack {
                 HStack {
                     NavigationLink {
-                        SubjectGridView(navigationSource: .cardView)
+                        CardView()
                             .navigationBarBackButtonHidden(true)
                     } label: {
                         CloseButtonView()
@@ -79,40 +80,34 @@ struct QuickTestView: View {
                             if currentQuestionIndex < quizViewModel.questions.count {
                                 Spacer()
                                 
-                                VStack(spacing: 12) {
-                                    Spacer()
-                                    
-                                    Text(quizViewModel.questions[currentQuestionIndex].questionText)
-                                        .font(.title3)
-                                        .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
-                                        .multilineTextAlignment(.leading)
-                                        .minimumScaleFactor(0.5)
-                                        .padding()
-                                    
-                                    // Display the options
-                                    ForEach(Array(quizViewModel.questions[currentQuestionIndex].options.enumerated()), id: \.offset) { index, option in
-                                        Button(action: {
-                                            userAnswer = index
-                                        }) {
-                                            HStack {
-                                                Text(option)
-                                                    .font(.body)
-                                                    .foregroundColor(userAnswer == index ? .white : (colorScheme == .dark ? .white : .black))
+                                TabView(selection: $currentQuestionIndex) {
+                                    ForEach(0..<quizViewModel.questions.count, id: \.self) { index in
+                                        ScrollView {
+                                            VStack(spacing: 12) {
+                                                Text(quizViewModel.questions[index].questionText)
+                                                    .font(.title3)
+                                                    .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
+                                                    .multilineTextAlignment(.leading)
+                                                    .lineLimit(nil)
                                                     .padding()
-                                                Spacer()
+                                                    .fixedSize(horizontal: false, vertical: true)
+
+                                                ForEach(Array(quizViewModel.questions[index].options.enumerated()), id: \.offset) { optionIndex, option in
+                                                    Button(action: {
+                                                        userAnswers[index] = optionIndex
+                                                    }) {
+                                                        optionView(option: option, isSelected: userAnswers[index] == optionIndex)
+                                                    }
+                                                }
                                             }
-                                            .background(userAnswer == index ? Color.blue : Color.gray.opacity(0.2))
-                                            .cornerRadius(8)
+                                            .padding(.bottom, 20)
                                         }
-                                        .padding(.horizontal)
+                                        .tag(index)
                                     }
-                                    
-                                    //                            TextField("Your answer", text: $userAnswer)
-                                    //                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    //                                .padding(.horizontal, 20)
-                                    
                                 }
-                                .padding(.bottom, 50)
+                                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                                .frame(minHeight: 550, maxHeight: .infinity)  // Give a minimum height to ensure content is shown
+                                .edgesIgnoringSafeArea(.all)  // Extend to the screen edges if necessary
                             }
                         } else {
                             Text("You have completed the quiz!")
@@ -169,28 +164,16 @@ struct QuickTestView: View {
                     }
                     .disabled(currentQuestionIndex == 0) // Disable the button when on the first question
                     
+                    // Update Button Actions to only navigate and save data
                     Button {
                         if currentQuestionIndex < quizViewModel.questions.count - 1 {
-                            // Check the answer for the current question before moving to the next one
-                            if userAnswer == quizViewModel.questions[currentQuestionIndex].correctOptionIndex && !quizEnded {
-                                score += 1
-                                quizViewModel.setCurrentQuestionDocId(for: currentQuestionIndex) // (SHOULD I HAVE THIS CALL HERE AS WELL?
-                            }
-                            // Move to the next question
                             currentQuestionIndex += 1
-                            // Reset the answer for the next question
-                            userAnswer = nil
                         } else {
                             // This is the last question
                             if !quizEnded {
-                                // Check the answer for the last question and end the quiz
-                                if userAnswer == quizViewModel.questions[currentQuestionIndex].correctOptionIndex {
-                                    score += 1
-                                }
-                                quizViewModel.setCurrentQuestionDocId(for: currentQuestionIndex) // ADDED THIS LINE
                                 quizEnded = true
-
-                                // Post-quiz update logic
+                                quizViewModel.setCurrentQuestionDocId(for: currentQuestionIndex)
+                                // Post-quiz update logic, where score is recalculated
                                 postQuizUpdate()
                             }
                         }
@@ -204,9 +187,9 @@ struct QuickTestView: View {
                                 .frame(width: 15, height: 12)
                                 .fontWeight(.heavy)
                         }
-                        .disabled(userAnswer == nil)
-                        .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
                     }
+                    .disabled(userAnswers[currentQuestionIndex] == nil)
+                    .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
                     .padding()
                 } //: HSTACK WITH BUTTONS
             } //: BIG VSTACK
@@ -247,24 +230,29 @@ struct QuickTestView: View {
     private func postQuizUpdate() {
         quizEnded = true
         print("Quiz has ended. Points and progress will now be updated....\n")
+
+        // Calculate score by iterating over all answers
+        score = 0
+        for (index, answer) in userAnswers.enumerated() {
+            if let answer = answer, answer == quizViewModel.questions[index].correctOptionIndex {
+                score += 1
+            }
+        }
         
-        // Ensure we have a valid user ID
         Task {
             guard let userId = viewModel.currentUser?.id, !userId.isEmpty else {
                 print("User ID is nil or empty")
                 return
             }
             
-            // Calculate the total points change based on the score
+            // Calculate the total points change based on the new score
             let totalPointsChange = score * 10 - (quizViewModel.questions.count - score) * 5
+            
+            // Update total points
+            await viewModel.updateUserPointsInFirestore(newPoints: (viewModel.currentUser?.points ?? 0) + totalPointsChange)
 
-            // Assume updateUserPointsInFirestore now also updates the total points
-            // alongside calling storeTodaysPoints internally or through another mechanism.
-            do {
-                try await viewModel.updateUserPointsInFirestore(newPoints: (viewModel.currentUser?.points ?? 0) + totalPointsChange)
-            } catch {
-                print("Failed to update points: \(error.localizedDescription)")
-            }
+            // Update today's points
+            await viewModel.storeTodaysPoints(pointsGainedToday: totalPointsChange)
             
             // Update the user progress in Firestore
             if let currentSubjectArea = quizViewModel.currentSubject?.subjectArea {
@@ -291,10 +279,23 @@ struct QuickTestView: View {
             currentQuestionIndex = 0 // Reset for the next time quiz is taken
         }
     }
+
+    func optionView(option: String, isSelected: Bool) -> some View {
+        HStack {
+            Text(option)
+                .font(.body)
+                .foregroundColor(isSelected ? .white : (colorScheme == .dark ? .white : .black))
+                .padding()
+            Spacer()
+        }
+        .background(isSelected ? Color.blue : Color.gray.opacity(0.2))
+        .cornerRadius(8)
+        .padding(.horizontal)
+    }
 } //: QUICKTESTVIEW
 
 #Preview {
-    QuickTestView(subject: "Arithmetic")
+    QuickTestView(subject: "Pre-Algebra")
         .environmentObject(AuthViewModel())
         .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
 //        .preferredColorScheme(.dark)

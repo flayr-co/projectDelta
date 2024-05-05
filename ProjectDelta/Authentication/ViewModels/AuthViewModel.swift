@@ -71,10 +71,15 @@ class AuthViewModel: ObservableObject {
     
     func fetchUser() async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        guard let snapshot = try? await Firestore.firestore().collection("users").document(uid).getDocument() else { return }
-        self.currentUser = try? snapshot.data(as: User.self)
+        do {
+            let snapshot = try await Firestore.firestore().collection("users").document(uid).getDocument()
+            DispatchQueue.main.async { [weak self] in
+                self?.currentUser = try? snapshot.data(as: User.self)
+            }
+        } catch {
+            print("Error fetching user: \(error)")
+        }
     }
-
     
     func uploadProfileImage(_ image: UIImage, for user: User) {
         // 1. Convert UIImage to Data
@@ -161,10 +166,8 @@ class AuthViewModel: ObservableObject {
         currentUser?.pointsHistory[day] = updatedDayPoints
     }
     
-    func updateUserPointsInFirestore(newPoints: Int) async throws {
-        guard let userId = self.currentUser?.id else {
-            throw NSError(domain: "YourErrorDomain", code: 1001, userInfo: [NSLocalizedDescriptionKey: "User ID is unavailable."])
-        }
+    func updateUserPointsInFirestore(newPoints: Int) async {
+        guard let userId = self.currentUser?.id else { return }
         
         // Ensure the new points value doesn't go below 0
         let safePoints = max(0, newPoints)
@@ -172,31 +175,45 @@ class AuthViewModel: ObservableObject {
         let userRef = Firestore.firestore().collection("users").document(userId)
         do {
             try await userRef.updateData(["points": safePoints])
-            print("User points successfully updated.")
+            await fetchUser() // Re-fetch user to update the UI
         } catch {
             print("Error updating user points: \(error.localizedDescription)")
-            throw error
         }
     }
-    
-    func storeTodaysPoints(pointsGainedToday: Int) async throws {
-        guard let userId = self.currentUser?.id else {
-            throw NSError(domain: "YourErrorDomain", code: 1001, userInfo: [NSLocalizedDescriptionKey: "User ID is unavailable."])
-        }
 
+    func storeTodaysPoints(pointsGainedToday: Int) async {
+        guard let userId = self.currentUser?.id else {
+            print("Error: User ID is nil")
+            return
+        }
+        
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0) // or your specific timezone
         let today = dateFormatter.string(from: Date())
-
-        // Update Firestore with today's gained points
+        print("Today's date: \(today)")
+        
         let userRef = Firestore.firestore().collection("users").document(userId)
+        let pointsHistoryField = "pointsHistory.\(today)"
+        print("Updating points for: \(pointsHistoryField) with \(pointsGainedToday) points.")
+        
         do {
-            let pointsHistoryUpdate = ["pointsHistory.\(today)": FieldValue.increment(Int64(pointsGainedToday))]
+            let pointsHistoryUpdate = [pointsHistoryField: FieldValue.increment(Int64(pointsGainedToday))]
             try await userRef.updateData(pointsHistoryUpdate)
-            print("Today's points successfully stored.")
+            print("Firestore should now be updated.")
+            
+            // Fetch the updated points for today to confirm the update
+            let document = try await userRef.getDocument()
+            if let updatedPoints = document.data()?["pointsHistory"] as? [String: Int], let todaysPoints = updatedPoints[today] {
+                print("Confirmed points for today in Firestore: \(todaysPoints)")
+            } else {
+                print("Failed to confirm points update in Firestore.")
+            }
+            
+            await fetchUser() // Re-fetch user to update the UI
+            print("User should now be fetched with new points data.")
         } catch {
             print("Error storing today's points: \(error.localizedDescription)")
-            throw error
         }
     }
 }

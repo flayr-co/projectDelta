@@ -13,7 +13,7 @@ struct User: Identifiable, Hashable, Codable {
     let fullname: String
     let email: String
     var points: Int = 0
-    var pointsHistory: [String: Int] = [:]
+    var pointsHistory: [String: Int] = [:] 
     var profilePictureUrl: String?
     
     var initials: String {

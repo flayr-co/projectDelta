@@ -11,7 +11,7 @@ import Firebase
 
 struct LessonView: View {
     var subjectName: String
-    @ObservedObject var lessonVM: LessonViewModel
+    @EnvironmentObject var lessonVM: LessonViewModel
 //    @State private var currentPageIndex = 0    NO LONGER NEEDED, USE PUBLISHED VARIABLE
     @State private var currentLessonName: String = ""
     @State private var showTableOfContents = false
@@ -21,25 +21,19 @@ struct LessonView: View {
         VStack {
             if lessonVM.lessonPages.isEmpty {
                 Text("Loading lesson content...")
-                    .onAppear {
-                        lessonVM.fetchFirstIncompleteLesson(for: subjectName) { lessonName in
-                            self.currentLessonName = lessonName
-                            lessonVM.fetchLessonContent(for: subjectName, lessonName: currentLessonName)
-                        }
-                    }
             } else {
                 Button(action: {
-                   // Toggle without animation to see if it helps with the double tap issue
-                   self.showTableOfContents.toggle()
-               }) {
-                   Image(systemName: "list.number")
-                       .accessibility(label: Text("Show Table of Contents"))
-                       .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
-               }
-               .padding()
-               .background(showTableOfContents ? Color.gray.opacity(0.2) : Color.clear)
-               .cornerRadius(8)
-
+                    // Toggle without animation to see if it helps with the double tap issue
+                    self.showTableOfContents.toggle()
+                }) {
+                    Image(systemName: "list.number")
+                        .accessibility(label: Text("Show Table of Contents"))
+                        .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
+                }
+                .padding()
+                .background(showTableOfContents ? Color.gray.opacity(0.2) : Color.clear)
+                .cornerRadius(8)
+                
                 if showTableOfContents {
                     TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName)
                         .frame(width: 300) // Set a fixed width for the table of contents
@@ -52,8 +46,6 @@ struct LessonView: View {
                 TabView(selection: $lessonVM.currentPageIndex) {
                     ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
                         VStack {
-                            
-                            
                             LessonContentPage(
                                 text: lessonVM.lessonPages[index].content,
                                 exampleText: lessonVM.lessonPages[index].example,
@@ -68,21 +60,31 @@ struct LessonView: View {
                         } //: VSTACK
                         .tag(index)
                     } //: FOREACH
-
+                    
                 } //: TABVIEW
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                 .frame(maxHeight: .infinity) // Use maximum available height
-
+                
                 // Navigation controls
                 lessonNavigationControls
             }
-        }
+        } //: VSTACK
         .navigationBarTitle("Lesson on \(subjectName)", displayMode: .inline)
         .onAppear {
-            lessonVM.fetchAllLessons(for: subjectName)
-            lessonVM.fetchLessonContent(for: lessonVM.subjectName, lessonName: currentLessonName)
+            Task {
+                print("Starting to fetch the first incomplete lesson for \(subjectName).")
+                let lessonName = await lessonVM.fetchFirstIncompleteLesson(for: subjectName)
+                DispatchQueue.main.async {
+                    self.currentLessonName = lessonName
+                    print("First incomplete lesson fetched: \(lessonName)")
+                }
+                print("Starting to fetch lesson content for \(subjectName), lesson \(lessonName).")
+                await lessonVM.fetchLessonContent(for: subjectName, lessonName: lessonName)
+                print("Content fetching completed for lesson \(lessonName).")
+            }
         }
-    }
+        .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
+    } //: BODY
 
     @ViewBuilder
     private var lessonNavigationControls: some View {
@@ -222,6 +224,7 @@ struct ExampleView: View {
 }
 
 #Preview {
-    LessonView(subjectName: "Geometry", lessonVM: LessonViewModel(subjectName: "Geometry"))
+    LessonView(subjectName: "Geometry")
+        .environmentObject(LessonViewModel(subjectName: "Geometry "))
         .preferredColorScheme(.dark)
 }

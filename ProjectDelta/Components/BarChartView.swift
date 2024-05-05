@@ -17,7 +17,8 @@ struct BarChartData: Identifiable, Equatable {
 }
 
 struct BarChartView: View {
-    var user: User // User instance containing points history
+    @EnvironmentObject var viewModel: AuthViewModel
+//    var user: User // User instance containing points history NOT NEEDED ANYMORE
     @State private var data: [BarChartData] = []
     @State private var averageIsShown: Bool = false
 
@@ -28,7 +29,8 @@ struct BarChartView: View {
     // No need for a placeholder function anymore since data comes from the user instance
     
     func loadLast7DaysData() {
-        self.data = generateLast7DaysData(from: user.pointsHistory)
+        guard let pointsHistory = viewModel.currentUser?.pointsHistory else { return }
+        self.data = generateLast7DaysData(from: pointsHistory)
         print("Loaded data for bar chart: \(self.data)")
     }
 
@@ -40,27 +42,13 @@ struct BarChartView: View {
         let today = Date()
         let last7DaysRange = (0...6).map { calendar.date(byAdding: .day, value: -$0, to: today)! }
         
-        var last7DaysData = last7DaysRange.map { date -> BarChartData in
+        return last7DaysRange.map { date -> BarChartData in
             let dateKey = dateFormatter.string(from: date)
             let pointsCount = pointsHistory[dateKey] ?? 0
             dateFormatter.dateFormat = "MM/dd"
             let displayDate = dateFormatter.string(from: date)
-            dateFormatter.dateFormat = "yyyy-MM-dd" // Reset the format for the next iteration
             return BarChartData(day: displayDate, pointsCount: pointsCount)
-        }
-        
-        // This sorting is actually not needed anymore since we're using map on the already ordered date range
-        // But I'll leave it here just in case it's needed for any other reason
-        // Before returning the data, sort it safely
-        last7DaysData = last7DaysData.sorted {
-            guard let date1 = dateFormatter.date(from: $0.day),
-                  let date2 = dateFormatter.date(from: $1.day) else {
-                return false
-            }
-            return date1 < date2
-        }
-
-        return last7DaysData
+        }.reversed()
     }
     
     var body: some View {
@@ -74,6 +62,10 @@ struct BarChartView: View {
         .frame(width: 350, height: 250)
         .aspectRatio(contentMode: .fit)
         .onAppear(perform: loadLast7DaysData)
+        .onChange(of: viewModel.currentUser) { _ in
+            loadLast7DaysData()
+        }
+
         
         Toggle(isOn: $averageIsShown.animation()) {
             Text(averageIsShown ? "Hide Average": "Show Average")
@@ -96,5 +88,6 @@ extension Collection where Element == Int {
 }
 
 #Preview {
-    BarChartView(user: User.MOCK_USERS[0])
+    BarChartView()
+        .environmentObject(AuthViewModel())
 }

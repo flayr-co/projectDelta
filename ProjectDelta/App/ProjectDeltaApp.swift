@@ -13,6 +13,7 @@ import Firebase
 struct ProjectDeltaApp: App {
     @StateObject var viewModel = AuthViewModel()
     @StateObject var quizViewModel = QuizViewModel(authViewModel: AuthViewModel())
+    @StateObject var lessonVM = LessonViewModel(subjectName: "Geometry")
     
     init() {
         FirebaseApp.configure()
@@ -23,6 +24,7 @@ struct ProjectDeltaApp: App {
             ContentView()
                 .environmentObject(viewModel)
                 .environmentObject(quizViewModel)
+                .environmentObject(lessonVM)
         }
     }
 }
