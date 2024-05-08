@@ -420,48 +420,48 @@ class QuizViewModel: ObservableObject {
 
     // MARK: - GET HINT FOR QUESTION
     
-    func getHintForQuestion(questionText: String, completion: @escaping (Result<String, Error>) -> Void) {
-        openAIService.generateHint(forQuestion: questionText, completion: completion)
-    }
+//    func getHintForQuestion(questionText: String, completion: @escaping (Result<String, Error>) -> Void) {
+//        openAIService.generateHint(forQuestion: questionText, completion: completion)
+//    }
 
     // MARK: - FOR LESSON VIEW OPENAI API USAGE
 
-    func generateLessonContent(for subject: String, completion: @escaping (Result<[String], Error>) -> Void) {
-        // Assuming 'subject' is the name of the subject selected by the user
-        let prompts = [
-            "Explain the basics of \(subject).",
-            "Provide an example problem in \(subject).",
-            "Summarize key points in \(subject)."
-        ]
-        
-        var lessonContents: [String] = []
-        var fetchErrors: [Error] = [] // To store any errors encountered during fetch operations
-        let dispatchGroup = DispatchGroup()
-        
-        for prompt in prompts {
-            dispatchGroup.enter()
-            openAIService.generateQuestion(prompt: prompt) { result in
-                defer { dispatchGroup.leave() }
-                switch result {
-                case .success(let content):
-                    lessonContents.append(content)
-                case .failure(let error):
-                    fetchErrors.append(error) // Append the error to the list of encountered errors
-                    print("Error: \(error.localizedDescription)")
-                }
-            }
-        }
-        
-        dispatchGroup.notify(queue: .main) {
-            if !fetchErrors.isEmpty {
-                // If there are any errors, return the first one encountered
-                completion(.failure(fetchErrors.first!))
-            } else {
-                // If there were no errors, return the array of lesson contents
-                completion(.success(lessonContents))
-            }
-        }
-    }
+//    func generateLessonContent(for subject: String, completion: @escaping (Result<[String], Error>) -> Void) {
+//        // Assuming 'subject' is the name of the subject selected by the user
+//        let prompts = [
+//            "Explain the basics of \(subject).",
+//            "Provide an example problem in \(subject).",
+//            "Summarize key points in \(subject)."
+//        ]
+//        
+//        var lessonContents: [String] = []
+//        var fetchErrors: [Error] = [] // To store any errors encountered during fetch operations
+//        let dispatchGroup = DispatchGroup()
+//        
+//        for prompt in prompts {
+//            dispatchGroup.enter()
+//            openAIService.generateQuestion(prompt: prompt) { result in
+//                defer { dispatchGroup.leave() }
+//                switch result {
+//                case .success(let content):
+//                    lessonContents.append(content)
+//                case .failure(let error):
+//                    fetchErrors.append(error) // Append the error to the list of encountered errors
+//                    print("Error: \(error.localizedDescription)")
+//                }
+//            }
+//        }
+//        
+//        dispatchGroup.notify(queue: .main) {
+//            if !fetchErrors.isEmpty {
+//                // If there are any errors, return the first one encountered
+//                completion(.failure(fetchErrors.first!))
+//            } else {
+//                // If there were no errors, return the array of lesson contents
+//                completion(.success(lessonContents))
+//            }
+//        }
+//    }
 }
 
 

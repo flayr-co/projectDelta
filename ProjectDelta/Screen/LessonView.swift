@@ -72,19 +72,34 @@ struct LessonView: View {
         .navigationBarTitle("Lesson on \(subjectName)", displayMode: .inline)
         .onAppear {
             Task {
-                print("Starting to fetch the first incomplete lesson for \(subjectName).")
-                let lessonName = await lessonVM.fetchFirstIncompleteLesson(for: subjectName)
-                DispatchQueue.main.async {
-                    self.currentLessonName = lessonName
-                    print("First incomplete lesson fetched: \(lessonName)")
-                }
-                print("Starting to fetch lesson content for \(subjectName), lesson \(lessonName).")
-                await lessonVM.fetchLessonContent(for: subjectName, lessonName: lessonName)
-                print("Content fetching completed for lesson \(lessonName).")
+                await initializeLesson()
             }
         }
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
+        .contentShape(Rectangle())  // Make the entire VStack tappable
+        .onTapGesture {
+            goToNextPage()
+        }
+        .overlay(lessonNavigationControls, alignment: .bottom)
     } //: BODY
+    
+    private func goToNextPage() {
+        withAnimation {
+            lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
+        }
+    }
+
+    private func initializeLesson() async {
+        print("Starting to fetch the first incomplete lesson for \(subjectName).")
+        let lessonName = await lessonVM.fetchFirstIncompleteLesson(for: subjectName)
+        DispatchQueue.main.async {
+            self.currentLessonName = lessonName
+            print("First incomplete lesson fetched: \(lessonName)")
+        }
+        print("Starting to fetch lesson content for \(subjectName), lesson \(lessonName).")
+        await lessonVM.fetchLessonContent(for: subjectName, lessonName: lessonName)
+        print("Content fetching completed for lesson \(lessonName).")
+    }
 
     @ViewBuilder
     private var lessonNavigationControls: some View {
@@ -148,6 +163,7 @@ struct LessonContentPage: View {
                     .minimumScaleFactor(0.5) // Down to 50% of the original size
                     .lineLimit(nil) // Unlimited line limit
                     .padding(.horizontal)
+                    .lineSpacing(10)
 
                 if let example = exampleText, !example.isEmpty {
                     ExampleView(text: example)
@@ -224,7 +240,7 @@ struct ExampleView: View {
 }
 
 #Preview {
-    LessonView(subjectName: "Geometry")
-        .environmentObject(LessonViewModel(subjectName: "Geometry "))
+    LessonView(subjectName: "Algebra")
+        .environmentObject(LessonViewModel(subjectName: "Algebra"))
         .preferredColorScheme(.dark)
 }

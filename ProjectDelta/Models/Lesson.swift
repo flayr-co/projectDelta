@@ -19,7 +19,7 @@ struct Lesson: Identifiable, Decodable {
 }
 
 struct Page: Decodable, Equatable {
-    var id: String
+    @DocumentID var id: String?
     var content: String
     var pageNumber: Int
     var readyButtonDisplayed: Bool

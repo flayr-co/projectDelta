@@ -55,7 +55,7 @@ struct HomeView: View {
                         .font(.headline)
                     
                     LazyVGrid(columns: columns, spacing: 15) {
-                        NavigationLink(destination: AddQuestionView().navigationBarBackButtonHidden(true)) {
+                        NavigationLink(destination: OpenAIAdminView().navigationBarBackButtonHidden(true)) {
                             DisplayCards(imageName: "pencil", title: "Quick Test", tintColor: .red)
                         }
                         

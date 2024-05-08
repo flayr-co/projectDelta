@@ -7,84 +7,138 @@
 
 // OpenAIService.swift
 import Foundation
-import Alamofire
+import OpenAI // Confirm the correct import for the OpenAI SDK
 
-class OpenAIService {
-    private let endpointUrl = "https://api.openai.com/v1/chat/completions"
+class OpenAIService: ObservableObject {
+    private let apiToken = ConstantsAPI.openAIApiKey
+    private let session = URLSession.shared
     
-    //    func sendMessage(messages:[Message]) async -> OpenAIChatResponse? {
-    //        let openAIMessages = messages.map({OpenAIChatMessage(role: $0.role, content: $0.content)})
-    //        let body = OpenAIChatBody(model: "gpt-4", messages: openAIMessages)
-    //        let header: HTTPHeaders = [
-    //            "Authorization": "Bearer \(ConstantsAPI.openAIApiKey)"
-    //        ]
-    //        return try? await AF.request(endpointUrl, method: .post, parameters: body, encoder: .json, headers: header).serializingDecodable(OpenAIChatResponse.self).value
-    //    }
-    
-    func generateQuestion(prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
-        let openAIMessage = OpenAIChatMessage(role: .user, content: prompt)
-        let body = OpenAIChatBody(model: "gpt-4", messages: [openAIMessage])
-        let header: HTTPHeaders = [
-            "Authorization": "Bearer \(ConstantsAPI.openAIApiKey)"
-        ]
-        
-        AF.request(endpointUrl, method: .post, parameters: body, encoder: .json, headers: header).responseDecodable(of: OpenAIChatResponse.self) { response in
-            switch response.result {
-            case .success(let chatResponse):
-                if let questionText = chatResponse.choices.first?.message.content {
-                    completion(.success(questionText))
-                } else {
-                    completion(.failure(AFError.responseValidationFailed(reason: .dataFileNil)))
-                }
-            case .failure(let error):
-                completion(.failure(error))
-            }
+    func sendChatCompletion(query: ChatQuery, lastPage: Page, completion: @escaping (Result<Page, Error>) -> Void) {
+        guard let url = URL(string: "https://api.openai.com" + APIPath.chats) else {
+            print("Invalid URL")
+            return
         }
-    }
-    
-    func generateHint(forQuestion question: String, completion: @escaping (Result<String, Error>) -> Void) {
-        let prompt = "Provide a hint for the following question: \(question)"
-        let openAIMessage = OpenAIChatMessage(role: .user, content: prompt)
-        let body = OpenAIChatBody(model: "gpt-4", messages: [openAIMessage])
-        let header: HTTPHeaders = [
-            "Authorization": "Bearer \(ConstantsAPI.openAIApiKey)"
-        ]
-        
-        AF.request(endpointUrl, method: .post, parameters: body, encoder: .json, headers: header).responseDecodable(of: OpenAIChatResponse.self) { response in
-            switch response.result {
-            case .success(let chatResponse):
-                if let hint = chatResponse.choices.first?.message.content {
-                    completion(.success(hint))
-                } else {
-                    completion(.failure(AFError.responseValidationFailed(reason: .dataFileNil)))
-                }
-            case .failure(let error):
-                completion(.failure(error))
-            }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("Bearer \(apiToken)", forHTTPHeaderField: "Authorization")
+
+        let encoder = JSONEncoder()
+        do {
+            let jsonData = try encoder.encode(query)
+            request.httpBody = jsonData
+        } catch {
+            completion(.failure(error))
+            return
         }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Network error: \(error.localizedDescription)")
+                    completion(.failure(error))
+                    return
+                }
+
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("HTTP Response Status: \(httpResponse.statusCode)")
+                }
+
+                guard let data = data, let response = response as? HTTPURLResponse, response.statusCode == 200 else {
+                    completion(.failure(URLError(.badServerResponse)))
+                    return
+                }
+
+                do {
+                    let decoder = JSONDecoder()
+                    let result = try decoder.decode(ChatCompletionResponse.self, from: data)
+                    if let content = result.choices.first?.message.content {
+                        let newPage = Page(
+                            id: UUID().uuidString,
+                            content: content,
+                            pageNumber: lastPage.pageNumber + 1,
+                            readyButtonDisplayed: false,
+                            example: nil,
+                            explanation: nil,
+                            graphics: nil
+                        )
+                        completion(.success(newPage))
+                    } else {
+                        completion(.failure(OpenAIError.emptyResponse))
+                    }
+                } catch {
+                    print("JSON decoding error: \(error.localizedDescription)")
+                    completion(.failure(error))
+                }
+            }
+        }.resume()
     }
 }
-
-struct OpenAIChatBody: Encodable {
-    let model: String
-    let messages: [OpenAIChatMessage]
+// Ensure that your ChatQuery and related models are correctly defined for encoding
+struct ChatQuery: Codable {
+    let model: Model
+    let messages: [ChatMessage]
 }
 
-struct OpenAIChatMessage: Codable {
+struct ChatMessage: Codable {
     let role: SenderRole
     let content: String
 }
 
 enum SenderRole: String, Codable {
-    case system
-    case user
-    case assistant
+    case user, system, assistant
 }
 
-struct OpenAIChatResponse: Decodable {
-    let choices: [OpenAIChatChoice]
+struct ChatCompletionResponse: Codable {
+    struct Choice: Codable {
+        struct Message: Codable {
+            let content: String
+        }
+        let message: Message
+    }
+    let choices: [Choice]
 }
 
-struct OpenAIChatChoice: Decodable {
-    let message: OpenAIChatMessage
+enum OpenAIError: Error {
+    case emptyResponse
 }
+
+typealias APIPath = String
+extension APIPath {
+    
+    static let completions = "/v1/completions"
+    static let embeddings = "/v1/embeddings"
+    static let chats = "/v1/chat/completions"
+    static let edits = "/v1/edits"
+    static let models = "/v1/models"
+    static let moderations = "/v1/moderations"
+    
+    static let audioSpeech = "/v1/audio/speech"
+    static let audioTranscriptions = "/v1/audio/transcriptions"
+    static let audioTranslations = "/v1/audio/translations"
+    
+    static let images = "/v1/images/generations"
+    static let imageEdits = "/v1/images/edits"
+    static let imageVariations = "/v1/images/variations"
+    
+    func withPath(_ path: String) -> String {
+        self + "/" + path
+    }
+}
+
+//struct CompletionsQuery {
+//    let model: Model
+//    let prompt: String
+//    let temperature: Double
+//    let maxTokens: Int
+//}
+
+
+
+
+
+
+
+
+

@@ -91,31 +91,31 @@ class QuestionGeneratorViewModel: ObservableObject {
     
     // MARK: - Generate Question
 
-    func generateQuestion(subjectId: String, testId: String) {
-        let subjectName = subjects.first(where: { $0.id == subjectId })?.name ?? "Unknown"
-        let prompt = "Generate a multiple-choice math question for the subject \(subjectName) along with four options, do not indicate the correct answer. Do not start the question with 'Question:', just get straight to it."
-        
-        openAIService.generateQuestion(prompt: prompt) { [weak self] result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let questionText):
-                    let question = Question(
-                        correctOptionIndex: 0, // Placeholder value
-                        options: ["Option 1", "Option 2", "Option 3", "Option 4"], // Placeholder values
-                        points: 1,
-                        questionText: questionText,
-                        type: "Multiple Choice",
-                        subject: subjectName,
-                        hint: ""
-                    )
-                    self?.generatedQuestion = question
-                    self?.isApprovalViewPresented = true
-                case .failure(let error):
-                    self?.handleError(error)
-                }
-            }
-        }
-    }
+//    func generateQuestion(subjectId: String, testId: String) {
+//        let subjectName = subjects.first(where: { $0.id == subjectId })?.name ?? "Unknown"
+//        let prompt = "Generate a multiple-choice math question for the subject \(subjectName) along with four options, do not indicate the correct answer. Do not start the question with 'Question:', just get straight to it."
+//        
+//        openAIService.generateQuestion(prompt: prompt) { [weak self] result in
+//            DispatchQueue.main.async {
+//                switch result {
+//                case .success(let questionText):
+//                    let question = Question(
+//                        correctOptionIndex: 0, // Placeholder value
+//                        options: ["Option 1", "Option 2", "Option 3", "Option 4"], // Placeholder values
+//                        points: 1,
+//                        questionText: questionText,
+//                        type: "Multiple Choice",
+//                        subject: subjectName,
+//                        hint: ""
+//                    )
+//                    self?.generatedQuestion = question
+//                    self?.isApprovalViewPresented = true
+//                case .failure(let error):
+//                    self?.handleError(error)
+//                }
+//            }
+//        }
+//    }
 
     private func handleError(_ error: Error) {
         if let afError = error as? AFError {

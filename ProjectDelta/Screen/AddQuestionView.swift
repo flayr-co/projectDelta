@@ -60,12 +60,12 @@ struct AddQuestionView: View {
             }
             
             // Generate Question Button
-            if viewModel.selectedSubjectId != nil && viewModel.selectedTestId != nil {
-                Button("Generate Question") {
-                    viewModel.generateQuestion(subjectId: viewModel.selectedSubjectId!, testId: viewModel.selectedTestId!)
-                }
-                .padding()
-            }
+//            if viewModel.selectedSubjectId != nil && viewModel.selectedTestId != nil {
+//                Button("Generate Question") {
+//                    viewModel.generateQuestion(subjectId: viewModel.selectedSubjectId!, testId: viewModel.selectedTestId!)
+//                }
+//                .padding()
+//            }
             
             // Approval View
             if viewModel.isApprovalViewPresented, let question = viewModel.generatedQuestion {
