@@ -153,7 +153,18 @@ class OpenAIAdminViewModel: ObservableObject {
         print("Last page content: \(lastPage.content)")
 
         let prompt = "Given the last page content: '\(lastPage.content)', generate a complete new page that sensibly continues on teaching the lesson of the previous page. Make the content no more than 2-3 sentences of material and provide a reasonable example field as well as an explanation if necessary"
-        let chatQuery = ChatQuery(model: .gpt4, messages: [ChatMessage(role: .user, content: prompt)])
+        
+        let detailedPrompt = """
+        Please generate a new lesson page with the following details, separating each part with a clear label:
+        - Content: Start with "Content:" and briefly continue from the last discussion on simplifying linear equations.
+        - Example: Start with "Example:" and provide a specific example related to the content.
+        - Explanation: Start with "Explanation:" and explain how the example illustrates the concept.
+        - Graphics: Start with "Graphics:" and suggest any relevant graphics.
+
+        Please ensure each part is clearly separated and labeled. Last content discussed was: \(lastPage.content)
+        """
+
+        let chatQuery = ChatQuery(model: .gpt4, messages: [ChatMessage(role: .user, content: detailedPrompt)])
 
         service.sendChatCompletion(query: chatQuery, lastPage: lastPage) { [weak self] result in
             DispatchQueue.main.async {

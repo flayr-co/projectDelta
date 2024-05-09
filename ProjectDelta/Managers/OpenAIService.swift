@@ -36,45 +36,77 @@ class OpenAIService: ObservableObject {
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 if let error = error {
-                    print("Network error: \(error.localizedDescription)")
                     completion(.failure(error))
                     return
                 }
-
-                if let httpResponse = response as? HTTPURLResponse {
-                    print("HTTP Response Status: \(httpResponse.statusCode)")
-                }
-
-                guard let data = data, let response = response as? HTTPURLResponse, response.statusCode == 200 else {
+                
+                guard let data = data else {
                     completion(.failure(URLError(.badServerResponse)))
                     return
                 }
+                
+                // Print raw JSON for debugging
+                let rawJSON = String(data: data, encoding: .utf8) ?? "Invalid UTF-8 data"
+                print("Received JSON: \(rawJSON)")
 
-                do {
-                    let decoder = JSONDecoder()
-                    let result = try decoder.decode(ChatCompletionResponse.self, from: data)
-                    if let content = result.choices.first?.message.content {
-                        let newPage = Page(
-                            id: UUID().uuidString,
-                            content: content,
-                            pageNumber: lastPage.pageNumber + 1,
-                            readyButtonDisplayed: false,
-                            example: nil,
-                            explanation: nil,
-                            graphics: nil
-                        )
-                        completion(.success(newPage))
-                    } else {
-                        completion(.failure(OpenAIError.emptyResponse))
-                    }
-                } catch {
-                    print("JSON decoding error: \(error.localizedDescription)")
-                    completion(.failure(error))
+                if let newPage = self.parsePageFromResponse(data, lastPage: lastPage) {
+                    completion(.success(newPage))
+                } else {
+                    completion(.failure(OpenAIError.invalidResponse))  // Handle nil case appropriately
                 }
             }
         }.resume()
     }
+
+    private func parsePageFromResponse(_ data: Data, lastPage: Page) -> Page? {
+        do {
+            let response = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+            if let content = response.choices.first?.message.content {
+                let sections = content.components(separatedBy: "**")
+                var pageContent = "Content missing"
+                var example = "Example missing"
+                var explanation = "Explanation missing"
+                var graphics = "Graphics suggestion missing"
+
+                for i in 0..<sections.count {
+                    if sections[i].contains("Content:") {
+                        pageContent = sections[i + 1]
+                    } else if sections[i].contains("Example:") {
+                        example = sections[i + 1]
+                    } else if sections[i].contains("Explanation:") {
+                        explanation = sections[i + 1]
+                    } else if sections[i].contains("Graphics:") {
+                        graphics = sections[i + 1]
+                    }
+                }
+
+                return Page(
+                    id: UUID().uuidString,
+                    content: pageContent.trimmingCharacters(in: .whitespacesAndNewlines),
+                    pageNumber: lastPage.pageNumber + 1,
+                    readyButtonDisplayed: false,
+                    example: example.trimmingCharacters(in: .whitespacesAndNewlines),
+                    explanation: explanation.trimmingCharacters(in: .whitespacesAndNewlines),
+                    graphics: graphics.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+            } else {
+                print("No content available in response.")
+                return nil
+            }
+        } catch {
+            print("Decoding JSON failed: \(error)")
+            return nil
+        }
+    }
+
+    struct PageContent: Codable {
+        let content: String
+        let example: String
+        let explanation: String
+        let graphics: String
+    }
 }
+
 // Ensure that your ChatQuery and related models are correctly defined for encoding
 struct ChatQuery: Codable {
     let model: Model
@@ -93,6 +125,7 @@ enum SenderRole: String, Codable {
 struct ChatCompletionResponse: Codable {
     struct Choice: Codable {
         struct Message: Codable {
+            let role: String
             let content: String
         }
         let message: Message
@@ -102,6 +135,18 @@ struct ChatCompletionResponse: Codable {
 
 enum OpenAIError: Error {
     case emptyResponse
+    case invalidResponse  // Add this case
+}
+
+enum Model: String, Codable {
+    case gpt3_5_turbo = "gpt-3.5-turbo"
+    case gpt4 = "gpt-4"
+}
+
+extension Array {
+    subscript (safe index: Int) -> Element? {
+        return indices.contains(index) ? self[index] : nil
+    }
 }
 
 typealias APIPath = String

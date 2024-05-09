@@ -15,6 +15,7 @@ struct LessonView: View {
 //    @State private var currentPageIndex = 0    NO LONGER NEEDED, USE PUBLISHED VARIABLE
     @State private var currentLessonName: String = ""
     @State private var showTableOfContents = false
+    @State private var isInteractingWithExplanation: Bool = false  // State to determine if interaction with explanation is ongoing
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -24,7 +25,11 @@ struct LessonView: View {
             } else {
                 Button(action: {
                     // Toggle without animation to see if it helps with the double tap issue
-                    self.showTableOfContents.toggle()
+                    showTableOfContents.toggle()
+                    if showTableOfContents {
+                        // Fetch lessons when the table of contents is about to be shown
+                        lessonVM.fetchAllLessons(for: subjectName)
+                    }
                 }) {
                     Image(systemName: "list.number")
                         .accessibility(label: Text("Show Table of Contents"))
@@ -50,7 +55,8 @@ struct LessonView: View {
                                 text: lessonVM.lessonPages[index].content,
                                 exampleText: lessonVM.lessonPages[index].example,
                                 graphicsURL: lessonVM.lessonPages[index].graphics,
-                                explanation: lessonVM.lessonPages[index].explanation
+                                explanation: lessonVM.lessonPages[index].explanation,
+                                isInteractingWithExplanation: $isInteractingWithExplanation  // Pass the binding
                             )
                             
                             if lessonVM.lessonPages[index].readyButtonDisplayed {
@@ -69,17 +75,13 @@ struct LessonView: View {
                 lessonNavigationControls
             }
         } //: VSTACK
-        .navigationBarTitle("Lesson on \(subjectName)", displayMode: .inline)
+        .navigationBarTitle("Lesson on \(currentLessonName)", displayMode: .inline)
         .onAppear {
             Task {
                 await initializeLesson()
             }
         }
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
-        .contentShape(Rectangle())  // Make the entire VStack tappable
-        .onTapGesture {
-            goToNextPage()
-        }
         .overlay(lessonNavigationControls, alignment: .bottom)
     } //: BODY
     
@@ -142,7 +144,7 @@ struct LessonContentPage: View {
     var exampleText: String?
     var graphicsURL: String?
     var explanation: String?
-    
+    @Binding var isInteractingWithExplanation: Bool  // Bind this state from parent view
     @State private var isExplanationVisible: Bool = false // State to track visibility
     
     @Environment(\.colorScheme) var colorScheme
@@ -158,10 +160,10 @@ struct LessonContentPage: View {
                     }
                 }
                 
-                Text(text.replacingOccurrences(of: "\\n", with: "\n"))
+                TextStylingUtility.styledText(from: text)
                     .font(.system(size: 18, weight: .regular, design: .serif))
-                    .minimumScaleFactor(0.5) // Down to 50% of the original size
-                    .lineLimit(nil) // Unlimited line limit
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(nil)
                     .padding(.horizontal)
                     .lineSpacing(10)
 
@@ -176,11 +178,12 @@ struct LessonContentPage: View {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image {
                             image.resizable()
-                                 .renderingMode(.template) // Makes the image a template image
-                                 .colorMultiply(colorScheme == .dark ? .cyan : .black)
+//                                 .renderingMode(.template) // Makes the image a template image
+//                                 .colorMultiply(colorScheme == .dark ? .cyan : .black)
                                  .scaledToFit()
                                  .frame(maxWidth: UIScreen.main.bounds.width - 260)
                                  .padding(.vertical, 20) // Add some spacing after the image
+                                 .clipShape(RoundedRectangle(cornerRadius: 10.0))
                         } else if phase.error != nil {
                             Text("Unable to load image")
                                 .foregroundColor(.red)
@@ -197,6 +200,7 @@ struct LessonContentPage: View {
                     Button{
                         withAnimation {
                             isExplanationVisible.toggle()
+                            isInteractingWithExplanation = isExplanationVisible  // Update state based on visibility
                         }
                     } label: {
                         HStack {
@@ -230,17 +234,42 @@ struct ExampleView: View {
     }
 
     var body: some View {
-        Text(processedText)
+        TextStylingUtility.styledText(from: processedText)
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.gray.opacity(0.2))
             .cornerRadius(10)
             .padding(.horizontal)
+            .lineSpacing(10)
+    }
+}
+
+extension NSRegularExpression {
+    func split(_ string: String, range: NSRange) -> [(text: String, separator: String)] {
+        var results = [(text: String, separator: String)]()
+        let matches = self.matches(in: string, options: [], range: range)
+        var lastEnd = range.lowerBound
+
+        for match in matches {
+            let textRange = NSRange(lastEnd..<match.range.lowerBound)
+            if let textRange = Range(textRange, in: string) {
+                let text = String(string[textRange])
+                let separator = (string as NSString).substring(with: match.range)
+                results.append((text, separator))
+            }
+            lastEnd = match.range.upperBound
+        }
+
+        if lastEnd < range.upperBound, let remainingRange = Range(NSRange(lastEnd..<range.upperBound), in: string) {
+            results.append((String(string[remainingRange]), ""))
+        }
+
+        return results
     }
 }
 
 #Preview {
     LessonView(subjectName: "Algebra")
         .environmentObject(LessonViewModel(subjectName: "Algebra"))
-        .preferredColorScheme(.dark)
+//        .preferredColorScheme(.dark)
 }
