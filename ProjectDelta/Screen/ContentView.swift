@@ -29,6 +29,6 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .environmentObject(AuthViewModel())
-            .environmentObject(LessonViewModel(subjectName: "Geometry"))
+            .environmentObject(LessonViewModel())
     }
 }

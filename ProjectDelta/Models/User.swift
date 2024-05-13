@@ -15,6 +15,7 @@ struct User: Identifiable, Hashable, Codable {
     var points: Int = 0
     var pointsHistory: [String: Int] = [:] 
     var profilePictureUrl: String?
+    var bookmarks: [Bookmark]?
     
     var initials: String {
         let formatter = PersonNameComponentsFormatter()
@@ -25,6 +26,12 @@ struct User: Identifiable, Hashable, Codable {
         
         return ""
     }
+}
+
+struct Bookmark: Codable, Hashable {
+    var subjectId: String
+    var lessonId: String
+    var pageId: String
 }
 
 extension User {

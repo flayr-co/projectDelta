@@ -216,4 +216,76 @@ class AuthViewModel: ObservableObject {
             print("Error storing today's points: \(error.localizedDescription)")
         }
     }
+    
+    // MARK: - BOOKMARKS
+    @MainActor
+    func toggleBookmark(subjectId: String, lessonId: String, pageId: String) {
+        print("toggleBookmark called with lessonId: \(lessonId) and pageId: \(pageId)")
+        
+        guard var user = currentUser else {
+            print("No current user found")
+            return
+        }
+        
+        // Ensure the bookmarks array is initialized
+        if user.bookmarks == nil {
+            user.bookmarks = []
+        }
+        
+        if let index = user.bookmarks!.firstIndex(where: { $0.lessonId == lessonId }) {
+            if user.bookmarks![index].pageId == pageId {
+                user.bookmarks!.remove(at: index)  // Toggle off
+                print("Bookmark removed")
+            } else {
+                user.bookmarks![index].pageId = pageId  // Update page
+                print("Bookmark updated to pageId: \(pageId)")
+            }
+        } else {
+            let newBookmark = Bookmark(subjectId: subjectId, lessonId: lessonId, pageId: pageId)
+            user.bookmarks!.append(newBookmark)  // New bookmark
+            print("New bookmark added: subjectId: \(subjectId), lessonId: \(lessonId), pageId: \(pageId)")
+        }
+        
+        // Save the modified bookmarks to the database and update the currentUser
+        saveBookmark(user: user)
+        currentUser = user  // Ensure the current user state is updated
+    }
+
+        @MainActor
+    func clearPreviousBookmark(subjectId: String, lessonId: String) {
+        guard var user = currentUser else {
+            print("No current user found")
+            return
+        }
+        
+        // Remove the previous bookmark for the lesson
+        if let index = user.bookmarks?.firstIndex(where: { $0.subjectId == subjectId && $0.lessonId == lessonId }) {
+            user.bookmarks?.remove(at: index)
+            print("Previous bookmark cleared for lessonId: \(lessonId)")
+        }
+        
+        // Save the modified bookmarks to the database and update the currentUser
+        saveBookmark(user: user)
+        currentUser = user  // Ensure the current user state is updated
+    }
+
+        @MainActor
+    func saveBookmark(user: User) {
+        do {
+            try db.collection("users").document(user.id).setData(from: user)
+            print("User data saved successfully for user id: \(user.id)")
+        } catch let error {
+            print("Failed to save user: \(error)")
+        }
+    }
+
+        @MainActor
+    func isPageBookmarked(subjectId: String, lessonId: String, pageId: String) -> Bool {
+        guard let user = currentUser else { return false }
+        let isBookmarked = user.bookmarks?.contains(where: {
+            $0.subjectId == subjectId && $0.lessonId == lessonId && $0.pageId == pageId
+        }) ?? false
+        print("isPageBookmarked called for subjectId: \(subjectId), lessonId: \(lessonId), pageId: \(pageId). Result: \(isBookmarked)")
+        return isBookmarked
+    }
 }

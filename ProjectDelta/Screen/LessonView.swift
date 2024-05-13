@@ -12,10 +12,10 @@ import Firebase
 struct LessonView: View {
     var subjectName: String
     @EnvironmentObject var lessonVM: LessonViewModel
-//    @State private var currentPageIndex = 0    NO LONGER NEEDED, USE PUBLISHED VARIABLE
-    @State private var currentLessonName: String = ""
+    @EnvironmentObject var authVM: AuthViewModel
+
     @State private var showTableOfContents = false
-    @State private var isInteractingWithExplanation: Bool = false  // State to determine if interaction with explanation is ongoing
+    @State private var isInteractingWithExplanation: Bool = false
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -23,31 +23,42 @@ struct LessonView: View {
             if lessonVM.lessonPages.isEmpty {
                 Text("Loading lesson content...")
             } else {
-                Button(action: {
-                    // Toggle without animation to see if it helps with the double tap issue
-                    showTableOfContents.toggle()
-                    if showTableOfContents {
-                        // Fetch lessons when the table of contents is about to be shown
-                        lessonVM.fetchAllLessons(for: subjectName)
+                HStack {
+                    Button(action: {
+                        showTableOfContents.toggle()
+                        if showTableOfContents {
+                            lessonVM.fetchAllLessons(for: subjectName)
+                        }
+                    }) {
+                        Image(systemName: "list.number")
+                            .accessibility(label: Text("Show Table of Contents"))
+                            .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
                     }
-                }) {
-                    Image(systemName: "list.number")
-                        .accessibility(label: Text("Show Table of Contents"))
-                        .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
+                    .padding()
+                    .background(showTableOfContents ? Color.gray.opacity(0.2) : Color.clear)
+                    .cornerRadius(8)
+
+                    Button(action: {
+                        print("bookmark button pressed...")
+                        print("Current Subject: \(subjectName)")
+                        lessonVM.toggleBookmark(authVM: authVM)
+                        print("Bookmark status after toggle: \(lessonVM.isCurrentPageBookmarked)")
+                    }) {
+                        let isBookmarked = lessonVM.isCurrentPageBookmarked
+                        Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                            .foregroundColor(isBookmarked ? Color.accentColor : Color.secondary)
+                    }
+                    .padding()
                 }
-                .padding()
-                .background(showTableOfContents ? Color.gray.opacity(0.2) : Color.clear)
-                .cornerRadius(8)
-                
+
                 if showTableOfContents {
                     TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName)
-                        .frame(width: 300) // Set a fixed width for the table of contents
-                        .background(Color.white) // Optional: Set a background color
-                        .cornerRadius(12) // Optional: Round the corners
-                        .shadow(radius: 5) // Optional: Add a shadow for some depth
+                        .frame(width: 300)
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .shadow(radius: 5)
                 }
-                
-                // MARK: - MAIN CONTENT HERE
+
                 TabView(selection: $lessonVM.currentPageIndex) {
                     ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
                         VStack {
@@ -56,51 +67,37 @@ struct LessonView: View {
                                 exampleText: lessonVM.lessonPages[index].example,
                                 graphicsURL: lessonVM.lessonPages[index].graphics,
                                 explanation: lessonVM.lessonPages[index].explanation,
-                                isInteractingWithExplanation: $isInteractingWithExplanation  // Pass the binding
+                                isInteractingWithExplanation: $isInteractingWithExplanation
                             )
-                            
+
                             if lessonVM.lessonPages[index].readyButtonDisplayed {
                                 AnimatedActionButton()
                                     .padding(.bottom, UIScreen.main.bounds.height * 0.05)
                             }
-                        } //: VSTACK
+                        }
                         .tag(index)
-                    } //: FOREACH
-                    
-                } //: TABVIEW
+                    }
+                }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                .frame(maxHeight: .infinity) // Use maximum available height
-                
-                // Navigation controls
+                .frame(maxHeight: .infinity)
+                .onChange(of: lessonVM.currentPageIndex) { newPageIndex in
+                    if let newPageNumber = lessonVM.lessonPages[safe: newPageIndex]?.pageNumber {
+                        lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
+                    }
+                }
+
                 lessonNavigationControls
             }
-        } //: VSTACK
-        .navigationBarTitle("Lesson on \(currentLessonName)", displayMode: .inline)
+        }
+        .navigationBarTitle("Lesson on \(lessonVM.currentLessonName)", displayMode: .inline)
         .onAppear {
+            lessonVM.subjectName = subjectName  // Ensure subjectName is set
             Task {
-                await initializeLesson()
+                await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
             }
         }
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
         .overlay(lessonNavigationControls, alignment: .bottom)
-    } //: BODY
-    
-    private func goToNextPage() {
-        withAnimation {
-            lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
-        }
-    }
-
-    private func initializeLesson() async {
-        print("Starting to fetch the first incomplete lesson for \(subjectName).")
-        let lessonName = await lessonVM.fetchFirstIncompleteLesson(for: subjectName)
-        DispatchQueue.main.async {
-            self.currentLessonName = lessonName
-            print("First incomplete lesson fetched: \(lessonName)")
-        }
-        print("Starting to fetch lesson content for \(subjectName), lesson \(lessonName).")
-        await lessonVM.fetchLessonContent(for: subjectName, lessonName: lessonName)
-        print("Content fetching completed for lesson \(lessonName).")
     }
 
     @ViewBuilder
@@ -135,7 +132,7 @@ struct LessonView: View {
                     .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
             }
         }
-        .padding(.bottom, 40) // Adjust padding as needed
+        .padding(.bottom, 40)
     }
 }
 
@@ -270,6 +267,7 @@ extension NSRegularExpression {
 
 #Preview {
     LessonView(subjectName: "Algebra")
-        .environmentObject(LessonViewModel(subjectName: "Algebra"))
+        .environmentObject(LessonViewModel())
+        .environmentObject(AuthViewModel())
 //        .preferredColorScheme(.dark)
 }

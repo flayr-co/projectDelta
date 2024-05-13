@@ -99,5 +99,5 @@ struct TabBarButton: View {
     MainTabView()
         .environmentObject(AuthViewModel())
         .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
-        .environmentObject(LessonViewModel(subjectName: "Geometry"))
+        .environmentObject(LessonViewModel())
 }
