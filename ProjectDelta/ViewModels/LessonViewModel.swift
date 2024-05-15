@@ -271,95 +271,6 @@ class LessonViewModel: ObservableObject {
                 }
         }
     }
-
-    // MARK: - PAGE NAVIGATION
-//    func navigateToPage(lessonName: String, pageNumber: Int) {
-//            print("navigateToPage called with lessonName: '\(lessonName)', pageNumber: \(pageNumber)")
-//            
-//            let db = Firestore.firestore()
-//            
-//            if let currentLesson = self.currentLesson, currentLesson.name == lessonName {
-//                if let pageIndex = currentLesson.pages?.firstIndex(where: { $0.pageNumber == pageNumber }) {
-//                    DispatchQueue.main.async {
-//                        self.currentPageIndex = pageIndex
-//                        self.currentPageDocumentId = currentLesson.pages?[pageIndex].id
-//                        print("Navigated to page \(pageNumber) of lesson \(lessonName), document ID: \(self.currentPageDocumentId ?? "N/A")")
-//                    }
-//                } else {
-//                    print("Page number \(pageNumber) not found in lesson \(lessonName).")
-//                }
-//            } else {
-//                db.collection("Subjects").whereField("name", isEqualTo: self.subjectName).getDocuments { [weak self] (subjectSnapshot, error) in
-//                    guard let self = self else { return }
-//
-//                    if let error = error {
-//                        print("Error finding subject \(self.subjectName): \(error)")
-//                        return
-//                    }
-//
-//                    guard let subjectDocument = subjectSnapshot?.documents.first else {
-//                        print("Subject \(self.subjectName) not found.")
-//                        return
-//                    }
-//
-//                    db.collection("Subjects").document(subjectDocument.documentID).collection("Lessons")
-//                        .whereField("name", isEqualTo: lessonName).getDocuments { [weak self] (lessonSnapshot, error) in
-//                            guard let self = self else { return }
-//
-//                            if let error = error {
-//                                print("Error getting lessons for subject \(self.subjectName): \(error)")
-//                                return
-//                            }
-//
-//                            guard let lessonDocument = lessonSnapshot?.documents.first else {
-//                                print("Lesson \(lessonName) not found within \(self.subjectName).")
-//                                return
-//                            }
-//
-//                            db.collection("Subjects").document(subjectDocument.documentID)
-//                                .collection("Lessons").document(lessonDocument.documentID)
-//                                .collection("Pages").order(by: "pageNumber")
-//                                .getDocuments { [weak self] (pageSnapshot, error) in
-//                                    guard let self = self else { return }
-//
-//                                    if let error = error {
-//                                        print("Error getting pages for lesson \(lessonName): \(error)")
-//                                        return
-//                                    }
-//
-//                                    let pages = pageSnapshot?.documents.compactMap { document -> Page? in
-//                                        guard let content = document.data()["content"] as? String,
-//                                              let pageNumber = document.data()["pageNumber"] as? Int,
-//                                              let readyButtonDisplayed = document.data()["readyButtonDisplayed"] as? Bool,
-//                                              let example = document.data()["example"] as? String,
-//                                              let graphics = document.data()["graphics"] as? String else {
-//                                            return nil
-//                                        }
-//
-//                                        print("Fetched page document ID: \(document.documentID)")
-//                                        return Page(id: document.documentID, content: content, pageNumber: pageNumber, readyButtonDisplayed: readyButtonDisplayed, example: example, graphics: graphics)
-//                                    } ?? []
-//
-//                                    DispatchQueue.main.async {
-//                                        self.lessonPages = pages
-//                                        if pages.isEmpty {
-//                                            print("No pages found for lesson \(lessonName) within \(self.subjectName).")
-//                                        } else {
-//                                            print("Fetched \(pages.count) pages for lesson \(lessonName) within \(self.subjectName).")
-//                                            if let initialPageIndex = pages.firstIndex(where: { $0.pageNumber == pageNumber }) {
-//                                                self.currentPageIndex = initialPageIndex
-//                                                self.currentPageDocumentId = pages[initialPageIndex].id
-//                                                print("Initial page document ID: \(self.currentPageDocumentId ?? "N/A")")
-//                                            } else {
-//                                                print("Page number \(pageNumber) not found in the fetched pages.")
-//                                            }
-//                                        }
-//                                    }
-//                                }
-//                        }
-//                }
-//            }
-//        }
     
     @MainActor
     func navigateToPage(lessonName: String, pageNumber: Int, authVM: AuthViewModel) {
@@ -393,10 +304,14 @@ class LessonViewModel: ObservableObject {
     @MainActor
     func toggleBookmark(authVM: AuthViewModel) {
         if let lessonId = currentLesson?.id, let pageId = currentPageDocumentId {
-            // Clear previous bookmark
-            authVM.clearPreviousBookmark(subjectId: self.subjectName, lessonId: lessonId)
-            // Toggle the new bookmark
-            authVM.toggleBookmark(subjectId: self.subjectName, lessonId: lessonId, pageId: pageId)
+            // Check if the current page is already bookmarked
+            if authVM.isPageBookmarked(subjectId: subjectName, lessonId: lessonId, pageId: pageId) {
+                // If bookmarked, clear the bookmark
+                authVM.clearPreviousBookmark(subjectId: subjectName, lessonId: lessonId)
+            } else {
+                // Toggle the new bookmark
+                authVM.toggleBookmark(subjectId: subjectName, lessonId: lessonId, pageId: pageId)
+            }
             // Update the bookmark status
             updateBookmarkStatus(authVM: authVM)
         }

@@ -143,81 +143,114 @@ struct LessonContentPage: View {
     var explanation: String?
     @Binding var isInteractingWithExplanation: Bool  // Bind this state from parent view
     @State private var isExplanationVisible: Bool = false // State to track visibility
-    
+
     @Environment(\.colorScheme) var colorScheme
+    @State private var scrollOffset: CGFloat = .zero
+    @State private var scrollViewContentHeight: CGFloat = .zero
+    @State private var viewHeight: CGFloat = .zero
 
     var body: some View {
         GeometryReader { geometry in
-            VStack {
-                Group {
-                    if exampleText == nil && graphicsURL == nil && explanation == nil {
-                        Spacer(minLength: geometry.size.height * 0.3) // Larger space for content-only pages
-                    } else {
-                        Spacer(minLength: geometry.size.height * 0.1) // Reduced space for pages with additional elements
-                    }
-                }
-                
-                TextStylingUtility.styledText(from: text)
-                    .font(.system(size: 18, weight: .regular, design: .serif))
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(nil)
-                    .padding(.horizontal)
-                    .lineSpacing(10)
+            ZStack(alignment: .bottom) {
+                ScrollView {
+                    VStack {
+                        Group {
+                            if exampleText == nil && graphicsURL == nil && explanation == nil {
+                                Spacer(minLength: geometry.size.height * 0.3) // Larger space for content-only pages
+                            } else {
+                                Spacer(minLength: geometry.size.height * 0.1) // Reduced space for pages with additional elements
+                            }
+                        }
+                        
+                        TextStylingUtility.styledText(from: text)
+                            .font(.system(size: 18, weight: .regular, design: .serif))
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(nil)
+                            .padding(.horizontal)
+                            .lineSpacing(10)
+                            .background(GeometryReader {
+                                Color.clear.preference(key: ViewHeightKey.self,
+                                                       value: $0.frame(in: .local).size.height)
+                            })
 
-                if let example = exampleText, !example.isEmpty {
-                    ExampleView(text: example)
-                        .padding(.bottom, 20) // Add some spacing after the example
-                        .padding(.top, 40)
-                }
-                
-                // Load and display graphics if available
-                if let urlString = graphicsURL, let url = URL(string: urlString) {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image.resizable()
-//                                 .renderingMode(.template) // Makes the image a template image
-//                                 .colorMultiply(colorScheme == .dark ? .cyan : .black)
-                                 .scaledToFit()
-                                 .frame(maxWidth: UIScreen.main.bounds.width - 260)
-                                 .padding(.vertical, 20) // Add some spacing after the image
-                                 .clipShape(RoundedRectangle(cornerRadius: 10.0))
-                        } else if phase.error != nil {
-                            Text("Unable to load image")
-                                .foregroundColor(.red)
-                                .padding(.bottom, 30)
-                        } else {
-                            ProgressView()
-                                .padding(.bottom, 20)
+                        if let example = exampleText, !example.isEmpty {
+                            ExampleView(text: example)
+                                .padding(.bottom, 20) // Add some spacing after the example
+                                .padding(.top, 40)
                         }
-                    }
-                }
-                
-                // Explanation dropdown
-                if let explanationText = explanation, !explanationText.isEmpty {
-                    Button{
-                        withAnimation {
-                            isExplanationVisible.toggle()
-                            isInteractingWithExplanation = isExplanationVisible  // Update state based on visibility
+                        
+                        // Load and display graphics if available
+                        if let urlString = graphicsURL, let url = URL(string: urlString) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image {
+                                    image.resizable()
+                                         .scaledToFit()
+                                         .frame(maxWidth: UIScreen.main.bounds.width - 260)
+                                         .padding(.vertical, 20) // Add some spacing after the image
+                                         .clipShape(RoundedRectangle(cornerRadius: 10.0))
+                                } else if phase.error != nil {
+                                    Text("Unable to load image")
+                                        .foregroundColor(.red)
+                                        .padding(.bottom, 30)
+                                } else {
+                                    ProgressView()
+                                        .padding(.bottom, 20)
+                                }
+                            }
                         }
-                    } label: {
-                        HStack {
-                            Image(systemName: "checkmark.seal.fill")
+                        
+                        // Explanation dropdown
+                        if let explanationText = explanation, !explanationText.isEmpty {
+                            Button {
+                                withAnimation {
+                                    isExplanationVisible.toggle()
+                                    isInteractingWithExplanation = isExplanationVisible  // Update state based on visibility
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "checkmark.seal.fill")
+                                    
+                                    Text("See explanation")
+                                }
+                            }
+                            .foregroundColor(.HuluGreen)
+                            .padding()
                             
-                            Text("See explanation")
+                            if isExplanationVisible {
+                                ExampleView(text: explanationText)
+                            }
                         }
-                    }
-                    .foregroundColor(.HuluGreen)
-                    .padding()
-                    
-                    if isExplanationVisible {
-                        ExampleView(text: explanationText)
-                    }
+                        
+                        Spacer() // This spacer will push all content towards the top, giving it a top-centered appearance
+                        
+                    } //: VSTACK
+                    .frame(minHeight: geometry.size.height) // This ensures the VStack takes up at least the full height of the GeometryReader
+                    .background(GeometryReader {
+                        Color.clear.preference(key: ScrollOffsetKey.self,
+                                               value: -$0.frame(in: .named("scrollView")).origin.y)
+                    })
+                }
+                .coordinateSpace(name: "scrollView")
+                .onPreferenceChange(ScrollOffsetKey.self) { value in
+                    scrollOffset = value
+                }
+                .onPreferenceChange(ViewHeightKey.self) { value in
+                    scrollViewContentHeight = value
                 }
                 
-                Spacer() // This spacer will push all content towards the top, giving it a top-centered appearance
-                
-            } //: VSTACK
-            .frame(minHeight: geometry.size.height) // This ensures the VStack takes up at least the full height of the GeometryReader
+                if scrollOffset < scrollViewContentHeight - viewHeight - 20 {
+                    Image(systemName: "chevron.down")
+                        .foregroundColor(.gray)
+                        .padding()
+                        .background(Circle().fill(Color.white).shadow(radius: 10))
+                        .padding(.bottom, 30)
+                        .transition(.opacity)
+                        .animation(.easeInOut, value: scrollOffset)
+                }
+            }
+            .onAppear {
+                viewHeight = geometry.size.height
+            }
         }
     }
 }
@@ -231,13 +264,33 @@ struct ExampleView: View {
     }
 
     var body: some View {
-        TextStylingUtility.styledText(from: processedText)
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.gray.opacity(0.2))
-            .cornerRadius(10)
-            .padding(.horizontal)
-            .lineSpacing(10)
+        ScrollView {
+            TextStylingUtility.styledText(from: processedText)
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.gray.opacity(0.2))
+                .cornerRadius(10)
+                .padding(.horizontal)
+                .lineSpacing(10)
+        }
+    }
+}
+
+struct ScrollOffsetKey: PreferenceKey {
+    typealias Value = CGFloat
+    static var defaultValue: CGFloat = .zero
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+struct ViewHeightKey: PreferenceKey {
+    typealias Value = CGFloat
+    static var defaultValue: CGFloat = .zero
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
