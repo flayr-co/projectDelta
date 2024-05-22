@@ -29,7 +29,7 @@ struct LessonView: View {
                         presentationMode.wrappedValue.dismiss()
                     }
                     
-                    Text("Lesson on \(lessonVM.currentLessonName)")
+                    Text("\(lessonVM.currentLessonName)")
                         .font(.subheadline)
                         .foregroundColor(colorScheme == .dark ? .white : .black)
                     
@@ -84,6 +84,7 @@ struct LessonView: View {
                                 exampleText: lessonVM.lessonPages[index].example,
                                 graphicsURL: lessonVM.lessonPages[index].graphics,
                                 explanation: lessonVM.lessonPages[index].explanation,
+                                readyButtonDisplayed: lessonVM.lessonPages[index].readyButtonDisplayed,
                                 isInteractingWithExplanation: $isInteractingWithExplanation
                             )
                             .tag(index)
@@ -162,11 +163,13 @@ struct LessonView: View {
     }
 }
 
+// MARK: - LessonContentPage
 struct LessonContentPage: View {
     var text: String
     var exampleText: String?
     var graphicsURL: String?
     var explanation: String?
+    var readyButtonDisplayed: Bool
     @Binding var isInteractingWithExplanation: Bool  // Bind this state from parent view
     @State private var isExplanationVisible: Bool = false // State to track visibility
     @State private var scrollOffset: CGFloat = 0 // Track the scroll offset
@@ -177,130 +180,163 @@ struct LessonContentPage: View {
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack {
-                    Group {
-                        if exampleText == nil && graphicsURL == nil && explanation == nil {
-                            Spacer(minLength: geometry.size.height * 0.3) // Larger space for content-only pages
-                        } else {
-                            Spacer(minLength: geometry.size.height * 0.1) // Reduced space for pages with additional elements
-                        }
-                    }
-                    
-                    TextStylingUtility.styledText(from: text)
-                        .font(.system(size: 18, weight: .regular, design: .serif))
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(nil)
-                        .padding(.horizontal)
-                        .lineSpacing(10)
-
-                    if let example = exampleText, !example.isEmpty {
-                        ExampleView(text: example)
-                            .padding(.bottom, 20) // Add some spacing after the example
-                            .padding(.top, 40)
-                    }
-                    
-                    // Load and display graphics if available
-                    if let urlString = graphicsURL, let url = URL(string: urlString) {
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image {
-                                image.resizable()
-                                     .scaledToFit()
-                                     .frame(maxWidth: UIScreen.main.bounds.width - 260)
-                                     .padding(.vertical, 20) // Add some spacing after the image
-                                     .clipShape(RoundedRectangle(cornerRadius: 10.0))
-                            } else if phase.error != nil {
-                                Text("Unable to load image")
-                                    .foregroundColor(.red)
-                                    .padding(.bottom, 30)
+        NavigationStack {
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack {
+                        Group {
+                            if exampleText == nil && graphicsURL == nil && explanation == nil {
+                                Spacer(minLength: geometry.size.height * 0.3) // Larger space for content-only pages
                             } else {
-                                ProgressView()
-                                    .padding(.bottom, 20)
+                                Spacer(minLength: geometry.size.height * 0.1) // Reduced space for pages with additional elements
                             }
                         }
-                    }
-                    
-                    // Explanation dropdown
-                    if let explanationText = explanation, !explanationText.isEmpty {
-                        Button {
-                            withAnimation {
-                                isExplanationVisible.toggle()
-                                isInteractingWithExplanation = isExplanationVisible  // Update state based on visibility
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: "checkmark.seal.fill")
-                                
-                                Text("See explanation")
-                            }
-                        }
-                        .foregroundColor(.HuluGreen)
-                        .padding()
                         
-                        if isExplanationVisible {
-                            ExampleView(text: explanationText)
+                        TextStylingUtility.styledText(from: text)
+                            .font(.system(size: 18, weight: .regular, design: .serif))
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(nil)
+                            .padding(.horizontal)
+                            .lineSpacing(10)
+                            .frame(maxWidth: .infinity, alignment: .center)
+
+                        if let example = exampleText, !example.isEmpty {
+                            ExampleView(text: example)
+                                .padding(.bottom, 20) // Add some spacing after the example
+                                .padding(.top, 40)
+                                .frame(maxWidth: .infinity, alignment: .center)
                         }
-                    }
-                    
-                    Spacer() // This spacer will push all content towards the top, giving it a top-centered appearance
-                    
-                } //: VSTACK
-                .background(GeometryReader { proxy in
-                    Color.clear.onAppear {
-                        scrollViewContentHeight = proxy.size.height
-                    }
-                })
-                .frame(minHeight: geometry.size.height) // This ensures the VStack takes up at least the full height of the GeometryReader
-                .background(GeometryReader { proxy in
-                    Color.clear.onAppear {
-                        scrollViewContentHeight = proxy.size.height
-                    }
-                })
-            }
-            .background(GeometryReader { proxy in
-                Color.clear.onAppear {
-                    scrollViewContentHeight = proxy.size.height
-                }
-                .onChange(of: scrollOffset) { newValue in
-                    print("Scroll offset changed: \(newValue)")
-                }
-            })
-            .overlay(
-                GeometryReader { proxy in
-                    Color.clear
-                        .onAppear {
-                            scrollOffset = proxy.frame(in: .global).minY
-                        }
-                        .onChange(of: proxy.frame(in: .global).minY) { newValue in
-                            scrollOffset = newValue
-                            showScrollIndicator = true
-                            timer?.invalidate()
-                            timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
-                                withAnimation {
-                                    showScrollIndicator = false
+                        
+                        // Load and display graphics if available
+                        if let urlString = graphicsURL, let url = URL(string: urlString) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image {
+                                    image.resizable()
+                                         .scaledToFit()
+                                         .frame(maxWidth: UIScreen.main.bounds.width - 260)
+                                         .padding(.vertical, 20) // Add some spacing after the image
+                                         .clipShape(RoundedRectangle(cornerRadius: 10.0))
+                                         .frame(maxWidth: .infinity, alignment: .center)
+                                } else if phase.error != nil {
+                                    Text("Unable to load image")
+                                        .foregroundColor(.red)
+                                        .padding(.bottom, 30)
+                                        .frame(maxWidth: .infinity, alignment: .center)
+                                } else {
+                                    ProgressView()
+                                        .padding(.bottom, 20)
+                                        .frame(maxWidth: .infinity, alignment: .center)
                                 }
                             }
                         }
-                }
-            )
-            .overlay(
-                VStack {
-                    Spacer()
-                    if showScrollIndicator && scrollOffset < scrollViewContentHeight - geometry.size.height - 20 {
-                        Image(systemName: "chevron.down")
-                            .foregroundColor(.gray)
+                        
+                        // Explanation dropdown
+                        if let explanationText = explanation, !explanationText.isEmpty {
+                            Button {
+                                withAnimation {
+                                    isExplanationVisible.toggle()
+                                    isInteractingWithExplanation = isExplanationVisible  // Update state based on visibility
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "checkmark.seal.fill")
+                                    
+                                    Text("See explanation")
+                                }
+                            }
+                            .foregroundColor(.HuluGreen)
                             .padding()
-                            .background(Circle().fill(Color.white).shadow(radius: 10))
-                            .padding(.bottom, 30)
-                            .transition(.opacity)
-                            .animation(.easeInOut, value: scrollOffset)
-                    }
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            
+                            if isExplanationVisible {
+                                ExampleView(text: explanationText)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                        }
+                        
+                        // Ready button display
+                        if readyButtonDisplayed {
+                            VStack(spacing: 20) {
+                                Button(action: {
+                                    // Action for the ready button
+                                }) {
+                                    AnimatedActionButton()
+                                        .padding()
+                                }
+                                .padding(.top, 20) // Add some spacing after the other content
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                
+                                NavigationLink {
+                                    PracticeTestView()
+                                } label: {
+                                    Text("Go to test")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(colorScheme == .dark ? .cyan : .green)
+                                }
+                            }
+                        }
+                        
+                        Spacer() // This spacer will push all content towards the top, giving it a top-centered appearance
+                        
+                    } //: VSTACK
+                    .background(GeometryReader { proxy in
+                        Color.clear.onAppear {
+                            scrollViewContentHeight = proxy.size.height
+                        }
+                    })
+                    .frame(minHeight: geometry.size.height) // This ensures the VStack takes up at least the full height of the GeometryReader
+                    .background(GeometryReader { proxy in
+                        Color.clear.onAppear {
+                            scrollViewContentHeight = proxy.size.height
+                        }
+                    })
                 }
-            )
+                .background(GeometryReader { proxy in
+                    Color.clear.onAppear {
+                        scrollViewContentHeight = proxy.size.height
+                    }
+                    .onChange(of: scrollOffset) { newValue in
+                        print("Scroll offset changed: \(newValue)")
+                    }
+                })
+                .overlay(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .onAppear {
+                                scrollOffset = proxy.frame(in: .global).minY
+                            }
+                            .onChange(of: proxy.frame(in: .global).minY) { newValue in
+                                scrollOffset = newValue
+                                showScrollIndicator = true
+                                timer?.invalidate()
+                                timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
+                                    withAnimation {
+                                        showScrollIndicator = false
+                                    }
+                                }
+                            }
+                    }
+                )
+                .overlay(
+                    VStack {
+                        Spacer()
+                        if showScrollIndicator && scrollOffset < scrollViewContentHeight - geometry.size.height - 20 {
+                            Image(systemName: "chevron.down")
+                                .foregroundColor(.gray)
+                                .padding()
+                                .background(Circle().fill(Color.white).shadow(radius: 10))
+                                .padding(.bottom, 30)
+                                .transition(.opacity)
+                                .animation(.easeInOut, value: scrollOffset)
+                        }
+                    }
+                )
+            }
         }
     }
 }
+
 
 struct ExampleView: View {
     var text: String

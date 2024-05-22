@@ -19,8 +19,14 @@ struct TableOfContentsView: View {
                     // Use optional chaining with a default empty array to safely access pages
                     ForEach(lesson.pages ?? [], id: \.id) { page in
                         Button(action: {
-                            // Set the page index; assuming page numbers start from 1
-                            lessonVM.currentPageIndex = page.pageNumber - 1
+                            Task {
+                                await lessonVM.fetchLessonContent(for: subjectName, lessonName: lesson.name)
+                                if let pageIndex = lesson.pages?.firstIndex(where: { $0.pageNumber == page.pageNumber }) {
+                                    DispatchQueue.main.async {
+                                        lessonVM.currentPageIndex = pageIndex
+                                    }
+                                }
+                            }
                         }) {
                             HStack {
                                 Text("Page \(page.pageNumber)")

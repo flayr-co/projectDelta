@@ -43,6 +43,7 @@
 		527F98842AED97D50031F9E6 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98832AED97D50031F9E6 /* OpenAIService.swift */; };
 		527F98862AEF3EA90031F9E6 /* DarkModeBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98852AEF3EA90031F9E6 /* DarkModeBackground.swift */; };
 		5284D28B2B212C0800409048 /* UserStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5284D28A2B212C0800409048 /* UserStatsView.swift */; };
+		528D80832BFE5C4000FD9850 /* PracticeTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 528D80822BFE5C4000FD9850 /* PracticeTestView.swift */; };
 		52920AE72B155B7700B60A14 /* QuestionGeneratorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52920AE62B155B7700B60A14 /* QuestionGeneratorViewModel.swift */; };
 		52920AE92B15662900B60A14 /* AddQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52920AE82B15662900B60A14 /* AddQuestionView.swift */; };
 		529376592B3F6ADC001CC66A /* UserProgressDonut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 529376582B3F6ADC001CC66A /* UserProgressDonut.swift */; };
@@ -131,6 +132,7 @@
 		527F98832AED97D50031F9E6 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 		527F98852AEF3EA90031F9E6 /* DarkModeBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DarkModeBackground.swift; sourceTree = "<group>"; };
 		5284D28A2B212C0800409048 /* UserStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatsView.swift; sourceTree = "<group>"; };
+		528D80822BFE5C4000FD9850 /* PracticeTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeTestView.swift; sourceTree = "<group>"; };
 		52920AE62B155B7700B60A14 /* QuestionGeneratorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionGeneratorViewModel.swift; sourceTree = "<group>"; };
 		52920AE82B15662900B60A14 /* AddQuestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddQuestionView.swift; sourceTree = "<group>"; };
 		529376582B3F6ADC001CC66A /* UserProgressDonut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProgressDonut.swift; sourceTree = "<group>"; };
@@ -318,6 +320,7 @@
 				52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */,
 				5284D28A2B212C0800409048 /* UserStatsView.swift */,
 				5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */,
+				528D80822BFE5C4000FD9850 /* PracticeTestView.swift */,
 			);
 			path = Screen;
 			sourceTree = "<group>";
@@ -525,6 +528,7 @@
 				52C0B4592BE8858B00ECB063 /* OpenAIAdminView.swift in Sources */,
 				5258BD492AE0A26C00F21A50 /* SignInView.swift in Sources */,
 				5284D28B2B212C0800409048 /* UserStatsView.swift in Sources */,
+				528D80832BFE5C4000FD9850 /* PracticeTestView.swift in Sources */,
 				5258BD5A2AE340D700F21A50 /* ProfileView.swift in Sources */,
 				5256AD8A2B041B57008523F7 /* Constants.swift in Sources */,
 				52F903DE2BA521D70093E976 /* Lesson.swift in Sources */,
