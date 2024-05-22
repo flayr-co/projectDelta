@@ -324,13 +324,12 @@ struct ExampleView: View {
                                 .background(colorScheme == .dark ? Color.black : Color.white)
                                 .cornerRadius(10)
                                 .frame(maxWidth: .infinity, alignment: .center)
-                                .fontWeight(.bold)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(colorScheme == .dark ? Color.black : Color.white)
                         .cornerRadius(10)
                         .padding(.horizontal)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 2)
                     } else {
                         GeometryReader { geometry in
                             VStack {

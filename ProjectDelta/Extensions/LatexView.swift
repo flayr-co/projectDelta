@@ -30,7 +30,7 @@ struct LatexView: UIViewRepresentable {
             <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
             <style>
                 body {
-                    font-size: 3.0em;
+                    font-size: 3.3em;
                     color: \(textColor);
                     background-color: \(backgroundColor);
                     margin: 0;
@@ -44,6 +44,17 @@ struct LatexView: UIViewRepresentable {
                     display: inline-block;
                 }
             </style>
+            <script>
+                MathJax = {
+                    tex: {
+                        display: true,
+                        font: 'bold'
+                    },
+                    svg: {
+                        fontCache: 'global'
+                    }
+                };
+            </script>
         </head>
         <body>
             <div id="math-content">
@@ -62,8 +73,4 @@ struct LatexView: UIViewRepresentable {
         uiView.stopLoading()
     }
 }
-
-
-
-
 
