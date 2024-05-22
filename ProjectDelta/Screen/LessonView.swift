@@ -321,19 +321,20 @@ struct ExampleView: View {
                             LatexView(latex: String("$$\(latex)$$"))
                                 .frame(minHeight: latex.contains("\\frac") ? 75 : 50) // Adjust height if contains \frac
                                 .padding(4) // Adjust the padding as needed
-                                .background(colorScheme == .dark ? Color.black : Color.white)
+                                .background(colorScheme == .dark ? Color.gray.opacity(0.3) : Color.gray.opacity(0.2))
                                 .cornerRadius(10)
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(colorScheme == .dark ? Color.black : Color.white)
+                        .background(colorScheme == .dark ? Color.black : Color.gray.opacity(0.2))
                         .cornerRadius(10)
                         .padding(.horizontal)
                         .padding(.vertical, 2)
                     } else {
                         GeometryReader { geometry in
                             VStack {
-                                Text(String(line))
+                                let formattedText = self.formatText(String(line))
+                                formattedText
                                     .padding(8) // Adjust the padding as needed
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                                     .background(colorScheme == .dark ? Color.black : Color.white)
@@ -349,6 +350,31 @@ struct ExampleView: View {
                 }
             }
         }
+    }
+
+    func formatText(_ line: String) -> Text {
+        let regex = try! NSRegularExpression(pattern: "\\*blue (.*?) blue\\*", options: [])
+        let nsString = line as NSString
+        let results = regex.matches(in: line, options: [], range: NSRange(location: 0, length: nsString.length))
+
+        var formattedText = Text("")
+
+        var lastIndex = 0
+        for result in results {
+            let range = result.range(at: 1)
+            let beforeText = nsString.substring(with: NSRange(location: lastIndex, length: result.range.location - lastIndex))
+            formattedText = formattedText + Text(beforeText)
+            let blueText = nsString.substring(with: range)
+            formattedText = formattedText + Text(blueText).foregroundColor(Color.blue)
+            lastIndex = result.range.location + result.range.length
+        }
+
+        if lastIndex < nsString.length {
+            let remainingText = nsString.substring(from: lastIndex)
+            formattedText = formattedText + Text(remainingText)
+        }
+
+        return formattedText
     }
 }
 
@@ -398,5 +424,5 @@ extension NSRegularExpression {
     LessonView(subjectName: "Algebra")
         .environmentObject(LessonViewModel())
         .environmentObject(AuthViewModel())
-        .preferredColorScheme(.dark)
+//        .preferredColorScheme(.dark)
 }

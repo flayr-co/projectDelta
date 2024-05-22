@@ -21,7 +21,10 @@ struct LatexView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         let backgroundColor = colorScheme == .dark ? "black" : "white"
         let textColor = colorScheme == .dark ? "white" : "black"
-        
+
+        // Replace *blue text blue* with \textcolor{lightblue}{text} for MathJax
+        let processedLatex = latex.replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{red}{$1}", options: .regularExpression)
+
         let htmlString = """
         <!DOCTYPE html>
         <html>
@@ -47,8 +50,8 @@ struct LatexView: UIViewRepresentable {
             <script>
                 MathJax = {
                     tex: {
-                        display: true,
-                        font: 'bold'
+                        inlineMath: [['$', '$'], ['\\(', '\\)']],
+                        displayMath: [['$$', '$$'], ['\\[', '\\]']]
                     },
                     svg: {
                         fontCache: 'global'
@@ -58,7 +61,7 @@ struct LatexView: UIViewRepresentable {
         </head>
         <body>
             <div id="math-content">
-                \(latex)
+                \(processedLatex)
             </div>
             <script>
                 MathJax.typeset();
@@ -73,4 +76,7 @@ struct LatexView: UIViewRepresentable {
         uiView.stopLoading()
     }
 }
+
+
+
 
