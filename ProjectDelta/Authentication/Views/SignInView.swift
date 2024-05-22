@@ -17,7 +17,6 @@ struct SignInView: View {
         NavigationStack {
             VStack {
                 // MARK: - IMAGE
-                
                 Image("Delta")
                     .resizable()
                     .scaledToFill()
@@ -25,7 +24,6 @@ struct SignInView: View {
                     .padding(.vertical, 32)
                 
                 // MARK: - FORM FIELDS
-                
                 VStack(spacing: 24) {
                     InputView(text: $email,
                               title: "Email Address",
@@ -41,7 +39,6 @@ struct SignInView: View {
                 .padding(.top, 12)
                 
                 // MARK: - SIGN IN BUTTON
-                
                 Button {
                     Task {
                         try await viewModel.signIn(withEmail: email, password: password)
@@ -64,7 +61,6 @@ struct SignInView: View {
                 Spacer()
                 
                 // MARK: - SIGN UP BUTTON
-                
                 NavigationLink {
                     RegistrationView()
                         .navigationBarBackButtonHidden(true)
@@ -96,3 +92,5 @@ extension SignInView: AuthenticationFormProtocol {
     SignInView()
         .environmentObject(AuthViewModel())
 }
+
+

@@ -7,15 +7,23 @@
 
 // User.swift
 import Foundation
+import FirebaseFirestoreSwift
+
+enum UserRole: String, Codable {
+    case student
+    case teacher
+    case parent
+}
 
 struct User: Identifiable, Hashable, Codable {
-    let id: String
-    let fullname: String
-    let email: String
+    @DocumentID var id: String?
+    var fullname: String
+    var email: String
     var points: Int = 0
-    var pointsHistory: [String: Int] = [:] 
+    var pointsHistory: [String: Int] = [:]
     var profilePictureUrl: String?
     var bookmarks: [Bookmark]?
+    var role: UserRole // New property to indicate the user role
     
     var initials: String {
         let formatter = PersonNameComponentsFormatter()
@@ -36,7 +44,7 @@ struct Bookmark: Codable, Hashable {
 
 extension User {
     static var MOCK_USERS: [User] = {
-        var donna = User(id: NSUUID().uuidString, fullname: "Donna Henderson", email: "donna@icloud.com", points: 100) // Assuming Donna starts with 100 points.
+        var donna = User(id: NSUUID().uuidString, fullname: "Donna Henderson", email: "donna@icloud.com", points: 100, role: .student) // Assuming Donna starts with 100 points and is a student.
         
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
@@ -56,6 +64,7 @@ extension User {
         return [donna]
     }()
 }
+
 
 
 

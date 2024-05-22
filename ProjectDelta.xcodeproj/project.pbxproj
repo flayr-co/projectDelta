@@ -32,6 +32,8 @@
 		5258BD5C2AE344C200F21A50 /* SettingsRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5258BD5B2AE344C200F21A50 /* SettingsRowView.swift */; };
 		5258BD5E2AE4753F00F21A50 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5258BD5D2AE4753F00F21A50 /* User.swift */; };
 		5258BD612AE4858300F21A50 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5258BD602AE4858300F21A50 /* AuthViewModel.swift */; };
+		5263B8732BFBB5CB00CE0DD0 /* ProfileViewDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */; };
+		52668ED12BFD06FA0019965F /* LatexView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52668ED02BFD06FA0019965F /* LatexView.swift */; };
 		527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98712AEB22990031F9E6 /* GreetingText.swift */; };
 		527F98742AEB33590031F9E6 /* TestViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98732AEB33590031F9E6 /* TestViewModel.swift */; };
 		527F98762AEC4E080031F9E6 /* QuizViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98752AEC4E080031F9E6 /* QuizViewModel.swift */; };
@@ -118,6 +120,8 @@
 		5258BD5B2AE344C200F21A50 /* SettingsRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRowView.swift; sourceTree = "<group>"; };
 		5258BD5D2AE4753F00F21A50 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		5258BD602AE4858300F21A50 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewDetail.swift; sourceTree = "<group>"; };
+		52668ED02BFD06FA0019965F /* LatexView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatexView.swift; sourceTree = "<group>"; };
 		527F98712AEB22990031F9E6 /* GreetingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingText.swift; sourceTree = "<group>"; };
 		527F98732AEB33590031F9E6 /* TestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestViewModel.swift; sourceTree = "<group>"; };
 		527F98752AEC4E080031F9E6 /* QuizViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizViewModel.swift; sourceTree = "<group>"; };
@@ -313,6 +317,7 @@
 				52920AE82B15662900B60A14 /* AddQuestionView.swift */,
 				52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */,
 				5284D28A2B212C0800409048 /* UserStatsView.swift */,
+				5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */,
 			);
 			path = Screen;
 			sourceTree = "<group>";
@@ -349,6 +354,7 @@
 				527F98852AEF3EA90031F9E6 /* DarkModeBackground.swift */,
 				52E371B82B215253004CFDDA /* PhotoPicker.swift */,
 				52DAF6912BED5EF1006EE19F /* TextStylingUtility.swift */,
+				52668ED02BFD06FA0019965F /* LatexView.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -471,6 +477,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5258BD452ADF403B00F21A50 /* Question.swift in Sources */,
+				5263B8732BFBB5CB00CE0DD0 /* ProfileViewDetail.swift in Sources */,
 				527F987C2AEC5D410031F9E6 /* SubjectGridView.swift in Sources */,
 				527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */,
 				5254A5CF2AF1ABAC00AAAA72 /* HomeView.swift in Sources */,
@@ -507,6 +514,7 @@
 				52D998F32ADB353E007F90A6 /* FirestoreManager.swift in Sources */,
 				5297E43A2AD6434A00220FC6 /* CustomButtonView.swift in Sources */,
 				5258BD562AE3264400F21A50 /* InputView.swift in Sources */,
+				52668ED12BFD06FA0019965F /* LatexView.swift in Sources */,
 				5254A5D32AF1D40300AAAA72 /* LessonView.swift in Sources */,
 				5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */,
 				527F98742AEB33590031F9E6 /* TestViewModel.swift in Sources */,

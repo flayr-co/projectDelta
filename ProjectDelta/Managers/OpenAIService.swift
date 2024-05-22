@@ -141,6 +141,7 @@ enum OpenAIError: Error {
 enum Model: String, Codable {
     case gpt3_5_turbo = "gpt-3.5-turbo"
     case gpt4 = "gpt-4"
+    case gpt4o = "gpt-4o"
 }
 
 extension Array {

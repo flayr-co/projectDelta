@@ -5,13 +5,13 @@
 //  Created by Jake Meissner on 10/20/23.
 //
 
-// ProfileView.swift
 import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var viewModel: AuthViewModel
     @Environment(\.colorScheme) var colorScheme
     @State private var showImagePicker = false
+    @State private var showProfileDetail = false
     @State private var pickedImage: UIImage?
     @AppStorage("isDarkMode") private var isDarkMode = false // AppStorage to save theme preference
     
@@ -49,9 +49,14 @@ struct ProfileView: View {
                             }
                             .padding(.top, 50)
                             .sheet(isPresented: $showImagePicker) {
-                                PhotoPicker(selectedImage: $pickedImage) { image in
-                                    viewModel.uploadProfileImage(image, for: user)
-                                }
+                                PhotoPicker(image: $pickedImage)
+                                    .onChange(of: pickedImage) { newImage in
+                                        if let image = newImage {
+                                            Task {
+                                                await viewModel.uploadProfileImage(image, for: user)
+                                            }
+                                        }
+                                    }
                             }
                             
                             Text(user.fullname)
@@ -62,7 +67,7 @@ struct ProfileView: View {
                             Text(user.email)
                                 .font(.callout)
                                 .foregroundColor(colorScheme == .dark ? .gray : .secondary)
-                        } //:VSTACK
+                        } //: VSTACK
                         .frame(maxWidth: .infinity)
                     } //: SECTION 1
                     
@@ -88,13 +93,18 @@ struct ProfileView: View {
                     } //: SECTION 2
                     
                     Section("Account") {
-                        NavigationLink {
-                            
-                        } label: {
+                        Button(action: {
+                            showProfileDetail = true
+                        }) {
                             SettingsRowView(imageName: "person",
                                             title: "Profile",
                                             tintColor: colorScheme == .dark ? Color.white : Color(.systemGray))
                         }
+                        .sheet(isPresented: $showProfileDetail) {
+                            ProfileViewDetail(isPresented: $showProfileDetail)
+                                .environmentObject(viewModel)
+                        }
+                        
                         NavigationLink {
                             UserStatsView()
                                 .navigationBarBackButtonHidden(true)
@@ -126,3 +136,6 @@ struct ProfileView: View {
         .environmentObject(authViewModel)
 //        .preferredColorScheme(.dark)
 }
+
+
+

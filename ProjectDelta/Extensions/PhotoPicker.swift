@@ -6,49 +6,44 @@
 //
 
 import SwiftUI
-import Foundation
 import PhotosUI
 
-// Custom photo picker using PHPickerViewController
 struct PhotoPicker: UIViewControllerRepresentable {
-    @Binding var selectedImage: UIImage?
-    var onImagePicked: (UIImage) -> Void
-    
+    @Binding var image: UIImage?
+
+    class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        var parent: PhotoPicker
+
+        init(parent: PhotoPicker) {
+            self.parent = parent
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true, completion: nil)
+
+            guard let provider = results.first?.itemProvider else { return }
+            if provider.canLoadObject(ofClass: UIImage.self) {
+                provider.loadObject(ofClass: UIImage.self) { (image, error) in
+                    DispatchQueue.main.async {
+                        self.parent.image = image as? UIImage
+                    }
+                }
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration()
-        config.selectionLimit = 1
         config.filter = .images
-
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = context.coordinator
         return picker
     }
 
     func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        private let parent: PhotoPicker
-
-        init(_ parent: PhotoPicker) {
-            self.parent = parent
-        }
-
-        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            picker.dismiss(animated: true)
-
-            if let result = results.first, result.itemProvider.canLoadObject(ofClass: UIImage.self) {
-                result.itemProvider.loadObject(ofClass: UIImage.self) { image, error in
-                    if let image = image as? UIImage {
-                        DispatchQueue.main.async {
-                            self.parent.onImagePicked(image)
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
+

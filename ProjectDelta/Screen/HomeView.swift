@@ -26,9 +26,9 @@ struct HomeView: View {
         
         NavigationStack {
             HStack(spacing: 80) {
-                Text("Dashboard")
-                    .font(.title)
-                    .fontWeight(.bold)
+                Text(dashboardText)
+                    .font(.title3)
+                    .fontWeight(.medium)
                 
                 VStack {
                     HStack {
@@ -55,9 +55,12 @@ struct HomeView: View {
                         .font(.headline)
                     
                     LazyVGrid(columns: columns, spacing: 15) {
-                        NavigationLink(destination: OpenAIAdminView().navigationBarBackButtonHidden(true)) {
-                            DisplayCards(imageName: "pencil", title: "Quick Test", tintColor: .red)
-                        }
+                        NavigationLink(destination: SubjectGridView(navigationSource: .testView)
+                                        .environmentObject(quizViewModel)
+                                        .environmentObject(lessonVM)
+                                        .navigationBarBackButtonHidden(true)) {
+                                            DisplayCards(imageName: "pencil", title: "Test", tintColor: .red)
+                                        }
                         
                         NavigationLink(destination: SubjectGridView(navigationSource: .homeView)
                                         .environmentObject(quizViewModel)
@@ -75,12 +78,28 @@ struct HomeView: View {
                         }
                     }
                 }
-                .onChange(of: viewModel.currentUser) { _ in
+                .onChange(of: viewModel.currentUser) {
                     refreshKey = UUID() // To refresh the view
                 }
             }
         } //: NAVIGATIONSTACK
     } //: BODY
+    
+    // Computed property to return dashboard text based on user role
+    private var dashboardText: String {
+        guard let role = viewModel.currentUser?.role else {
+            return "Dashboard"
+        }
+        
+        switch role {
+        case .student:
+            return "Student Dashboard"
+        case .teacher:
+            return "Teacher Dashboard"
+        case .parent:
+            return "Parent Dashboard"
+        }
+    }
 }
 
 #Preview {

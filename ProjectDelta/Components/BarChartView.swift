@@ -39,8 +39,8 @@ struct BarChartView: View {
         dateFormatter.dateFormat = "yyyy-MM-dd"
         
         let calendar = Calendar.current
-        let today = Date()
-        let last7DaysRange = (0...6).map { calendar.date(byAdding: .day, value: -$0, to: today)! }
+        let today = calendar.startOfDay(for: Date()) // Start of the day to avoid time zone issues
+        let last7DaysRange = (0..<7).map { calendar.date(byAdding: .day, value: -$0, to: today)! }
         
         return last7DaysRange.map { date -> BarChartData in
             let dateKey = dateFormatter.string(from: date)

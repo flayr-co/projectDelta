@@ -12,6 +12,7 @@ import Firebase
 enum NavigationSource {
     case homeView
     case cardView
+    case testView // Added this case
 }
 
 struct SubjectGridView: View {
@@ -19,37 +20,18 @@ struct SubjectGridView: View {
     @EnvironmentObject var lessonVM: LessonViewModel
 
     @Environment(\.colorScheme) var colorScheme
-    @Environment(\.presentationMode) var presentationMode  // To programmatically dismiss the view
+    @Environment(\.presentationMode) var presentationMode
     var navigationSource: NavigationSource
     
     var body: some View {
         NavigationStack {
-            // MARK: - HEADER
             HStack {
-                if navigationSource == .cardView {
-                    // If navigated from CardView, show a back button to CardView
-                    Button(action: {
-                        // Custom action to navigate back to CardView
-                        // If using a NavigationStack, you could pop back
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        BackButtonView()
-                    }
-                } else {
-                    // If navigated from HomeView, show a back button to HomeView
-                    Button(action: {
-                        // Custom action to navigate back to HomeView
-                        // If using a NavigationStack, you could pop back
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        BackButtonView()
-                    }
+                BackButtonView {
+                    presentationMode.wrappedValue.dismiss()
                 }
-                
                 Spacer()
             }
             
-            // MARK: - MAIN CONTENT
             Text("Choose a Subject")
                 .font(.title2)
                 .fontWeight(.bold)
@@ -58,10 +40,14 @@ struct SubjectGridView: View {
             ScrollView {
                 ForEach(quizViewModel.subjects, id: \.self) { subject in
                     NavigationLink {
-                        if navigationSource == .homeView {
+                        switch navigationSource {
+                        case .homeView:
                             LessonView(subjectName: subject)
                                 .environmentObject(lessonVM)
-                        } else {
+                        case .testView:
+                            TestView(subject: subject)
+                                .environmentObject(quizViewModel)
+                        case .cardView:
                             QuickTestView(subject: subject)
                                 .environmentObject(quizViewModel)
                         }
@@ -78,7 +64,7 @@ struct SubjectGridView: View {
                 }
             }
             .navigationBarBackButtonHidden(true)
-        } //: NAVIGATIONSTACK
+        }
         .onAppear {
             Task {
                 do {
@@ -88,7 +74,7 @@ struct SubjectGridView: View {
                 }
             }
         }
-    } //: BODY
+    }
 }
 
 #Preview {
@@ -96,3 +82,7 @@ struct SubjectGridView: View {
         .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
         .preferredColorScheme(.dark)
 }
+
+
+
+

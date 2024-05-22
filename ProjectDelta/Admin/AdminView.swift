@@ -16,7 +16,7 @@ class AdminViewModel: ObservableObject {
     @Published var showingPageExistsWarning = false
     @Published var selectedSubject: String? {
         didSet {
-            // Assuming you want to clear the lessons when the subject changes
+            // Clear lessons when the subject changes
             lessons.removeAll()
             if let subjectID = selectedSubject, !subjectID.isEmpty {
                 fetchLessons(subjectID: subjectID)
@@ -24,7 +24,6 @@ class AdminViewModel: ObservableObject {
         }
     }
 
-    // Setting db as internal or public as needed
     let db = Firestore.firestore()
         
     init() {
@@ -41,6 +40,7 @@ class AdminViewModel: ObservableObject {
             self?.subjects = documents.compactMap { queryDocumentSnapshot -> Subject? in
                 try? queryDocumentSnapshot.data(as: Subject.self)
             }
+            print("Fetched subjects: \(self?.subjects ?? [])")
         }
     }
     
@@ -194,9 +194,10 @@ struct AdminView: View {
                 Section(header: Text("Select Subject")) {
                     Picker("Subject", selection: $viewModel.selectedSubject) {
                         ForEach(viewModel.subjects) { subject in
-                            Text(subject.name).tag(subject.id)
+                            Text(subject.name).tag(subject.id as String?)
                         }
                     }
+                    .pickerStyle(MenuPickerStyle())
                 }
 
                 Section(header: Text("Select Lesson")) {
@@ -205,6 +206,7 @@ struct AdminView: View {
                             Text(lesson.name).tag(lesson.id as String?)
                         }
                     }
+                    .pickerStyle(MenuPickerStyle())
                     .onChange(of: viewModel.selectedSubject) { newSubject in
                         print("Subject changed to: \(newSubject ?? "none")")
                         self.selectedLessonID = nil // Ensure this line effectively resets the lesson selection
@@ -213,6 +215,10 @@ struct AdminView: View {
 
                 Section(header: Text("Page Details")) {
                     TextField("Page Number", value: $pageNumber, formatter: NumberFormatter())
+                        .keyboardType(.numberPad)
+                        .onSubmit {
+                            hideKeyboard()
+                        }
                     Toggle(isOn: $readyButtonDisplayed) {
                         Text("Ready Button Displayed")
                     }
@@ -299,6 +305,9 @@ struct AdminView: View {
             Text("The page has been successfully added.")
         }
         .background(TapGestureView(action: hideKeyboard))
+        .onTapGesture {
+            hideKeyboard()
+        }
     }
 }
 
@@ -322,6 +331,5 @@ struct TapGestureView: View {
 #Preview {
     AdminView()
 }
-
 
 

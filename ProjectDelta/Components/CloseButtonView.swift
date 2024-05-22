@@ -18,15 +18,22 @@ struct CloseButtonView: View {
 }
 
 struct BackButtonView: View {
+    var action: () -> Void
+
     var body: some View {
-        Image(systemName:  "arrow.left.circle.fill")
-            .imageScale(.small)
-            .font(.title)
-            .padding(.leading, 20)
-            .foregroundColor(Color.red)
+        Button(action: {
+            action()
+        }) {
+            Image(systemName: "arrow.left.circle.fill")
+                .imageScale(.small)
+                .font(.title)
+                .padding(.leading, 20)
+                .foregroundColor(Color.red)
+        }
     }
 }
 
 #Preview {
-    BackButtonView()
+    BackButtonView(action: {})
 }
+
