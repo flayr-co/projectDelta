@@ -26,18 +26,18 @@ class LessonViewModel: ObservableObject {
     func initializeLesson(subjectName: String, authVM: AuthViewModel) async {
         print("Starting to fetch the first incomplete lesson for \(subjectName).")
         let (lessonName, lessonId) = await fetchFirstIncompleteLesson(for: subjectName)
-
+        
         if !lessonName.isEmpty {
             DispatchQueue.main.async {
                 self.currentLessonName = lessonName
                 self.currentLessonId = lessonId
                 print("First incomplete lesson fetched: \(lessonName) with ID \(lessonId)")
             }
-
+            
             print("Starting to fetch lesson content for \(subjectName), lesson \(lessonName).")
             await fetchLessonContent(for: subjectName, lessonName: lessonName)
             print("Content fetching completed for lesson \(lessonName).")
-
+            
             if let initialPageNumber = self.lessonPages.first?.pageNumber {
                 self.navigateToPage(lessonName: lessonName, pageNumber: initialPageNumber, authVM: authVM)
             }
@@ -66,24 +66,22 @@ class LessonViewModel: ObservableObject {
             let pagesQuerySnapshot = try await db.collection("Subjects").document(subjectDocument.documentID)
                 .collection("Lessons").document(lessonDocument.documentID)
                 .collection("Pages").order(by: "pageNumber").getDocuments()
-            let fetchedPages = pagesQuerySnapshot.documents.map { document in
-                return Page(
-                    id: document.documentID,
-                    content: document.data()["content"] as? String ?? "",
-                    pageNumber: document.data()["pageNumber"] as? Int ?? 0,
-                    readyButtonDisplayed: document.data()["readyButtonDisplayed"] as? Bool ?? false,
-                    example: document.data()["example"] as? String,
-                    explanation: document.data()["explanation"] as? String,
-                    graphics: document.data()["graphics"] as? String
-                )
+
+            let fetchedPages = pagesQuerySnapshot.documents.compactMap { document -> Page? in
+                do {
+                    let page = try document.data(as: Page.self)
+                    print("Fetched page: \(page.pageNumber) with ID: \(page.id ?? "N/A")")
+                    print("Page graphData: \(page.graphData?.xValues ?? []), \(page.graphData?.yValues ?? [])")
+                    return page
+                } catch {
+                    print("Error decoding page: \(error.localizedDescription)")
+                    return nil
+                }
             }
 
             DispatchQueue.main.async {
                 self.lessonPages = fetchedPages
                 self.currentLesson?.pages = fetchedPages  // Set the pages for the current lesson
-                fetchedPages.forEach { page in
-                    print("Fetched page: \(page.pageNumber) with ID: \(page.id ?? "N/A")")
-                }
                 if !fetchedPages.isEmpty {
                     print("Fetched \(fetchedPages.count) pages for lesson \(lessonName) within \(subjectName).")
                 } else {
@@ -94,6 +92,8 @@ class LessonViewModel: ObservableObject {
             print("Firestore query error: \(error.localizedDescription)")
         }
     }
+
+
 
     func fetchAllLessons(for subjectName: String) {
         print("Fetching all lessons for subject: \(subjectName)")

@@ -85,6 +85,7 @@
 		52C0B45E2BE97C4D00ECB063 /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 52C0B45D2BE97C4D00ECB063 /* OpenAI */; };
 		52C72D682AFB014800BDC77E /* BarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C72D672AFB014800BDC77E /* BarChartView.swift */; };
 		52CF267C2B1BCD6B00E7C99D /* AddTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */; };
+		52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */; };
 		52D998F02ADB3120007F90A6 /* Test.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998EF2ADB3120007F90A6 /* Test.swift */; };
 		52D998F32ADB353E007F90A6 /* FirestoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998F22ADB353E007F90A6 /* FirestoreManager.swift */; };
 		52D998F52ADB359D007F90A6 /* Views+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998F42ADB359D007F90A6 /* Views+Extensions.swift */; };
@@ -146,6 +147,7 @@
 		52C0B45A2BE8859D00ECB063 /* OpenAIAdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIAdminViewModel.swift; sourceTree = "<group>"; };
 		52C72D672AFB014800BDC77E /* BarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartView.swift; sourceTree = "<group>"; };
 		52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTestView.swift; sourceTree = "<group>"; };
+		52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicGraphView.swift; sourceTree = "<group>"; };
 		52D998EF2ADB3120007F90A6 /* Test.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Test.swift; sourceTree = "<group>"; };
 		52D998F22ADB353E007F90A6 /* FirestoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirestoreManager.swift; sourceTree = "<group>"; };
 		52D998F42ADB359D007F90A6 /* Views+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views+Extensions.swift"; sourceTree = "<group>"; };
@@ -300,6 +302,7 @@
 				5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */,
 				52FA58222BBC993D0063091C /* TableOfContentsView.swift */,
 				52AFCA092BBF381B0081A309 /* ProgressBar.swift */,
+				52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -511,6 +514,7 @@
 				527F98782AEC518E0031F9E6 /* Subject.swift in Sources */,
 				527F98842AED97D50031F9E6 /* OpenAIService.swift in Sources */,
 				52DAF6922BED5EF2006EE19F /* TextStylingUtility.swift in Sources */,
+				52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */,
 				52E371B92B215253004CFDDA /* PhotoPicker.swift in Sources */,
 				52920AE72B155B7700B60A14 /* QuestionGeneratorViewModel.swift in Sources */,
 				5258BD5C2AE344C200F21A50 /* SettingsRowView.swift in Sources */,

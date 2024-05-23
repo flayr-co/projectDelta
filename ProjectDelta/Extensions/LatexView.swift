@@ -21,9 +21,10 @@ struct LatexView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         let backgroundColor = colorScheme == .dark ? "black" : "white"
         let textColor = colorScheme == .dark ? "white" : "black"
+        let latexTextColor = colorScheme == .dark ? "cyan" : "red"
 
-        // Replace *blue text blue* with \textcolor{lightblue}{text} for MathJax
-        let processedLatex = latex.replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{red}{$1}", options: .regularExpression)
+        // Replace *blue text blue* with \textcolor{latexTextColor}{text} for MathJax
+        let processedLatex = latex.replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(latexTextColor)}{$1}", options: .regularExpression)
 
         let htmlString = """
         <!DOCTYPE html>
@@ -76,6 +77,7 @@ struct LatexView: UIViewRepresentable {
         uiView.stopLoading()
     }
 }
+
 
 
 

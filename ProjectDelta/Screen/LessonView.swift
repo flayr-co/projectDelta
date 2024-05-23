@@ -58,7 +58,7 @@ struct LessonView: View {
                         .foregroundColor(isBookmarked ? Color.accentColor : Color.secondary)
                 }
                 .padding(.bottom)
-                .padding(.horizontal) 
+                .padding(.horizontal)
             }
             .padding(.top, 16)  // Adjust the padding to ensure it's visible at the top
             .transition(.move(edge: .top))
@@ -83,6 +83,7 @@ struct LessonView: View {
                                 exampleText: lessonVM.lessonPages[index].example,
                                 graphicsURL: lessonVM.lessonPages[index].graphics,
                                 explanation: lessonVM.lessonPages[index].explanation,
+                                graphData: lessonVM.lessonPages[index].graphData,  // Ensure graphData is passed
                                 readyButtonDisplayed: lessonVM.lessonPages[index].readyButtonDisplayed,
                                 isInteractingWithExplanation: $isInteractingWithExplanation
                             )
@@ -162,19 +163,22 @@ struct LessonView: View {
     }
 }
 
+
+
 // MARK: - LessonContentPage
 struct LessonContentPage: View {
     var text: String
     var exampleText: String?
     var graphicsURL: String?
     var explanation: String?
+    var graphData: GraphData?
     var readyButtonDisplayed: Bool
-    @Binding var isInteractingWithExplanation: Bool  // Bind this state from parent view
-    @State private var isExplanationVisible: Bool = false // State to track visibility
-    @State private var scrollOffset: CGFloat = 0 // Track the scroll offset
-    @State private var scrollViewContentHeight: CGFloat = 0 // Track the content height
-    @State private var showScrollIndicator: Bool = false // Track if the scroll indicator should be shown
-    @State private var timer: Timer? // Timer to hide the scroll indicator after inactivity
+    @Binding var isInteractingWithExplanation: Bool
+    @State private var isExplanationVisible: Bool = false
+    @State private var scrollOffset: CGFloat = 0
+    @State private var scrollViewContentHeight: CGFloat = 0
+    @State private var showScrollIndicator: Bool = false
+    @State private var timer: Timer?
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -185,12 +189,12 @@ struct LessonContentPage: View {
                     VStack {
                         Group {
                             if exampleText == nil && graphicsURL == nil && explanation == nil {
-                                Spacer(minLength: geometry.size.height * 0.3) // Larger space for content-only pages
+                                Spacer(minLength: geometry.size.height * 0.3)
                             } else {
-                                Spacer(minLength: geometry.size.height * 0.03) // Reduced space for pages with additional elements
+                                Spacer(minLength: geometry.size.height * 0.03)
                             }
                         }
-                        
+
                         TextStylingUtility.styledText(from: text)
                             .font(.system(size: 18, weight: .regular, design: .serif))
                             .minimumScaleFactor(0.5)
@@ -201,45 +205,34 @@ struct LessonContentPage: View {
 
                         if let example = exampleText, !example.isEmpty {
                             ExampleView(text: example)
-                                .padding(.bottom, 20) // Add some spacing after the example
+                                .padding(.bottom, 20)
                                 .padding(.top, 40)
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
-                        
-                        // Load and display graphics if available
-                        if let urlString = graphicsURL, let url = URL(string: urlString) {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image {
-                                    image.resizable()
-                                         .scaledToFit()
-                                         .frame(maxWidth: UIScreen.main.bounds.width - 260)
-                                         .padding(.vertical, 20) // Add some spacing after the image
-                                         .clipShape(RoundedRectangle(cornerRadius: 10.0))
-                                         .frame(maxWidth: .infinity, alignment: .center)
-                                } else if phase.error != nil {
-                                    Text("Unable to load image")
-                                        .foregroundColor(.red)
-                                        .padding(.bottom, 30)
-                                        .frame(maxWidth: .infinity, alignment: .center)
-                                } else {
-                                    ProgressView()
-                                        .padding(.bottom, 20)
-                                        .frame(maxWidth: .infinity, alignment: .center)
+
+                        // Dynamic graph example
+                        if let graphData = graphData {
+                            DynamicGraphView(data: graphData)
+                                .padding(.vertical, 20)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .onAppear {
+                                    print("Displaying graph data: \(graphData.xValues), \(graphData.yValues)")
                                 }
-                            }
+                        } else {
+                            Text("No Graph Data")
+                                .foregroundColor(.red)
                         }
-                        
+
                         // Explanation dropdown
                         if let explanationText = explanation, !explanationText.isEmpty {
                             Button {
                                 withAnimation {
                                     isExplanationVisible.toggle()
-                                    isInteractingWithExplanation = isExplanationVisible  // Update state based on visibility
+                                    isInteractingWithExplanation = isExplanationVisible
                                 }
                             } label: {
                                 HStack {
                                     Image(systemName: "checkmark.seal.fill")
-                                    
                                     Text("See explanation")
                                 }
                             }
@@ -252,7 +245,7 @@ struct LessonContentPage: View {
                                     .frame(maxWidth: .infinity, alignment: .center)
                             }
                         }
-                        
+
                         // Ready button display
                         if readyButtonDisplayed {
                             VStack(spacing: 20) {
@@ -262,9 +255,9 @@ struct LessonContentPage: View {
                                     AnimatedActionButton()
                                         .padding()
                                 }
-                                .padding(.top, 20) // Add some spacing after the other content
+                                .padding(.top, 20)
                                 .frame(maxWidth: .infinity, alignment: .center)
-                                
+
                                 NavigationLink {
                                     PracticeTestView()
                                 } label: {
@@ -275,16 +268,15 @@ struct LessonContentPage: View {
                                 }
                             }
                         }
-                        
-                        Spacer() // This spacer will push all content towards the top, giving it a top-centered appearance
-                        
-                    } //: VSTACK
+
+                        Spacer()
+                    }
                     .background(GeometryReader { proxy in
                         Color.clear.onAppear {
                             scrollViewContentHeight = proxy.size.height
                         }
                     })
-                    .frame(minHeight: geometry.size.height) // This ensures the VStack takes up at least the full height of the GeometryReader
+                    .frame(minHeight: geometry.size.height)
                     .background(GeometryReader { proxy in
                         Color.clear.onAppear {
                             scrollViewContentHeight = proxy.size.height
@@ -335,6 +327,8 @@ struct LessonContentPage: View {
         }
     }
 }
+
+
 
 struct ExampleView: View {
     var text: String
