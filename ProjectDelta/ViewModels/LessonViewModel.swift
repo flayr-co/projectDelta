@@ -189,7 +189,7 @@ class LessonViewModel: ObservableObject {
             }
 
             let lessonsRef = subjectsRef.document(subjectDocument.documentID).collection("Lessons")
-            let lessonsSnapshot = try await lessonsRef.whereField("completed", isEqualTo: false).getDocuments()
+            let lessonsSnapshot = try await lessonsRef.order(by: "lessonNumber").whereField("completed", isEqualTo: false).getDocuments()
             guard let firstIncompleteLessonDocument = lessonsSnapshot.documents.first else {
                 print("No incomplete lessons found for \(subjectName).")
                 return ("", "") // Return empty strings if no incomplete lesson is found
@@ -210,6 +210,8 @@ class LessonViewModel: ObservableObject {
             return ("", "") // Return empty strings in case of an error
         }
     }
+
+
 
     // Custom function to format exponents
     private func formatExponentsInText(_ text: String) -> String {
@@ -331,5 +333,4 @@ class LessonViewModel: ObservableObject {
         }
     }
 }
-
 

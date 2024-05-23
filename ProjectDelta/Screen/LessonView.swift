@@ -23,48 +23,47 @@ struct LessonView: View {
 
     var body: some View {
         VStack {
-            if showHeader {
-                HStack(spacing: 16) {
-                    BackButtonView {
-                        presentationMode.wrappedValue.dismiss()
-                    }
-                    
-                    Text("\(lessonVM.currentLessonName)")
-                        .font(.subheadline)
-                        .foregroundColor(colorScheme == .dark ? .white : .black)
-                    
-                    Spacer()
-                    
-                    // Table of Contents Button
-                    Button(action: {
-                        showTableOfContents.toggle()
-                        if showTableOfContents {
-                            lessonVM.fetchAllLessons(for: subjectName)
-                        }
-                    }) {
-                        Image(systemName: "list.number")
-                            .accessibility(label: Text("Show Table of Contents"))
-                            .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
-                    }
-                    .padding()
-                    .background(showTableOfContents ? Color.gray.opacity(0.2) : Color.clear)
-                    .cornerRadius(8)
-
-                    // Bookmark button
-                    Button(action: {
-                        lessonVM.toggleBookmark(authVM: authVM)
-                    }) {
-                        let isBookmarked = lessonVM.isCurrentPageBookmarked
-                        Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                            .foregroundColor(isBookmarked ? Color.accentColor : Color.secondary)
-                    }
-                    .padding()
+            HStack(spacing: 16) {
+                BackButtonView {
+                    presentationMode.wrappedValue.dismiss()
                 }
-                .padding(.top, 16)  // Adjust the padding to ensure it's visible at the top
-                .transition(.move(edge: .top))
-                .animation(.default, value: showHeader)
-            }
+                
+                Text("\(lessonVM.currentLessonName)")
+                    .font(.subheadline)
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                
+                Spacer()
+                
+                // Table of Contents Button
+                Button(action: {
+                    showTableOfContents.toggle()
+                    if showTableOfContents {
+                        lessonVM.fetchAllLessons(for: subjectName)
+                    }
+                }) {
+                    Image(systemName: "list.number")
+                        .accessibility(label: Text("Show Table of Contents"))
+                        .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
+                }
+                .padding()
+                .background(showTableOfContents ? Color.gray.opacity(0.2) : Color.clear)
+                .cornerRadius(8)
 
+                // Bookmark button
+                Button(action: {
+                    lessonVM.toggleBookmark(authVM: authVM)
+                }) {
+                    let isBookmarked = lessonVM.isCurrentPageBookmarked
+                    Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                        .foregroundColor(isBookmarked ? Color.accentColor : Color.secondary)
+                }
+                .padding(.bottom)
+                .padding(.horizontal) 
+            }
+            .padding(.top, 16)  // Adjust the padding to ensure it's visible at the top
+            .transition(.move(edge: .top))
+            .animation(.default, value: showHeader)
+            
             if lessonVM.lessonPages.isEmpty {
                 Text("Loading lesson content...")
             } else {
@@ -188,7 +187,7 @@ struct LessonContentPage: View {
                             if exampleText == nil && graphicsURL == nil && explanation == nil {
                                 Spacer(minLength: geometry.size.height * 0.3) // Larger space for content-only pages
                             } else {
-                                Spacer(minLength: geometry.size.height * 0.1) // Reduced space for pages with additional elements
+                                Spacer(minLength: geometry.size.height * 0.03) // Reduced space for pages with additional elements
                             }
                         }
                         
@@ -335,7 +334,7 @@ struct LessonContentPage: View {
             }
         }
     }
-} 
+}
 
 struct ExampleView: View {
     var text: String
@@ -354,13 +353,6 @@ struct ExampleView: View {
         ScrollView {
             VStack(alignment: .leading) {
                 ForEach(parsedContent, id: \.0) { (example, explanation) in
-                    if !explanation.isEmpty {
-                        Text(explanation)
-                            .font(.footnote)
-                            .foregroundColor(.gray)
-                            .padding(.horizontal)
-                    }
-
                     if example.contains("$$") {
                         let latex = example.replacingOccurrences(of: "$$", with: "")
                         VStack {
@@ -392,6 +384,14 @@ struct ExampleView: View {
                             .frame(height: geometry.size.height)
                         }
                         .frame(minHeight: 50)
+                    }
+
+                    if !explanation.isEmpty {
+                        Text(explanation)
+                            .font(.footnote)
+                            .foregroundColor(.gray)
+                            .padding(.horizontal)
+                            .padding(.bottom, 10) // Add top padding to create space between example and explanation
                     }
                 }
             }
