@@ -26,20 +26,18 @@ class LessonViewModel: ObservableObject {
     func initializeLesson(subjectName: String, authVM: AuthViewModel) async {
         print("Starting to fetch the first incomplete lesson for \(subjectName).")
         let (lessonName, lessonId) = await fetchFirstIncompleteLesson(for: subjectName)
-        
-        // Check for non-empty lesson name and ID to proceed
+
         if !lessonName.isEmpty {
             DispatchQueue.main.async {
-                // Access properties through your view model
                 self.currentLessonName = lessonName
-                self.currentLessonId = lessonId  // Correctly reference through lessonVM
+                self.currentLessonId = lessonId
                 print("First incomplete lesson fetched: \(lessonName) with ID \(lessonId)")
             }
-            
+
             print("Starting to fetch lesson content for \(subjectName), lesson \(lessonName).")
             await fetchLessonContent(for: subjectName, lessonName: lessonName)
             print("Content fetching completed for lesson \(lessonName).")
-            
+
             if let initialPageNumber = self.lessonPages.first?.pageNumber {
                 self.navigateToPage(lessonName: lessonName, pageNumber: initialPageNumber, authVM: authVM)
             }
@@ -128,6 +126,7 @@ class LessonViewModel: ObservableObject {
                         group.enter()
                         let lessonID = document.documentID
                         let lessonName = document.data()["name"] as? String ?? ""
+                        let lessonNumber = document.data()["lessonNumber"] as? Int ?? 0  // Ensure we fetch the lesson number
                         db.collection("Subjects").document(subjectDocument.documentID).collection("Lessons").document(lessonID)
                             .collection("Pages").order(by: "pageNumber").getDocuments { (pageSnapshot, error) in
                                 if let error = error {
@@ -139,20 +138,18 @@ class LessonViewModel: ObservableObject {
                                 let pages = pageSnapshot?.documents.compactMap { document -> Page? in
                                     guard let content = document.data()["content"] as? String,
                                           let pageNumber = document.data()["pageNumber"] as? Int,
-                                          let readyButtonDisplayed = document.data()["readyButtonDisplayed"] as? Bool,
-                                          let example = document.data()["example"] as? String,
-                                          let graphics = document.data()["graphics"] as? String else {
+                                          let readyButtonDisplayed = document.data()["readyButtonDisplayed"] as? Bool else {
                                         return nil
                                     }
 
-                                    return Page(id: document.documentID, content: content, pageNumber: pageNumber, readyButtonDisplayed: readyButtonDisplayed, example: example, graphics: graphics)
+                                    return Page(id: document.documentID, content: content, pageNumber: pageNumber, readyButtonDisplayed: readyButtonDisplayed)
                                 } ?? []
 
                                 let lesson = Lesson(id: lessonID,
                                                     name: lessonName,
                                                     description: document.data()["description"] as? String ?? "",
                                                     completed: document.data()["completed"] as? Bool ?? false,
-                                                    lessonNumber: document.data()["lessonNumber"] as? Int ?? 1,
+                                                    lessonNumber: lessonNumber,  // Use the fetched lesson number
                                                     pages: pages)
                                 lessonsWithPages.append(lesson)
                                 group.leave()
@@ -165,11 +162,11 @@ class LessonViewModel: ObservableObject {
                             return
                         }
 
-                        strongSelf.currentSubjectLessons = lessonsWithPages.sorted { $0.name < $1.name }
+                        strongSelf.currentSubjectLessons = lessonsWithPages.sorted { $0.lessonNumber < $1.lessonNumber }  // Sort by lessonNumber
                         if let firstIncomplete = lessonsWithPages.first(where: { !$0.completed }) {
                             DispatchQueue.main.async {
                                 strongSelf.currentLesson = firstIncomplete
-                                strongSelf.currentLessonId = firstIncomplete.id ?? "default_id"  // Provide a default value
+                                strongSelf.currentLessonId = firstIncomplete.id ?? "default_id"
                                 strongSelf.currentLessonName = firstIncomplete.name
                             }
                         }
@@ -178,6 +175,7 @@ class LessonViewModel: ObservableObject {
                 }
         }
     }
+
 
     func fetchFirstIncompleteLesson(for subjectName: String) async -> (name: String, id: String) {
         let db = Firestore.firestore()
@@ -275,9 +273,9 @@ class LessonViewModel: ObservableObject {
     @MainActor
     func navigateToPage(lessonName: String, pageNumber: Int, authVM: AuthViewModel) {
         print("navigateToPage called with lessonName: '\(lessonName)', pageNumber: \(pageNumber)")
-        
+
+        // Fetch the lesson if the current lesson name doesn't match
         if let currentLesson = self.currentLesson, currentLesson.name == lessonName {
-            print("Current lesson pages: \(currentLesson.pages?.map { $0.pageNumber } ?? [])")
             if let pageIndex = currentLesson.pages?.firstIndex(where: { $0.pageNumber == pageNumber }) {
                 DispatchQueue.main.async {
                     self.currentPageIndex = pageIndex
@@ -289,7 +287,23 @@ class LessonViewModel: ObservableObject {
                 print("Page number \(pageNumber) not found in lesson \(lessonName).")
             }
         } else {
-            print("Current lesson is not set or lesson name mismatch.")
+            // Fetch the new lesson content if the lesson name doesn't match
+            Task {
+                await fetchLessonContent(for: self.subjectName, lessonName: lessonName)
+                if let newLesson = self.currentSubjectLessons.first(where: { $0.name == lessonName }) {
+                    self.currentLesson = newLesson
+                    if let pageIndex = newLesson.pages?.firstIndex(where: { $0.pageNumber == pageNumber }) {
+                        DispatchQueue.main.async {
+                            self.currentPageIndex = pageIndex
+                            self.currentPageDocumentId = newLesson.pages?[pageIndex].id
+                            print("Navigated to page \(pageNumber) of lesson \(lessonName), document ID: \(self.currentPageDocumentId ?? "N/A")")
+                            self.updateBookmarkStatus(authVM: authVM)
+                        }
+                    } else {
+                        print("Page number \(pageNumber) not found in lesson \(lessonName).")
+                    }
+                }
+            }
         }
     }
     

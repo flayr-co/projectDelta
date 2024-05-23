@@ -11,12 +11,11 @@ struct TableOfContentsView: View {
     @ObservedObject var lessonVM: LessonViewModel
     let subjectName: String
     @Environment(\.colorScheme) var colorScheme
-    
+
     var body: some View {
         List {
             ForEach(lessonVM.currentSubjectLessons, id: \.id) { lesson in
                 DisclosureGroup(lesson.name) {
-                    // Use optional chaining with a default empty array to safely access pages
                     ForEach(lesson.pages ?? [], id: \.id) { page in
                         Button(action: {
                             Task {
@@ -24,27 +23,29 @@ struct TableOfContentsView: View {
                                 if let pageIndex = lesson.pages?.firstIndex(where: { $0.pageNumber == page.pageNumber }) {
                                     DispatchQueue.main.async {
                                         lessonVM.currentPageIndex = pageIndex
+                                        lessonVM.currentLesson = lesson
+                                        lessonVM.currentLessonName = lesson.name
+                                        lessonVM.currentLessonId = lesson.id ?? ""
                                     }
                                 }
                             }
                         }) {
                             HStack {
                                 Text("Page \(page.pageNumber)")
-                                    .foregroundStyle(lessonVM.currentPageIndex == page.pageNumber - 1 ? colorScheme == .dark ? .cyan : .blue : .primary)
+                                    .foregroundStyle((lessonVM.currentLesson?.id == lesson.id && lessonVM.currentPageIndex == page.pageNumber - 1) ? colorScheme == .dark ? .cyan : .blue : .primary)
                                 Spacer()
-                                if lessonVM.currentPageIndex == page.pageNumber - 1 {
+                                if lessonVM.currentLesson?.id == lesson.id && lessonVM.currentPageIndex == page.pageNumber - 1 {
                                     Image(systemName: "checkmark")
                                         .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
                                 }
                             }
                         }
-                        .disabled(lessonVM.currentPageIndex == page.pageNumber - 1)
+                        .disabled(lessonVM.currentLesson?.id == lesson.id && lessonVM.currentPageIndex == page.pageNumber - 1)
                     }
                 }
-                
             }
-            .listStyle(GroupedListStyle())
         }
+        .listStyle(GroupedListStyle())
     }
 }
 

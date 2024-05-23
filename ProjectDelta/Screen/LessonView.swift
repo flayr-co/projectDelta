@@ -335,24 +335,34 @@ struct LessonContentPage: View {
             }
         }
     }
-}
-
+} 
 
 struct ExampleView: View {
     var text: String
     @Environment(\.colorScheme) var colorScheme
 
-    var processedText: String {
-        text.replacingOccurrences(of: "\\n", with: "\n")
-            .replacingOccurrences(of: "\\\\n", with: "\n") // To handle both \n and \\n
+    var parsedContent: [(String, String)] {
+        text.split(separator: "\n").map { line in
+            let parts = line.split(separator: "||", maxSplits: 1, omittingEmptySubsequences: false)
+            let example = String(parts[0])
+            let explanation = parts.count > 1 ? String(parts[1]) : ""
+            return (example, explanation)
+        }
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading) {
-                ForEach(processedText.split(separator: "\n"), id: \.self) { line in
-                    if line.contains("$$") {
-                        let latex = line.replacingOccurrences(of: "$$", with: "")
+                ForEach(parsedContent, id: \.0) { (example, explanation) in
+                    if !explanation.isEmpty {
+                        Text(explanation)
+                            .font(.footnote)
+                            .foregroundColor(.gray)
+                            .padding(.horizontal)
+                    }
+
+                    if example.contains("$$") {
+                        let latex = example.replacingOccurrences(of: "$$", with: "")
                         VStack {
                             LatexView(latex: String("$$\(latex)$$"))
                                 .frame(minHeight: latex.contains("\\frac") ? 75 : 50) // Adjust height if contains \frac
@@ -369,7 +379,7 @@ struct ExampleView: View {
                     } else {
                         GeometryReader { geometry in
                             VStack {
-                                let formattedText = self.formatText(String(line))
+                                let formattedText = self.formatText(example)
                                 formattedText
                                     .padding(8) // Adjust the padding as needed
                                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
