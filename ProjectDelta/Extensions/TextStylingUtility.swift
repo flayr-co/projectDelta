@@ -9,7 +9,7 @@ import SwiftUI
 
 struct TextStylingUtility {
     static func styledText(from markupText: String) -> some View {
-        var views: [AnyView] = []
+        var textView = Text("")
         var isBold = false
         var isItalic = false
         var currentColor: Color = .primary
@@ -20,29 +20,20 @@ struct TextStylingUtility {
         let components = regex.splitTextAndSeparator(markupText, range: range)
 
         for component in components {
-            if component.separator.hasPrefix("$$") && component.separator.hasSuffix("$$") {
-                let latexContent = component.separator.dropFirst(2).dropLast(2)
-                views.append(AnyView(
-                    LatexView(latex: "$\(latexContent)$")
-                        .frame(height: 30)
-                        .padding(.vertical, 4)
-                ))
-            } else {
-                var currentText = Text(component.text)
-                if isBold {
-                    currentText = currentText.bold()
-                }
-                if isItalic {
-                    currentText = currentText.italic()
-                }
-                if redTextActive {
-                    currentText = currentText.foregroundColor(.red)
-                } else {
-                    currentText = currentText.foregroundColor(currentColor)
-                }
-
-                views.append(AnyView(currentText))
+            var currentText = Text(component.text)
+            if isBold {
+                currentText = currentText.bold()
             }
+            if isItalic {
+                currentText = currentText.italic()
+            }
+            if redTextActive {
+                currentText = currentText.foregroundColor(.red)
+            } else {
+                currentText = currentText.foregroundColor(currentColor)
+            }
+
+            textView = textView + currentText
 
             switch component.separator {
             case "*b":
@@ -61,11 +52,7 @@ struct TextStylingUtility {
             }
         }
 
-        return VStack(alignment: .leading, spacing: 0) {
-            ForEach(0..<views.count, id: \.self) { index in
-                views[index]
-            }
-        }
+        return textView
     }
 }
 
@@ -93,6 +80,7 @@ private extension NSRegularExpression {
         return components
     }
 }
+
 
 //#Preview {
 //    TextStylingUtility()

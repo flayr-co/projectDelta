@@ -57,7 +57,7 @@ struct LessonView: View {
                     Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                         .foregroundColor(isBookmarked ? Color.accentColor : Color.secondary)
                 }
-                .padding(.bottom)
+                .padding(.vertical)
                 .padding(.horizontal)
             }
             .padding(.top, 16)  // Adjust the padding to ensure it's visible at the top
@@ -163,8 +163,6 @@ struct LessonView: View {
     }
 }
 
-
-
 // MARK: - LessonContentPage
 struct LessonContentPage: View {
     var text: String
@@ -194,7 +192,7 @@ struct LessonContentPage: View {
                                 Spacer(minLength: geometry.size.height * 0.03)
                             }
                         }
-
+                        
                         TextStylingUtility.styledText(from: text)
                             .font(.system(size: 18, weight: .regular, design: .serif))
                             .minimumScaleFactor(0.5)
@@ -202,25 +200,28 @@ struct LessonContentPage: View {
                             .padding(.horizontal)
                             .lineSpacing(10)
                             .frame(maxWidth: .infinity, alignment: .center)
-
-                        if let example = exampleText, !example.isEmpty {
-                            ExampleView(text: example)
-                                .padding(.bottom, 20)
-                                .padding(.top, 40)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                        }
-
-                        // Dynamic graph example
+                        
+                        // Graph display
                         if let graphData = graphData {
                             DynamicGraphView(data: graphData)
-                                .padding(.vertical, 20)
+                                .padding(.bottom, exampleText == nil || exampleText!.isEmpty ? 0 : 15) // Conditional bottom padding
+//                                .padding(.top, 80)
+                                .padding(.top, exampleText == nil || exampleText!.isEmpty ? 80 : 58) // Conditional bottom padding
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .onAppear {
                                     print("Displaying graph data: \(graphData.xValues), \(graphData.yValues)")
                                 }
-                        } else {
-                            Text("No Graph Data")
-                                .foregroundColor(.red)
+                        }
+
+                        if let example = exampleText, !example.isEmpty {
+                            ExampleView(text: example)
+                                .padding(.top, graphData == nil ? 40 : 5) // Conditional top padding
+//                                .padding(.top, 40)
+                                .padding(.bottom, 20)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .onAppear {
+                                    print("ExampleView bottom padding: \(graphData == nil ? 20 : 0)")
+                                }
                         }
 
                         // Explanation dropdown
@@ -327,8 +328,6 @@ struct LessonContentPage: View {
         }
     }
 }
-
-
 
 struct ExampleView: View {
     var text: String
@@ -464,5 +463,5 @@ extension NSRegularExpression {
     LessonView(subjectName: "Algebra")
         .environmentObject(LessonViewModel())
         .environmentObject(AuthViewModel())
-//        .preferredColorScheme(.dark)
+        .preferredColorScheme(.dark)
 }
