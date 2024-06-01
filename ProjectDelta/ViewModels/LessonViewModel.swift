@@ -48,25 +48,25 @@ class LessonViewModel: ObservableObject {
 
     func fetchLessonContent(for subjectName: String, lessonName: String) async {
         let db = Firestore.firestore()
-
+        
         do {
             let subjectQuerySnapshot = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
             guard let subjectDocument = subjectQuerySnapshot.documents.first else {
                 print("Subject \(subjectName) not found.")
                 return
             }
-
+            
             let lessonQuerySnapshot = try await db.collection("Subjects").document(subjectDocument.documentID)
                 .collection("Lessons").whereField("name", isEqualTo: lessonName).getDocuments()
             guard let lessonDocument = lessonQuerySnapshot.documents.first else {
                 print("Lesson \(lessonName) not found within \(subjectName).")
                 return
             }
-
+            
             let pagesQuerySnapshot = try await db.collection("Subjects").document(subjectDocument.documentID)
                 .collection("Lessons").document(lessonDocument.documentID)
                 .collection("Pages").order(by: "pageNumber").getDocuments()
-
+            
             let fetchedPages = pagesQuerySnapshot.documents.compactMap { document -> Page? in
                 do {
                     let page = try document.data(as: Page.self)
@@ -78,7 +78,7 @@ class LessonViewModel: ObservableObject {
                     return nil
                 }
             }
-
+            
             DispatchQueue.main.async {
                 self.lessonPages = fetchedPages
                 self.currentLesson?.pages = fetchedPages  // Set the pages for the current lesson
@@ -93,8 +93,6 @@ class LessonViewModel: ObservableObject {
         }
     }
 
-
-
     func fetchAllLessons(for subjectName: String) {
         print("Fetching all lessons for subject: \(subjectName)")
         let db = Firestore.firestore()
@@ -103,14 +101,14 @@ class LessonViewModel: ObservableObject {
                 print("Subject \(subjectName) not found or error: \(error?.localizedDescription ?? "Unknown error")")
                 return
             }
-
+            
             db.collection("Subjects").document(subjectDocument.documentID).collection("Lessons")
                 .getDocuments { [weak self] (lessonSnapshot, error) in
                     if let error = error {
                         print("Error getting lessons for subject \(subjectName): \(error)")
                         return
                     }
-
+                    
                     guard let documents = lessonSnapshot?.documents, !documents.isEmpty else {
                         print("No lessons found for subject \(subjectName)")
                         DispatchQueue.main.async {
@@ -118,10 +116,10 @@ class LessonViewModel: ObservableObject {
                         }
                         return
                     }
-
+                    
                     let group = DispatchGroup()
                     var lessonsWithPages = [Lesson]()
-
+                    
                     for document in documents {
                         group.enter()
                         let lessonID = document.documentID
@@ -134,17 +132,17 @@ class LessonViewModel: ObservableObject {
                                     group.leave()
                                     return
                                 }
-
+                                
                                 let pages = pageSnapshot?.documents.compactMap { document -> Page? in
                                     guard let content = document.data()["content"] as? String,
                                           let pageNumber = document.data()["pageNumber"] as? Int,
                                           let readyButtonDisplayed = document.data()["readyButtonDisplayed"] as? Bool else {
                                         return nil
                                     }
-
+                                    
                                     return Page(id: document.documentID, content: content, pageNumber: pageNumber, readyButtonDisplayed: readyButtonDisplayed)
                                 } ?? []
-
+                                
                                 let lesson = Lesson(id: lessonID,
                                                     name: lessonName,
                                                     description: document.data()["description"] as? String ?? "",
@@ -155,13 +153,13 @@ class LessonViewModel: ObservableObject {
                                 group.leave()
                             }
                     }
-
+                    
                     group.notify(queue: .main) {
                         guard let strongSelf = self else {
                             print("ViewModel has been deallocated")
                             return
                         }
-
+                        
                         strongSelf.currentSubjectLessons = lessonsWithPages.sorted { $0.lessonNumber < $1.lessonNumber }  // Sort by lessonNumber
                         if let firstIncomplete = lessonsWithPages.first(where: { !$0.completed }) {
                             DispatchQueue.main.async {
@@ -176,34 +174,33 @@ class LessonViewModel: ObservableObject {
         }
     }
 
-
     func fetchFirstIncompleteLesson(for subjectName: String) async -> (name: String, id: String) {
         let db = Firestore.firestore()
         let subjectsRef = db.collection("Subjects")
-
+        
         do {
             let subjectSnapshot = try await subjectsRef.whereField("name", isEqualTo: subjectName).getDocuments()
             guard let subjectDocument = subjectSnapshot.documents.first else {
                 print("Subject \(subjectName) not found.")
                 return ("", "") // Return empty strings if the subject is not found
             }
-
+            
             let lessonsRef = subjectsRef.document(subjectDocument.documentID).collection("Lessons")
             let lessonsSnapshot = try await lessonsRef.order(by: "lessonNumber").whereField("completed", isEqualTo: false).getDocuments()
             guard let firstIncompleteLessonDocument = lessonsSnapshot.documents.first else {
                 print("No incomplete lessons found for \(subjectName).")
                 return ("", "") // Return empty strings if no incomplete lesson is found
             }
-
+            
             let id = firstIncompleteLessonDocument.documentID
             let name = firstIncompleteLessonDocument.data()["name"] as? String ?? "Unknown Name"
-
+            
             DispatchQueue.main.async {
                 self.currentLesson = Lesson(id: id, name: name, description: "", completed: false, lessonNumber: 0, pages: [])
                 self.currentLessonId = id
                 self.currentLessonName = name
             }
-
+            
             return (name, id) // Return both name and id
         } catch {
             print("Error fetching lessons for \(subjectName): \(error)")
@@ -211,72 +208,10 @@ class LessonViewModel: ObservableObject {
         }
     }
 
-
-
-    // Custom function to format exponents
-    private func formatExponentsInText(_ text: String) -> String {
-        let exponentMappings: [String: String] = [
-            "^2": "²", "^3": "³",
-        ]
-
-        var formattedText = text
-        exponentMappings.forEach { exponent, superscript in
-            formattedText = formattedText.replacingOccurrences(of: exponent, with: superscript)
-        }
-        return formattedText
-    }
-
-    func fetchLessons(for subjectName: String) {
-        let db = Firestore.firestore()
-
-        db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments { [weak self] (subjectSnapshot, error) in
-            if let error = error {
-                print("Error finding subject \(subjectName): \(error)")
-                return
-            }
-
-            guard let subjectDocument = subjectSnapshot?.documents.first else {
-                print("Subject \(subjectName) not found.")
-                return
-            }
-
-            db.collection("Subjects").document(subjectDocument.documentID).collection("Lessons")
-                .getDocuments { [weak self] (lessonsSnapshot, error) in
-                    if let error = error {
-                        print("Error getting lessons for subject \(subjectName): \(error)")
-                        return
-                    }
-
-                    DispatchQueue.main.async {
-                        self?.lessons = lessonsSnapshot?.documents.compactMap { document -> Lesson in
-                            let name = document.data()["name"] as? String ?? ""
-                            let description = document.data()["description"] as? String ?? ""
-                            let completed = document.data()["completed"] as? Bool ?? false
-                            let lessonNumber = document.data()["lessonNumber"] as? Int ?? 1
-                            let id = document.documentID
-
-                            return Lesson(id: id,
-                                          name: name,
-                                          description: description,
-                                          completed: completed,
-                                          lessonNumber: lessonNumber)
-                        } ?? []
-
-                        if let lessons = self?.lessons, !lessons.isEmpty {
-                            print("Fetched \(lessons.count) lessons for subject \(subjectName)")
-                        } else {
-                            print("No lessons found for subject \(subjectName)")
-                        }
-                    }
-                }
-        }
-    }
-    
     @MainActor
     func navigateToPage(lessonName: String, pageNumber: Int, authVM: AuthViewModel) {
         print("navigateToPage called with lessonName: '\(lessonName)', pageNumber: \(pageNumber)")
 
-        // Fetch the lesson if the current lesson name doesn't match
         if let currentLesson = self.currentLesson, currentLesson.name == lessonName {
             if let pageIndex = currentLesson.pages?.firstIndex(where: { $0.pageNumber == pageNumber }) {
                 DispatchQueue.main.async {
@@ -284,12 +219,17 @@ class LessonViewModel: ObservableObject {
                     self.currentPageDocumentId = currentLesson.pages?[pageIndex].id
                     print("Navigated to page \(pageNumber) of lesson \(lessonName), document ID: \(self.currentPageDocumentId ?? "N/A")")
                     self.updateBookmarkStatus(authVM: authVM)
+                    print("Current page content: \(currentLesson.pages?[pageIndex].content ?? "No content")")
+                    print("Current page graph data: \(currentLesson.pages?[pageIndex].graphData?.xValues ?? []), \(currentLesson.pages?[pageIndex].graphData?.yValues ?? [])")
+                    
+                    if let graphData = currentLesson.pages?[pageIndex].graphData {
+                        DynamicGraphView(data: graphData) // Ensure you pass the correct graphData
+                    }
                 }
             } else {
                 print("Page number \(pageNumber) not found in lesson \(lessonName).")
             }
         } else {
-            // Fetch the new lesson content if the lesson name doesn't match
             Task {
                 await fetchLessonContent(for: self.subjectName, lessonName: lessonName)
                 if let newLesson = self.currentSubjectLessons.first(where: { $0.name == lessonName }) {
@@ -300,6 +240,12 @@ class LessonViewModel: ObservableObject {
                             self.currentPageDocumentId = newLesson.pages?[pageIndex].id
                             print("Navigated to page \(pageNumber) of lesson \(lessonName), document ID: \(self.currentPageDocumentId ?? "N/A")")
                             self.updateBookmarkStatus(authVM: authVM)
+                            print("Current page content: \(newLesson.pages?[pageIndex].content ?? "No content")")
+                            print("Current page graph data: \(newLesson.pages?[pageIndex].graphData?.xValues ?? []), \(newLesson.pages?[pageIndex].graphData?.yValues ?? [])")
+                            
+                            if let graphData = newLesson.pages?[pageIndex].graphData {
+                                DynamicGraphView(data: graphData) // Ensure you pass the correct graphData
+                            }
                         }
                     } else {
                         print("Page number \(pageNumber) not found in lesson \(lessonName).")
@@ -308,7 +254,11 @@ class LessonViewModel: ObservableObject {
             }
         }
     }
+
+
+
     
+    // MARK: - BOOKMARKS
     @MainActor
     func updateBookmarkStatus(authVM: AuthViewModel) {
         if let lessonId = currentLesson?.id, let pageId = currentPageDocumentId {
@@ -333,4 +283,5 @@ class LessonViewModel: ObservableObject {
         }
     }
 }
+
 

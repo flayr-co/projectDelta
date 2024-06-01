@@ -8,14 +8,14 @@
 import SwiftUI
 
 struct TextStylingUtility {
-    static func styledText(from markupText: String) -> some View {
+    static func styledText(from markupText: String) -> Text {
         var textView = Text("")
         var isBold = false
         var isItalic = false
         var currentColor: Color = .primary
-        var redTextActive = false // Manage red text activation specifically
 
-        let regex = try! NSRegularExpression(pattern: "(\\*b|\\*i|\\*r|\\*g|\\$\\$.*?\\$\\$)")
+        // Updated regex to include the new patterns for bold and italic
+        let regex = try! NSRegularExpression(pattern: "(\\*b|\\*b|\\*i|\\*i|\\*blue|\\*blue)")
         let range = NSRange(markupText.startIndex..<markupText.endIndex, in: markupText)
         let components = regex.splitTextAndSeparator(markupText, range: range)
 
@@ -27,11 +27,7 @@ struct TextStylingUtility {
             if isItalic {
                 currentText = currentText.italic()
             }
-            if redTextActive {
-                currentText = currentText.foregroundColor(.red)
-            } else {
-                currentText = currentText.foregroundColor(currentColor)
-            }
+            currentText = currentText.foregroundColor(currentColor)
 
             textView = textView + currentText
 
@@ -40,13 +36,10 @@ struct TextStylingUtility {
                 isBold.toggle()
             case "*i":
                 isItalic.toggle()
-            case "*r":
-                redTextActive.toggle() // Toggle the activation state of red text
-            case "*g":
-                if redTextActive {
-                    redTextActive = false // Ensure that red text is turned off before turning green on
-                }
-                currentColor = .green
+            case "*blue":
+                currentColor = .blue
+            case "blue*":
+                currentColor = .primary
             default:
                 break
             }
@@ -80,6 +73,8 @@ private extension NSRegularExpression {
         return components
     }
 }
+
+
 
 
 //#Preview {

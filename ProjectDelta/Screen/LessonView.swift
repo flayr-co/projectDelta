@@ -48,7 +48,7 @@ struct LessonView: View {
                 .padding()
                 .background(showTableOfContents ? Color.gray.opacity(0.2) : Color.clear)
                 .cornerRadius(8)
-
+                
                 // Bookmark button
                 Button(action: {
                     lessonVM.toggleBookmark(authVM: authVM)
@@ -83,17 +83,21 @@ struct LessonView: View {
                                 exampleText: lessonVM.lessonPages[index].example,
                                 graphicsURL: lessonVM.lessonPages[index].graphics,
                                 explanation: lessonVM.lessonPages[index].explanation,
-                                graphData: lessonVM.lessonPages[index].graphData,  // Ensure graphData is passed
+                                graphData: lessonVM.lessonPages[index].graphData,
                                 readyButtonDisplayed: lessonVM.lessonPages[index].readyButtonDisplayed,
                                 isInteractingWithExplanation: $isInteractingWithExplanation
                             )
                             .tag(index)
+                            .onAppear {
+                                print("Displaying page \(lessonVM.lessonPages[index].pageNumber), graphData: \(String(describing: lessonVM.lessonPages[index].graphData))")
+                            }
                         }
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                     .frame(maxHeight: .infinity)
                     .onChange(of: lessonVM.currentPageIndex) { newPageIndex in
                         if let newPageNumber = lessonVM.lessonPages[safe: newPageIndex]?.pageNumber {
+                            print("Navigating to page number: \(newPageNumber)")
                             lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
                         }
                     }
@@ -204,24 +208,23 @@ struct LessonContentPage: View {
                         // Graph display
                         if let graphData = graphData {
                             DynamicGraphView(data: graphData)
-                                .padding(.bottom, exampleText == nil || exampleText!.isEmpty ? 0 : 15) // Conditional bottom padding
-//                                .padding(.top, 80)
-                                .padding(.top, exampleText == nil || exampleText!.isEmpty ? 80 : 58) // Conditional bottom padding
+                                .padding(.bottom, exampleText == nil || exampleText!.isEmpty ? 0 : 15)
+                                .padding(.top, exampleText == nil || exampleText!.isEmpty ? 80 : 58)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .onAppear {
                                     print("Displaying graph data: \(graphData.xValues), \(graphData.yValues)")
                                 }
+                        } else {
+                            Text("No graph data available")
+                                .foregroundColor(.gray)
+                                .padding()
                         }
 
                         if let example = exampleText, !example.isEmpty {
                             ExampleView(text: example)
-                                .padding(.top, graphData == nil ? 40 : 5) // Conditional top padding
-//                                .padding(.top, 40)
+                                .padding(.top, graphData == nil ? 40 : 5)
                                 .padding(.bottom, 20)
                                 .frame(maxWidth: .infinity, alignment: .center)
-                                .onAppear {
-                                    print("ExampleView bottom padding: \(graphData == nil ? 20 : 0)")
-                                }
                         }
 
                         // Explanation dropdown
@@ -362,19 +365,16 @@ struct ExampleView: View {
                         .padding(.horizontal)
                         .padding(.vertical, 2)
                     } else {
-                        GeometryReader { geometry in
-                            VStack {
-                                let formattedText = self.formatText(example)
-                                formattedText
-                                    .padding(8) // Adjust the padding as needed
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                                    .background(colorScheme == .dark ? Color.black : Color.white)
-                                    .cornerRadius(10)
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 4)
-                                    .lineSpacing(10)
-                            }
-                            .frame(height: geometry.size.height)
+                        VStack {
+                            let formattedText = TextStylingUtility.styledText(from: example)
+                            formattedText
+                                .padding(8) // Adjust the padding as needed
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(colorScheme == .dark ? Color.black : Color.white)
+                                .cornerRadius(10)
+                                .padding(.horizontal)
+                                .padding(.vertical, 4)
+                                .lineSpacing(10)
                         }
                         .frame(minHeight: 50)
                     }
@@ -384,36 +384,11 @@ struct ExampleView: View {
                             .font(.footnote)
                             .foregroundColor(.gray)
                             .padding(.horizontal)
-                            .padding(.bottom, 10) // Add top padding to create space between example and explanation
+                            .padding(.bottom, 10) // Add bottom padding to create space between example and explanation
                     }
                 }
             }
         }
-    }
-
-    func formatText(_ line: String) -> Text {
-        let regex = try! NSRegularExpression(pattern: "\\*blue (.*?) blue\\*", options: [])
-        let nsString = line as NSString
-        let results = regex.matches(in: line, options: [], range: NSRange(location: 0, length: nsString.length))
-
-        var formattedText = Text("")
-
-        var lastIndex = 0
-        for result in results {
-            let range = result.range(at: 1)
-            let beforeText = nsString.substring(with: NSRange(location: lastIndex, length: result.range.location - lastIndex))
-            formattedText = formattedText + Text(beforeText)
-            let blueText = nsString.substring(with: range)
-            formattedText = formattedText + Text(blueText).foregroundColor(Color.blue)
-            lastIndex = result.range.location + result.range.length
-        }
-
-        if lastIndex < nsString.length {
-            let remainingText = nsString.substring(from: lastIndex)
-            formattedText = formattedText + Text(remainingText)
-        }
-
-        return formattedText
     }
 }
 
@@ -463,5 +438,5 @@ extension NSRegularExpression {
     LessonView(subjectName: "Algebra")
         .environmentObject(LessonViewModel())
         .environmentObject(AuthViewModel())
-        .preferredColorScheme(.dark)
+//        .preferredColorScheme(.dark)
 }

@@ -5,6 +5,7 @@
 //  Created by Jake Meissner on 3/15/24.
 //
 
+// Lesson.swift
 import Foundation
 import Firebase 
 import FirebaseFirestoreSwift
@@ -60,6 +61,9 @@ struct Page: Decodable, Identifiable, Equatable {
         self.explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
         self.graphics = try container.decodeIfPresent(String.self, forKey: .graphics)
         self.graphData = try container.decodeIfPresent(GraphData.self, forKey: .graphData)
+
+        // Debug logs
+        print("Decoded Page: \(self.content), pageNumber: \(self.pageNumber), graphData: \(String(describing: self.graphData))")
     }
 }
 
