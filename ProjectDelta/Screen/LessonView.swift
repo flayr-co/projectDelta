@@ -181,7 +181,8 @@ struct LessonContentPage: View {
     @State private var scrollViewContentHeight: CGFloat = 0
     @State private var showScrollIndicator: Bool = false
     @State private var timer: Timer?
-
+    
+    @EnvironmentObject var lessonVM: LessonViewModel
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -214,11 +215,7 @@ struct LessonContentPage: View {
                                 .onAppear {
                                     print("Displaying graph data: \(graphData.xValues), \(graphData.yValues)")
                                 }
-                        } else {
-                            Text("No graph data available")
-                                .foregroundColor(.gray)
-                                .padding()
-                        }
+                        } 
 
                         if let example = exampleText, !example.isEmpty {
                             ExampleView(text: example)
@@ -263,7 +260,7 @@ struct LessonContentPage: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
 
                                 NavigationLink {
-                                    PracticeTestView()
+                                    PracticeTestView(practiceTestViewModel: PracticeTestViewModel(authViewModel: AuthViewModel()), lessonID: lessonVM.currentLessonId, practiceTestID: "VYccqY1rjXETQOdMm4ap")
                                 } label: {
                                     Text("Go to test")
                                         .font(.title2)

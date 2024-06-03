@@ -84,6 +84,7 @@
 		52C0B45B2BE8859D00ECB063 /* OpenAIAdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C0B45A2BE8859D00ECB063 /* OpenAIAdminViewModel.swift */; };
 		52C0B45E2BE97C4D00ECB063 /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 52C0B45D2BE97C4D00ECB063 /* OpenAI */; };
 		52C72D682AFB014800BDC77E /* BarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C72D672AFB014800BDC77E /* BarChartView.swift */; };
+		52CB38B72C0C050200B15F63 /* PracticeTestViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */; };
 		52CF267C2B1BCD6B00E7C99D /* AddTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */; };
 		52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */; };
 		52D998F02ADB3120007F90A6 /* Test.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998EF2ADB3120007F90A6 /* Test.swift */; };
@@ -146,6 +147,7 @@
 		52C0B4582BE8858B00ECB063 /* OpenAIAdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIAdminView.swift; sourceTree = "<group>"; };
 		52C0B45A2BE8859D00ECB063 /* OpenAIAdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIAdminViewModel.swift; sourceTree = "<group>"; };
 		52C72D672AFB014800BDC77E /* BarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartView.swift; sourceTree = "<group>"; };
+		52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeTestViewModel.swift; sourceTree = "<group>"; };
 		52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTestView.swift; sourceTree = "<group>"; };
 		52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicGraphView.swift; sourceTree = "<group>"; };
 		52D998EF2ADB3120007F90A6 /* Test.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Test.swift; sourceTree = "<group>"; };
@@ -310,20 +312,20 @@
 		5297E4362AD63C6000220FC6 /* Screen */ = {
 			isa = PBXGroup;
 			children = (
+				52920AE82B15662900B60A14 /* AddQuestionView.swift */,
+				52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */,
 				5297E4372AD63C8B00220FC6 /* CardView.swift */,
 				5229BB092AD0CC8A0094395D /* ContentView.swift */,
 				5254A5CE2AF1ABAC00AAAA72 /* HomeView.swift */,
 				5254A5D62AF1D43100AAAA72 /* LeaderboardView.swift */,
 				5254A5D22AF1D40300AAAA72 /* LessonView.swift */,
+				528D80822BFE5C4000FD9850 /* PracticeTestView.swift */,
 				5254A5D42AF1D41B00AAAA72 /* PracticeView.swift */,
 				5258BD592AE340D700F21A50 /* ProfileView.swift */,
+				5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */,
 				5258BD422ADF382600F21A50 /* QuickTestView.swift */,
 				5297E43B2AD6473500220FC6 /* TestView.swift */,
-				52920AE82B15662900B60A14 /* AddQuestionView.swift */,
-				52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */,
 				5284D28A2B212C0800409048 /* UserStatsView.swift */,
-				5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */,
-				528D80822BFE5C4000FD9850 /* PracticeTestView.swift */,
 			);
 			path = Screen;
 			sourceTree = "<group>";
@@ -348,6 +350,7 @@
 				527F98752AEC4E080031F9E6 /* QuizViewModel.swift */,
 				52920AE62B155B7700B60A14 /* QuestionGeneratorViewModel.swift */,
 				5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */,
+				52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -511,6 +514,7 @@
 				5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */,
 				5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */,
 				52D998F02ADB3120007F90A6 /* Test.swift in Sources */,
+				52CB38B72C0C050200B15F63 /* PracticeTestViewModel.swift in Sources */,
 				527F98782AEC518E0031F9E6 /* Subject.swift in Sources */,
 				527F98842AED97D50031F9E6 /* OpenAIService.swift in Sources */,
 				52DAF6922BED5EF2006EE19F /* TextStylingUtility.swift in Sources */,
