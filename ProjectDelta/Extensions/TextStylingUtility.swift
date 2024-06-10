@@ -14,12 +14,16 @@ struct TextStylingUtility {
         var isItalic = false
         var currentColor: Color = .primary
 
-        // Updated regex to include the new patterns for bold and italic
-        let regex = try! NSRegularExpression(pattern: "(\\*b|\\*b|\\*i|\\*i|\\*blue|\\*blue)")
+        let regex = try! NSRegularExpression(pattern: "(\\*b|\\*b|\\*i|\\*i|\\*blue|\\*blue|\\\\newline)")
         let range = NSRange(markupText.startIndex..<markupText.endIndex, in: markupText)
         let components = regex.splitTextAndSeparator(markupText, range: range)
 
         for component in components {
+            if component.separator == "\\newline" {
+                textView = textView + Text("\n")
+                continue
+            }
+
             var currentText = Text(component.text)
             if isBold {
                 currentText = currentText.bold()
@@ -73,6 +77,7 @@ private extension NSRegularExpression {
         return components
     }
 }
+
 
 
 

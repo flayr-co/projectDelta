@@ -342,16 +342,28 @@ struct ExampleView: View {
         }
     }
 
+    func calculateHeight(for latex: String) -> CGFloat {
+        let lineBreaks = latex.components(separatedBy: "\\\\").count - 1
+        let hasFraction = latex.contains("\\frac")
+        let baseHeight: CGFloat = 50
+        let lineBreakHeight: CGFloat = 25 * CGFloat(lineBreaks)
+        let fractionHeight: CGFloat = hasFraction ? 25 : 0
+        return baseHeight + lineBreakHeight + fractionHeight
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading) {
                 ForEach(parsedContent, id: \.0) { (example, explanation) in
                     if example.contains("$$") {
-                        let latex = example.replacingOccurrences(of: "$$", with: "")
+                        let latex = example
+                            .replacingOccurrences(of: "$$", with: "")
+                            .replacingOccurrences(of: "\\\\newline", with: "\\\\")
+                        let height = calculateHeight(for: latex)
                         VStack {
-                            LatexView(latex: String("$$\(latex)$$"))
-                                .frame(minHeight: latex.contains("\\frac") ? 75 : 50) // Adjust height if contains \frac
-                                .padding(4) // Adjust the padding as needed
+                            LatexView(latex: "$$\n\(latex)\n$$")
+                                .frame(minHeight: height)
+                                .padding(4)
                                 .background(colorScheme == .dark ? Color.gray.opacity(0.3) : Color.gray.opacity(0.2))
                                 .cornerRadius(10)
                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -365,7 +377,7 @@ struct ExampleView: View {
                         VStack {
                             let formattedText = TextStylingUtility.styledText(from: example)
                             formattedText
-                                .padding(8) // Adjust the padding as needed
+                                .padding(8)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(colorScheme == .dark ? Color.black : Color.white)
                                 .cornerRadius(10)
@@ -381,13 +393,18 @@ struct ExampleView: View {
                             .font(.footnote)
                             .foregroundColor(.gray)
                             .padding(.horizontal)
-                            .padding(.bottom, 10) // Add bottom padding to create space between example and explanation
+                            .padding(.bottom, 10)
                     }
                 }
             }
         }
     }
 }
+
+
+
+
+
 
 struct ScrollOffsetKey: PreferenceKey {
     typealias Value = CGFloat

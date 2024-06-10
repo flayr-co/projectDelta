@@ -23,8 +23,10 @@ struct LatexView: UIViewRepresentable {
         let textColor = colorScheme == .dark ? "white" : "black"
         let latexTextColor = colorScheme == .dark ? "cyan" : "red"
 
-        // Replace *blue text blue* with \textcolor{latexTextColor}{text} for MathJax
-        let processedLatex = latex.replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(latexTextColor)}{$1}", options: .regularExpression)
+        // Process LaTeX to handle line breaks and colors
+        let processedLatex = latex
+            .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(latexTextColor)}{$1}", options: .regularExpression)
+            .replacingOccurrences(of: "\\n", with: "\\\\\\")
 
         let htmlString = """
         <!DOCTYPE html>
@@ -52,7 +54,14 @@ struct LatexView: UIViewRepresentable {
                 MathJax = {
                     tex: {
                         inlineMath: [['$', '$'], ['\\(', '\\)']],
-                        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+                        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                        processEscapes: true,
+                        tags: 'none'
+                    },
+                    options: {
+                        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+                        ignoreHtmlClass: 'tex2jax_ignore',
+                        processHtmlClass: 'tex2jax_process'
                     },
                     svg: {
                         fontCache: 'global'
@@ -65,7 +74,7 @@ struct LatexView: UIViewRepresentable {
                 \(processedLatex)
             </div>
             <script>
-                MathJax.typeset();
+                MathJax.typesetPromise();
             </script>
         </body>
         </html>
@@ -77,6 +86,10 @@ struct LatexView: UIViewRepresentable {
         uiView.stopLoading()
     }
 }
+
+
+
+
 
 
 
