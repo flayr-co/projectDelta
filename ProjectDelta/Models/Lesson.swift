@@ -7,7 +7,7 @@
 
 // Lesson.swift
 import Foundation
-import Firebase 
+import Firebase
 import FirebaseFirestoreSwift
 
 struct Lesson: Identifiable, Decodable {
@@ -28,7 +28,7 @@ struct Page: Decodable, Identifiable, Equatable {
     var explanation: String?
     var graphics: String?
     var graphData: GraphData?
-
+    
     enum CodingKeys: String, CodingKey {
         case id
         case content
@@ -39,7 +39,7 @@ struct Page: Decodable, Identifiable, Equatable {
         case graphics
         case graphData
     }
-
+    
     init(id: String? = nil, content: String, pageNumber: Int, readyButtonDisplayed: Bool, example: String? = nil, explanation: String? = nil, graphics: String? = nil, graphData: GraphData? = nil) {
         self.id = id
         self.content = content
@@ -50,7 +50,7 @@ struct Page: Decodable, Identifiable, Equatable {
         self.graphics = graphics
         self.graphData = graphData
     }
-
+    
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try container.decodeIfPresent(String.self, forKey: .id)
@@ -61,7 +61,7 @@ struct Page: Decodable, Identifiable, Equatable {
         self.explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
         self.graphics = try container.decodeIfPresent(String.self, forKey: .graphics)
         self.graphData = try container.decodeIfPresent(GraphData.self, forKey: .graphData)
-
+        
         // Debug logs
         print("Decoded Page: \(self.content), pageNumber: \(self.pageNumber), graphData: \(String(describing: self.graphData))")
     }
@@ -70,6 +70,7 @@ struct Page: Decodable, Identifiable, Equatable {
 struct GraphData: Decodable, Equatable {
     var xValues: [Double]
     var yValues: [Double]
+    var secondaryYValues: [Double]?  // Optional secondary data
 }
 
 extension Lesson: Hashable {
@@ -81,4 +82,5 @@ extension Lesson: Hashable {
         hasher.combine(id)
     }
 }
+
 

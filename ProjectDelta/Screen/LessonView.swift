@@ -215,7 +215,7 @@ struct LessonContentPage: View {
                                 .onAppear {
                                     print("Displaying graph data: \(graphData.xValues), \(graphData.yValues)")
                                 }
-                        } 
+                        }
 
                         if let example = exampleText, !example.isEmpty {
                             ExampleView(text: example)
@@ -328,6 +328,7 @@ struct LessonContentPage: View {
         }
     }
 }
+
 
 struct ExampleView: View {
     var text: String
@@ -452,5 +453,5 @@ extension NSRegularExpression {
     LessonView(subjectName: "Algebra")
         .environmentObject(LessonViewModel())
         .environmentObject(AuthViewModel())
-//        .preferredColorScheme(.dark)
+        .preferredColorScheme(.dark)
 }

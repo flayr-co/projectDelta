@@ -25,13 +25,13 @@ struct LeaderboardView: View {
                             .lineSpacing(10)
                             .frame(maxWidth: .infinity, alignment: .center)
                         
-                        DynamicGraphView(data: testGraphData)
-                            .padding(.bottom, 15)
-                            .padding(.top, 58)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .onAppear {
-                                print("Displaying graph data: \(testGraphData.xValues), \(testGraphData.yValues)")
-                            }
+//                        DynamicGraphView(data: testGraphData)
+//                            .padding(.bottom, 15)
+//                            .padding(.top, 58)
+//                            .frame(maxWidth: .infinity, alignment: .center)
+//                            .onAppear {
+//                                print("Displaying graph data: \(testGraphData.xValues), \(testGraphData.yValues)")
+//                            }
                         
                         Spacer()
                     }
