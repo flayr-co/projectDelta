@@ -107,5 +107,4 @@ struct HomeView: View {
         .environmentObject(AuthViewModel())
         .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
         .environmentObject(LessonViewModel())
-        .preferredColorScheme(.dark)
 }

@@ -63,8 +63,8 @@ struct DynamicGraphView: View {
                             y: .value("Secondary Y Value", yValue)
                         )
                         .interpolationMethod(.catmullRom)
+                    .foregroundStyle(secondaryColor)  // Ensure the line color is set
                         .foregroundStyle(by: .value("Line Type", "Secondary"))
-                        .foregroundStyle(secondaryColor)  // Ensure the line color is set
 
                         PointMark(
                             x: .value("X Value", xValue),
@@ -75,6 +75,12 @@ struct DynamicGraphView: View {
                         .foregroundStyle(secondaryColor)
                     }
                 }
+            }
+            .chartLegend {
+                Text("Primary")
+                    .foregroundColor(primaryColor) // This will set the dot color to red
+                Text("Secondary")
+                    .foregroundColor(secondaryColor) // This will set the dot color to green
             }
             .chartXScale(domain: (data.xValues.min()!)...(data.xValues.max()!))
             .chartYScale(domain: adjustedYDomain())
