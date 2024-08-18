@@ -28,6 +28,23 @@ struct DynamicGraphView: View {
     var secondaryColor: Color {
         colorScheme == .dark ? .pink : .green
     }
+    
+    var primaryEquation: String {
+        if let regressionLine = linearRegression(x: data.xValues, y: data.yValues) {
+            return "y = \(regressionLine.slope)x + \(regressionLine.intercept)"
+        } else {
+            return "Primary Line"
+        }
+    }
+
+    var secondaryEquation: String {
+        if let secondaryYValues = data.secondaryYValues,
+           let regressionLine = linearRegression(x: data.xValues, y: secondaryYValues) {
+            return "y = \(regressionLine.slope)x + \(regressionLine.intercept)"
+        } else {
+            return "Secondary Line"
+        }
+    }
 
     var body: some View {
         VStack {
@@ -77,11 +94,13 @@ struct DynamicGraphView: View {
                 }
             }
             .chartLegend {
-                Text("Primary")
-                    .foregroundColor(primaryColor) // This will set the dot color to red
-                Text("Secondary")
-                    .foregroundColor(secondaryColor) // This will set the dot color to green
-                    .offset(CGSize(width: 10.0, height: 89.0))
+                Text(primaryEquation)
+                    .foregroundColor(primaryColor)
+                if data.secondaryYValues != nil {
+                    Text(secondaryEquation)
+                        .foregroundColor(secondaryColor)
+                        .offset(CGSize(width: 80.0, height: 89.0))
+                }
             }
             .chartXScale(domain: (data.xValues.min()!)...(data.xValues.max()!))
             .chartYScale(domain: adjustedYDomain())
