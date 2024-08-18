@@ -31,7 +31,9 @@ struct DynamicGraphView: View {
     
     var primaryEquation: String {
         if let regressionLine = linearRegression(x: data.xValues, y: data.yValues) {
-            return "y = \(regressionLine.slope)x + \(regressionLine.intercept)"
+            let slope = String(format: (regressionLine.slope.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"), regressionLine.slope)
+            let intercept = String(format: (regressionLine.intercept.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"), regressionLine.intercept)
+            return "y = \(slope)x + \(intercept)"
         } else {
             return "Primary Line"
         }
@@ -40,7 +42,9 @@ struct DynamicGraphView: View {
     var secondaryEquation: String {
         if let secondaryYValues = data.secondaryYValues,
            let regressionLine = linearRegression(x: data.xValues, y: secondaryYValues) {
-            return "y = \(regressionLine.slope)x + \(regressionLine.intercept)"
+            let slope = String(format: (regressionLine.slope.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"), regressionLine.slope)
+            let intercept = String(format: (regressionLine.intercept.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"), regressionLine.intercept)
+            return "y = \(slope)x + \(intercept)"
         } else {
             return "Secondary Line"
         }
