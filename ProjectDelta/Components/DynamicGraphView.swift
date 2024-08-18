@@ -81,6 +81,7 @@ struct DynamicGraphView: View {
                     .foregroundColor(primaryColor) // This will set the dot color to red
                 Text("Secondary")
                     .foregroundColor(secondaryColor) // This will set the dot color to green
+                    .offset(CGSize(width: 10.0, height: 89.0))
             }
             .chartXScale(domain: (data.xValues.min()!)...(data.xValues.max()!))
             .chartYScale(domain: adjustedYDomain())
