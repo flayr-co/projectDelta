@@ -26,7 +26,7 @@ struct DynamicGraphView: View {
     }
 
     var secondaryColor: Color {
-        colorScheme == .dark ? .pink : .green
+        colorScheme == .dark ? .pink : .blue
     }
     
     var primaryEquation: String {
@@ -53,6 +53,22 @@ struct DynamicGraphView: View {
     var body: some View {
         VStack {
             Chart {
+                // Area between the primary and secondary lines to show inequality
+                if let secondaryYValues = data.secondaryYValues {
+                    ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
+                        let xValue = data.xValues[xIndex]
+                        let yValue = data.yValues[yIndex]
+                        let secondaryYValue = secondaryYValues[yIndex]
+                        
+                        AreaMark(
+                            x: .value("X Value", xValue),
+                            yStart: .value("Y Start", min(yValue, secondaryYValue)),
+                            yEnd: .value("Y End", max(yValue, secondaryYValue))
+                        )
+                        .foregroundStyle(primaryColor.opacity(0.3))
+                    }
+                }
+                
                 // Primary data
                 ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
                     let xValue = data.xValues[xIndex]
