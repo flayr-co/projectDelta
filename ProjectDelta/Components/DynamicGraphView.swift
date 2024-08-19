@@ -53,21 +53,37 @@ struct DynamicGraphView: View {
     var body: some View {
         VStack {
             Chart {
-                // Area between the primary and secondary lines to show inequality
-                if let secondaryYValues = data.secondaryYValues {
+                if let inequality = data.inequality {
+                    // Iterate over the x-values to create individual AreaMarks
                     ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
                         let xValue = data.xValues[xIndex]
-                        let yValue = data.yValues[yIndex]
-                        let secondaryYValue = secondaryYValues[yIndex]
+                        let yLineValue = inequality.slope * xValue + inequality.intercept
+                        let yStartValue = inequality.shadeAbove ? yLineValue : data.yValues.min() ?? yLineValue
+                        let yEndValue = inequality.shadeAbove ? data.yValues.max() ?? yLineValue : yLineValue
                         
                         AreaMark(
                             x: .value("X Value", xValue),
-                            yStart: .value("Y Start", min(yValue, secondaryYValue)),
-                            yEnd: .value("Y End", max(yValue, secondaryYValue))
+                            yStart: .value("Y Start", yStartValue),
+                            yEnd: .value("Y End", yEndValue)
                         )
-                        .foregroundStyle(primaryColor.opacity(0.3))
+                        .foregroundStyle(Color.cyan.opacity(0.3))
                     }
                 }
+//                // Area between the primary and secondary lines to show inequality
+//                if let secondaryYValues = data.secondaryYValues {
+//                    ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
+//                        let xValue = data.xValues[xIndex]
+//                        let yValue = data.yValues[yIndex]
+//                        let secondaryYValue = secondaryYValues[yIndex]
+//                        
+//                        AreaMark(
+//                            x: .value("X Value", xValue),
+//                            yStart: .value("Y Start", min(yValue, secondaryYValue)),
+//                            yEnd: .value("Y End", max(yValue, secondaryYValue))
+//                        )
+//                        .foregroundStyle(primaryColor.opacity(0.3))
+//                    }
+//                }
                 
                 // Primary data
                 ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
@@ -130,6 +146,14 @@ struct DynamicGraphView: View {
                 debugPrintData()
             }
         }
+    }
+    
+    func minY(for inequality: GraphData.Inequality, at xValue: Double) -> Double {
+        return inequality.slope * xValue + inequality.intercept
+    }
+
+    func maxY(for inequality: GraphData.Inequality, at xValue: Double) -> Double {
+        return inequality.slope * xValue + inequality.intercept
     }
 
     func adjustedYDomain() -> ClosedRange<Double> {

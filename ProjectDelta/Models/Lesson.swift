@@ -28,7 +28,7 @@ struct Page: Decodable, Identifiable, Equatable {
     var explanation: String?
     var graphics: String?
     var graphData: GraphData?
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case content
@@ -71,6 +71,13 @@ struct GraphData: Decodable, Equatable {
     var xValues: [Double]
     var yValues: [Double]
     var secondaryYValues: [Double]?  // Optional secondary data
+    var inequality: Inequality?
+    
+    struct Inequality: Decodable, Equatable {
+        var slope: Double
+        var intercept: Double
+        var shadeAbove: Bool  // true for y > mx + b, false for y < mx + b
+    }
 }
 
 extension Lesson: Hashable {
