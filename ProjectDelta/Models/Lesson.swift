@@ -8,7 +8,7 @@
 // Lesson.swift
 import Foundation
 import Firebase
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 struct Lesson: Identifiable, Decodable {
     @DocumentID var id: String?

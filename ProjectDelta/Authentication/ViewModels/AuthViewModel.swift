@@ -6,8 +6,8 @@
 //
 
 import Foundation
-import Firebase
-import FirebaseFirestoreSwift
+import FirebaseCore
+import FirebaseFirestore
 import FirebaseStorage
 import FirebaseAuth
 
@@ -17,7 +17,7 @@ protocol AuthenticationFormProtocol {
 
 @MainActor
 class AuthViewModel: ObservableObject {
-    @Published var userSession: Firebase.User?
+    @Published var userSession: FirebaseAuth.User?
     @Published var currentUser: User?
     
     private var db = Firestore.firestore()
@@ -294,8 +294,3 @@ class AuthViewModel: ObservableObject {
         return isBookmarked
     }
 }
-
-
-
-
-

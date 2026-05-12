@@ -9,7 +9,7 @@
 import SwiftUI
 import Firebase
 import FirebaseFirestore
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 struct QuickTestView: View {
     // MARK: - PROPERTIES

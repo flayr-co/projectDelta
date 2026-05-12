@@ -28,14 +28,18 @@ struct AddQuestionView: View {
                                 viewModel.selectedSubjectId = subject.id
                                 viewModel.selectedTestId = nil // Reset selectedTestId when a subject is selected
                                 viewModel.tests = []
-                                viewModel.fetchTestsForSubject(subjectId: subject.id)
+                                // Bridge the async call into the synchronous tap gesture
+                                Task {
+                                    await viewModel.fetchTestsForSubject(subjectId: subject.id)
+                                }
                             }
                     }
                 }
             }
             .padding()
-            .onAppear {
-                viewModel.fetchSubjects()
+            // Modern iOS 15+ standard for firing async work when a view appears
+            .task {
+                await viewModel.fetchSubjects()
             }
             
             // Tests Display

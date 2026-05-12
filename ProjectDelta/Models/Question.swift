@@ -9,7 +9,7 @@
 import Foundation
 import SwiftUI
 import Firebase
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 struct Question: Identifiable, Codable {
     @DocumentID var id: String?

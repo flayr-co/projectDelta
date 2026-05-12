@@ -7,7 +7,7 @@
 
 import Foundation
 import FirebaseFirestore
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 class PracticeTestViewModel: ObservableObject {
     @Published var questions: [Question] = []

@@ -8,7 +8,7 @@
 // Subject.swift
 import Foundation
 import Firebase
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 struct Subject: Identifiable, Codable, Hashable {
     @DocumentID var id: String?

@@ -8,7 +8,7 @@
 // FirestoreManger.swift
 import Foundation
 import Firebase
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 class FirestoreManager {
     private var db: Firestore

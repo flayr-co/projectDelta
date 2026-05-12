@@ -7,7 +7,7 @@
 
 // LessonView.swift
 import SwiftUI
-import Firebase
+import FirebaseCore
 
 struct LessonView: View {
     var subjectName: String
@@ -95,15 +95,19 @@ struct LessonView: View {
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                     .frame(maxHeight: .infinity)
-                    .onChange(of: lessonVM.currentPageIndex) { newPageIndex in
-                        if let newPageNumber = lessonVM.lessonPages[safe: newPageIndex]?.pageNumber {
+                    // iOS 17 compliant onChange signature
+                    .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
+                        // Using native array bounds checking instead of missing [safe:] extension
+                        if lessonVM.lessonPages.indices.contains(newPageIndex) {
+                            let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
                             print("Navigating to page number: \(newPageNumber)")
                             lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
                         }
                     }
                 }
                 .background(GeometryReader { geo in
-                    Color.clear.onChange(of: geo.frame(in: .global).minY) { value in
+                    // iOS 17 compliant onChange signature
+                    Color.clear.onChange(of: geo.frame(in: .global).minY) { oldValue, value in
                         if value < lastContentOffset {
                             withAnimation {
                                 showHeader = false
@@ -288,7 +292,8 @@ struct LessonContentPage: View {
                     Color.clear.onAppear {
                         scrollViewContentHeight = proxy.size.height
                     }
-                    .onChange(of: scrollOffset) { newValue in
+                    // iOS 17 compliant onChange signature
+                    .onChange(of: scrollOffset) { oldValue, newValue in
                         print("Scroll offset changed: \(newValue)")
                     }
                 })
@@ -298,7 +303,8 @@ struct LessonContentPage: View {
                             .onAppear {
                                 scrollOffset = proxy.frame(in: .global).minY
                             }
-                            .onChange(of: proxy.frame(in: .global).minY) { newValue in
+                            // iOS 17 compliant onChange signature
+                            .onChange(of: proxy.frame(in: .global).minY) { oldValue, newValue in
                                 scrollOffset = newValue
                                 showScrollIndicator = true
                                 timer?.invalidate()

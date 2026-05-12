@@ -7,7 +7,7 @@
 
 // Test.swift
 import Foundation
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 struct Test: Identifiable, Codable, Hashable {
     @DocumentID var id: String?

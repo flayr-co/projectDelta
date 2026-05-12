@@ -1,15 +1,14 @@
 //
-//  QuizGeneratorViewModel.swift
+//  QuestionGeneratorViewModel.swift
 //  ProjectDelta
 //
 //  Created by Jake Meissner on 11/27/23.
 //
 
-// QuizGeneratorViewModel.swift
 import Foundation
-import Firebase
-import Alamofire
+import FirebaseFirestore
 
+@MainActor
 class QuestionGeneratorViewModel: ObservableObject {
     struct SubjectItem {
         var id: String
@@ -29,117 +28,50 @@ class QuestionGeneratorViewModel: ObservableObject {
     @Published var isApprovalViewPresented: Bool = false
     
     private var db = Firestore.firestore()
-    private var openAIService = OpenAIService()
     
     // MARK: - Fetch Subjects
     
-    func fetchSubjects() {
-        db.collection("Subjects").getDocuments() { [weak self] (querySnapshot, err) in
-            if let err = err {
-                print("Error getting subjects: \(err)")
-            } else {
-                var fetchedSubjects = [SubjectItem]()
-                for document in querySnapshot!.documents {
-                    let subjectName = document.data()["name"] as? String ?? "Unknown"
-                    let subjectId = document.documentID
-                    fetchedSubjects.append(SubjectItem(id: subjectId, name: subjectName))
-                }
-                DispatchQueue.main.async {
-                    self?.subjects = fetchedSubjects
-                }
+    func fetchSubjects() async {
+        do {
+            let querySnapshot = try await db.collection("Subjects").getDocuments()
+            self.subjects = querySnapshot.documents.map { document in
+                let subjectName = document.data()["name"] as? String ?? "Unknown"
+                return SubjectItem(id: document.documentID, name: subjectName)
             }
+        } catch {
+            print("Error getting subjects: \(error)")
         }
     }
 
     // MARK: - Fetch Tests for Selected Subject
 
-    func fetchTestsForSubject(subjectId: String) {
-        db.collection("Subjects").document(subjectId).collection("Tests").getDocuments() { [weak self] (querySnapshot, err) in
-            if let err = err {
-                print("Error getting tests: \(err)")
-            } else {
-                var fetchedTests = [TestItem]()
-                for document in querySnapshot!.documents {
-                    let testId = document.documentID
-                    let testIdentifier = document.data()["testIdentifier"] as? Int ?? 0 // Assuming it's an Int, use the correct type here
-                    fetchedTests.append(TestItem(id: testId, name: "\(testIdentifier)")) // Now using testIdentifier as the name
-                }
-                DispatchQueue.main.async {
-                    self?.tests = fetchedTests
-                }
+    func fetchTestsForSubject(subjectId: String) async {
+        do {
+            let querySnapshot = try await db.collection("Subjects").document(subjectId).collection("Tests").getDocuments()
+            self.tests = querySnapshot.documents.map { document in
+                let testIdentifier = document.data()["testIdentifier"] as? Int ?? 0
+                return TestItem(id: document.documentID, name: "\(testIdentifier)")
             }
+        } catch {
+            print("Error getting tests: \(error)")
         }
     }
 
-    private func fetchTestsForSubject(subjectID: String) {
-        db.collection("Subjects").document(subjectID).collection("Tests").getDocuments() { [weak self] (querySnapshot, err) in
-            if let err = err {
-                print("Error getting tests: \(err)")
-            } else {
-                var fetchedTests = [TestItem]()
-                for document in querySnapshot!.documents {
-                    let testName = document.data()["name"] as? String ?? "Unknown"
-                    let testId = document.documentID
-                    fetchedTests.append(TestItem(id: testId, name: testName))
-                }
-                DispatchQueue.main.async {
-                    self?.tests = fetchedTests
-                }
+    private func fetchTestsForSubject(subjectID: String) async {
+        do {
+            let querySnapshot = try await db.collection("Subjects").document(subjectID).collection("Tests").getDocuments()
+            self.tests = querySnapshot.documents.map { document in
+                let testName = document.data()["name"] as? String ?? "Unknown"
+                return TestItem(id: document.documentID, name: testName)
             }
+        } catch {
+            print("Error getting tests: \(error)")
         }
-    }
-    
-    // MARK: - Generate Question
-
-//    func generateQuestion(subjectId: String, testId: String) {
-//        let subjectName = subjects.first(where: { $0.id == subjectId })?.name ?? "Unknown"
-//        let prompt = "Generate a multiple-choice math question for the subject \(subjectName) along with four options, do not indicate the correct answer. Do not start the question with 'Question:', just get straight to it."
-//        
-//        openAIService.generateQuestion(prompt: prompt) { [weak self] result in
-//            DispatchQueue.main.async {
-//                switch result {
-//                case .success(let questionText):
-//                    let question = Question(
-//                        correctOptionIndex: 0, // Placeholder value
-//                        options: ["Option 1", "Option 2", "Option 3", "Option 4"], // Placeholder values
-//                        points: 1,
-//                        questionText: questionText,
-//                        type: "Multiple Choice",
-//                        subject: subjectName,
-//                        hint: ""
-//                    )
-//                    self?.generatedQuestion = question
-//                    self?.isApprovalViewPresented = true
-//                case .failure(let error):
-//                    self?.handleError(error)
-//                }
-//            }
-//        }
-//    }
-
-    private func handleError(_ error: Error) {
-        if let afError = error as? AFError {
-            print("AFError occurred: \(afError.localizedDescription)")
-            if let underlyingError = afError.underlyingError {
-                print("Underlying error: \(underlyingError.localizedDescription)")
-            }
-            print("Error details: \(afError)")
-        } else {
-            print("Error generating question: \(error.localizedDescription)")
-        }
-
-        // Here, you may also want to include additional actions such as user notifications, etc.
-    }
-    
-    // Helper function to create a prompt from subjectId (this is just an example)
-    private func createPromptFromSubjectId(_ subjectId: String) -> String {
-        // Implement your logic here to create a prompt based on the subjectId
-        return "What are the important concepts in subject with ID \(subjectId)?"
     }
     
     // MARK: - Save Question
     
-    func saveQuestion(completion: @escaping () -> Void) { // Add a completion handler
+    func saveQuestion(completion: @escaping () -> Void) {
         guard let question = generatedQuestion,
               let subjectId = selectedSubjectId,
               let testId = selectedTestId else {
@@ -153,11 +85,10 @@ class QuestionGeneratorViewModel: ObservableObject {
             switch result {
             case .success():
                 print("Question added successfully to subjectId: \(subjectId), testId: \(testId)")
-                // Clear the generated question and hide the approval view upon success
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     self?.generatedQuestion = nil
                     self?.isApprovalViewPresented = false
-                    completion() // Call the completion handler
+                    completion()
                 }
             case .failure(let error):
                 print("Error adding question: \(error.localizedDescription)")
@@ -165,4 +96,3 @@ class QuestionGeneratorViewModel: ObservableObject {
         }
     }
 }
-

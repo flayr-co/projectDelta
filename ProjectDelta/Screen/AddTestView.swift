@@ -7,8 +7,8 @@
 
 // AddTestView.swift
 import SwiftUI
-import Firebase
-import FirebaseFirestoreSwift
+import FirebaseCore
+import FirebaseFirestore
 
 struct AddTestView: View {
     // MARK: - PROPERTIES
@@ -36,14 +36,16 @@ struct AddTestView: View {
                                 self.selectedSubjectId = subject.id
                                 // No need to reset or reference 'selectedTestId' when a subject is selected
                                 viewModel.tests = []
-                                viewModel.fetchTestsForSubject(subjectId: subject.id)
+                                Task {
+                                    await viewModel.fetchTestsForSubject(subjectId: subject.id)
+                                }
                             }
                     }
                 }
             }
             .padding()
-            .onAppear {
-                viewModel.fetchSubjects()
+            .task {
+                await viewModel.fetchSubjects()
             }
             
             // Test Details Input
@@ -74,9 +76,6 @@ struct AddTestView: View {
             }
             .padding()
         } //: VSTACK
-        .onAppear {
-            viewModel.fetchSubjects()
-        }
     }
     
     func addTest() {

@@ -7,7 +7,7 @@
 
 import Foundation
 import Firebase
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 @MainActor
 class TestViewModel: ObservableObject {

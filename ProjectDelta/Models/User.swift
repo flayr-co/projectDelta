@@ -7,7 +7,7 @@
 
 // User.swift
 import Foundation
-import FirebaseFirestoreSwift
+import FirebaseFirestore
 
 enum UserRole: String, Codable {
     case student
