@@ -48,7 +48,8 @@ struct UserProgressPieChart: View {
             
             // Fetch the user progress
             do {
-                if let fetchedUserProgress = try await quizViewModel.fetchUserProgress(forUserID: userId) {
+                // FIXED: Changed quizViewModel to viewModel (AuthViewModel) to correctly access the fetch function
+                if let fetchedUserProgress = try await viewModel.fetchUserProgress(forUserID: userId) {
                     quizViewModel.userProgress = fetchedUserProgress
                 } else {
                     print("No user progress available to show for donut chart")
