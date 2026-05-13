@@ -5,7 +5,6 @@
 //  Created by Jake Meissner on 11/27/23.
 //
 
-// AddQuestionView.swift
 import SwiftUI
 
 struct AddQuestionView: View {
@@ -91,8 +90,11 @@ struct AddQuestionView: View {
                         updatedQuestion.correctOptionIndex = correctOptionIndex
                         
                         viewModel.generatedQuestion = updatedQuestion
-                        viewModel.saveQuestion() {
-                            // This is the completion block that will be executed after the question is saved
+                        
+                        // Fire the async operation sequentially
+                        Task {
+                            await viewModel.saveQuestion()
+                            // This executes only after the question is successfully saved to Firestore
                             options = ["", "", "", ""] // Reset the options to empty strings
                             correctOptionIndex = 0 // Reset the correct option index to its default
                         }

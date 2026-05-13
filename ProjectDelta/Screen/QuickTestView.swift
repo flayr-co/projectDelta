@@ -2,7 +2,7 @@
 //  QuickTestView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/17/23.
+//  Created by Jake Meissner.
 //
 
 import SwiftUI
@@ -15,9 +15,6 @@ struct QuickTestView: View {
     @Environment(\.dismiss) var dismiss
     
     @State private var currentQuestionIndex = 0
-    @State private var userAnswers: [Int?] = []
-    @State private var score: Int = 0
-    @State private var quizEnded: Bool = false
     @State private var showUIControls: Bool = true
     
     var subject: String
@@ -35,7 +32,7 @@ struct QuickTestView: View {
                     Spacer()
                     ProgressView("Analyzing curriculum...")
                     Spacer()
-                } else if quizEnded {
+                } else if quizViewModel.isQuizComplete {
                     quizEndView
                 } else if !quizViewModel.questions.isEmpty {
                     TabView(selection: $currentQuestionIndex) {
@@ -45,14 +42,11 @@ struct QuickTestView: View {
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
-                    .onChange(of: quizViewModel.questions.count) { _, newCount in
-                        userAnswers = [Int?](repeating: nil, count: newCount)
-                    }
                 }
             }
         }
         .overlay(alignment: .bottom) {
-            if !quizEnded && !quizViewModel.questions.isEmpty && showUIControls {
+            if !quizViewModel.isQuizComplete && !quizViewModel.questions.isEmpty && showUIControls {
                 testNavigationControls
             }
         }
@@ -74,25 +68,30 @@ struct QuickTestView: View {
     private func questionContentPage(for index: Int) -> some View {
         ScrollView {
             if index < quizViewModel.questions.count {
+                let question = quizViewModel.questions[index]
+                let qId = question.id ?? ""
+                let selectedIndex = quizViewModel.userAnswers[qId]
+                
                 VStack(alignment: .leading, spacing: 24) {
-                    Text(quizViewModel.questions[index].questionText)
+                    Text(question.questionText)
                         .font(.system(size: 20, weight: .semibold, design: .rounded))
                         .padding()
 
                     VStack(spacing: 16) {
-                        ForEach(Array(quizViewModel.questions[index].options.enumerated()), id: \.offset) { optIndex, option in
+                        ForEach(Array(question.options.enumerated()), id: \.offset) { optIndex, option in
                             Button {
-                                if userAnswers.indices.contains(index) { userAnswers[index] = optIndex }
+                                quizViewModel.selectAnswer(for: qId, optionIndex: optIndex)
                             } label: {
                                 HStack {
                                     Text(option)
+                                        .multilineTextAlignment(.leading)
                                     Spacer()
-                                    if userAnswers.indices.contains(index), userAnswers[index] == optIndex {
+                                    if selectedIndex == optIndex {
                                         Image(systemName: "checkmark.circle.fill")
                                     }
                                 }
                                 .padding()
-                                .background(userAnswers.indices.contains(index) && userAnswers[index] == optIndex ? Color.cyan.opacity(0.2) : Color.gray.opacity(0.1))
+                                .background(selectedIndex == optIndex ? Color.cyan.opacity(0.2) : Color.gray.opacity(0.1))
                                 .cornerRadius(12)
                             }.buttonStyle(.plain)
                         }
@@ -103,39 +102,92 @@ struct QuickTestView: View {
     }
 
     private var quizEndView: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Text("Test Result").font(.title).bold()
-            Text("\(score) / \(quizViewModel.questions.count)").font(.largeTitle).bold()
-            Button("Return") { dismiss() }.buttonStyle(.borderedProminent)
-            Spacer()
-        }
-        .onAppear {
-            Task { await quizViewModel.finishQuiz(score: score) }
+        ScrollView {
+            VStack(spacing: 24) {
+                Text("Test Result")
+                    .font(.title)
+                    .bold()
+                
+                if let snapshot = quizViewModel.currentSnapshot {
+                    Text("\(snapshot.score) / \(snapshot.totalQuestions)")
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .foregroundColor(snapshot.score > (snapshot.totalQuestions / 2) ? .green : .orange)
+                    
+                    VStack(spacing: 16) {
+                        ForEach(snapshot.questionResults) { result in
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(result.questionText)
+                                    .font(.headline)
+                                
+                                HStack {
+                                    let userAnswerString = result.userSelectedOptionIndex != nil ? result.options[result.userSelectedOptionIndex!] : "No Answer"
+                                    Text("Your Answer: \(userAnswerString)")
+                                        .foregroundColor(result.isCorrect ? .green : .red)
+                                    Spacer()
+                                    if !result.isCorrect {
+                                        Text("Correct: \(result.options[result.correctOptionIndex])")
+                                            .foregroundColor(.green)
+                                    }
+                                }
+                                .font(.subheadline)
+                                
+                                Divider()
+                                
+                                Text("Feedback:")
+                                    .font(.caption)
+                                    .bold()
+                                    .foregroundColor(.secondary)
+                                Text(result.feedback)
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding(.horizontal)
+                } else {
+                    ProgressView("Processing results...")
+                }
+                
+                Button("Return to Subject") {
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.vertical)
+            }
+            .padding(.top)
         }
     }
 
     private var testNavigationControls: some View {
         HStack {
-            Button("Back") { if currentQuestionIndex > 0 { currentQuestionIndex -= 1 } }.disabled(currentQuestionIndex == 0)
-            Spacer()
-            Button(currentQuestionIndex < quizViewModel.questions.count - 1 ? "Next" : "Submit") {
-                if currentQuestionIndex < quizViewModel.questions.count - 1 {
-                    currentQuestionIndex += 1
-                } else {
-                    calculateScore()
-                    quizEnded = true
-                }
-            }.disabled(userAnswers.indices.contains(currentQuestionIndex) ? userAnswers[currentQuestionIndex] == nil : true)
-        }.padding()
-    }
-
-    private func calculateScore() {
-        score = 0
-        for (index, answer) in userAnswers.enumerated() {
-            if index < quizViewModel.questions.count {
-                if let answer = answer, answer == quizViewModel.questions[index].correctOptionIndex { score += 1 }
+            Button("Back") {
+                if currentQuestionIndex > 0 { currentQuestionIndex -= 1 }
             }
+            .disabled(currentQuestionIndex == 0)
+            
+            Spacer()
+            
+            let isLastQuestion = currentQuestionIndex == quizViewModel.questions.count - 1
+            let currentQuestionId = quizViewModel.questions.indices.contains(currentQuestionIndex) ? (quizViewModel.questions[currentQuestionIndex].id ?? "") : ""
+            let hasAnswered = quizViewModel.userAnswers[currentQuestionId] != nil
+            
+            Button(isLastQuestion ? "Submit" : "Next") {
+                if isLastQuestion {
+                    Task {
+                        await quizViewModel.finishQuiz(subjectId: subject, subtopic: subtopic ?? subject)
+                    }
+                } else {
+                    withAnimation {
+                        currentQuestionIndex += 1
+                    }
+                }
+            }
+            .disabled(!hasAnswered)
         }
+        .padding()
+        .background(.ultraThinMaterial)
     }
 }

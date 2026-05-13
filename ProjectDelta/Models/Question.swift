@@ -20,6 +20,7 @@ struct Question: Identifiable, Codable {
     var type: String
     var subject: String
     var hint: String?
+    var feedback: String?
 
     // Computed property to convert Question to dictionary
     var dictionary: [String: Any] {
@@ -36,7 +37,10 @@ struct Question: Identifiable, Codable {
             dict["hint"] = hint
         }
         
+        if let feedback = feedback {
+            dict["feedback"] = feedback
+        }
+        
         return dict
     }
 }
-

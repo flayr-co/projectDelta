@@ -11,6 +11,7 @@
 		520B96862BA538BD00332AF3 /* AdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520B96852BA538BD00332AF3 /* AdminViewModel.swift */; };
 		5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */; };
 		5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */; };
+		521887B92FB4FB7F00D97803 /* QuizSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */; };
 		5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */; };
 		5229BB0A2AD0CC8A0094395D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB092AD0CC8A0094395D /* ContentView.swift */; };
 		5229BB0C2AD0CC8B0094395D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5229BB0B2AD0CC8B0094395D /* Assets.xcassets */; };
@@ -74,6 +75,7 @@
 		520B96852BA538BD00332AF3 /* AdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminViewModel.swift; sourceTree = "<group>"; };
 		5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonViewModel.swift; sourceTree = "<group>"; };
 		5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedActionButton.swift; sourceTree = "<group>"; };
+		521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSnapshot.swift; sourceTree = "<group>"; };
 		5229BB042AD0CC8A0094395D /* ProjectDelta.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProjectDelta.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDeltaApp.swift; sourceTree = "<group>"; };
 		5229BB092AD0CC8A0094395D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -233,6 +235,7 @@
 		5297E4342AD63C1E00220FC6 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */,
 				5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */,
 				52C72D672AFB014800BDC77E /* BarChartView.swift */,
 				527F987D2AEC85030031F9E6 /* CloseButtonView.swift */,
@@ -410,6 +413,7 @@
 				527F98762AEC4E080031F9E6 /* QuizViewModel.swift in Sources */,
 				5254A5D72AF1D43100AAAA72 /* LeaderboardView.swift in Sources */,
 				520B96862BA538BD00332AF3 /* AdminViewModel.swift in Sources */,
+				521887B92FB4FB7F00D97803 /* QuizSnapshot.swift in Sources */,
 				5254A5CD2AF19F4200AAAA72 /* MainTabView.swift in Sources */,
 				52E371BB2B228AD0004CFDDA /* UserProgress.swift in Sources */,
 				527F98862AEF3EA90031F9E6 /* DarkModeBackground.swift in Sources */,

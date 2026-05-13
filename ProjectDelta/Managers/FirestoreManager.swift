@@ -5,7 +5,6 @@
 //  Created by Jake Meissner on 10/14/23.
 //
 
-// FirestoreManger.swift
 import Foundation
 import Firebase
 import FirebaseFirestore
@@ -17,90 +16,91 @@ class FirestoreManager {
         db = Firestore.firestore()
     }
     
-    // Updated to save a test under a specific subject
-    func saveTest(subjectId: String, test: Test, completion: @escaping (Result<String, Error>) -> Void) {
-        do {
-            let ref = try db.collection("Subjects").document(subjectId).collection("Tests").addDocument(from: test)
-            // Add a placeholder question to the new test's Questions subcollection
-            let placeholderQuestion = Question(
-                correctOptionIndex: 0,
-                options: ["Placeholder Option"],
-                points: 0,
-                questionText: "Placeholder Question",
-                type: "Placeholder Type",
-                subject: test.subject,
-                hint: "Placeholder Hint"
-            )
-            try db.collection("Subjects")
-                   .document(subjectId)
-                   .collection("Tests")
-                   .document(ref.documentID)
-                   .collection("Questions")
-                   .addDocument(from: placeholderQuestion)
+    // Updated to fully utilize Swift concurrency
+    func saveTest(subjectId: String, test: Test) async throws -> String {
+        let ref = try db.collection("Subjects").document(subjectId).collection("Tests").addDocument(from: test)
+        
+        let placeholderQuestion = Question(
+            correctOptionIndex: 0,
+            options: ["Placeholder Option"],
+            points: 0,
+            questionText: "Placeholder Question",
+            type: "Placeholder Type",
+            subject: test.subject,
+            hint: "Placeholder Hint",
+            feedback: "Placeholder Feedback"
+        )
+        
+        try db.collection("Subjects")
+            .document(subjectId)
+            .collection("Tests")
+            .document(ref.documentID)
+            .collection("Questions")
+            .addDocument(from: placeholderQuestion)
             
-            completion(.success(ref.documentID))
-        } catch let error {
-            completion(.failure(error))
-        }
+        return ref.documentID
     }
     
-    func saveQuestion(subjectId: String, testId: String, question: Question, completion: @escaping (Result<Void, Error>) -> Void) {
-        do {
-            let _ = try db.collection("Subjects").document(subjectId).collection("Tests").document(testId).collection("Questions").addDocument(from: question)
-            completion(.success(()))
-        } catch let error {
-            completion(.failure(error))
-        }
+    func saveQuestion(subjectId: String, testId: String, question: Question) async throws {
+        let _ = try db.collection("Subjects")
+            .document(subjectId)
+            .collection("Tests")
+            .document(testId)
+            .collection("Questions")
+            .addDocument(from: question)
     }
     
-    // Function to initialize or update the user's progress for a subject
-    func updateUserProgress(userId: String, subjectId: String, questionId: String, isCorrect: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
+    func saveQuizSnapshot(_ snapshot: QuizSnapshot) async throws {
+        let collectionRef = db.collection("users").document(snapshot.userId).collection("quizSnapshots")
+        try collectionRef.document().setData(from: snapshot)
+    }
+    
+    // Converted to async/await utilizing runTransaction in a continuation for safety
+    func updateUserProgress(userId: String, subjectId: String, questionId: String, isCorrect: Bool) async throws {
         let userProgressRef = db.collection("UserProgress").document(userId)
         let subjectProgressRef = userProgressRef.collection("Subjects").document(subjectId)
         
-        db.runTransaction({ (transaction, errorPointer) -> Any? in
-            let subjectProgressDocument: DocumentSnapshot
-            do {
-                try subjectProgressDocument = transaction.getDocument(subjectProgressRef)
-            } catch let fetchError as NSError {
-                errorPointer?.pointee = fetchError
+        return try await withCheckedThrowingContinuation { continuation in
+            db.runTransaction({ (transaction, errorPointer) -> Any? in
+                let subjectProgressDocument: DocumentSnapshot
+                do {
+                    try subjectProgressDocument = transaction.getDocument(subjectProgressRef)
+                } catch let fetchError as NSError {
+                    errorPointer?.pointee = fetchError
+                    return nil
+                }
+                
+                let newProgress: SubjectProgress
+                if let existingData = subjectProgressDocument.data() {
+                    let currentCorrect = existingData["questionsCorrect"] as? Int ?? 0
+                    let currentAttempted = existingData["questionsAttempted"] as? Int ?? 0
+                    newProgress = SubjectProgress(
+                        questionsAttempted: currentAttempted + 1,
+                        questionsCorrect: isCorrect ? currentCorrect + 1 : currentCorrect
+                    )
+                } else {
+                    newProgress = SubjectProgress(
+                        questionsAttempted: 1,
+                        questionsCorrect: isCorrect ? 1 : 0
+                    )
+                }
+                
+                do {
+                    let data = try Firestore.Encoder().encode(newProgress)
+                    transaction.setData(data, forDocument: subjectProgressRef)
+                } catch let encodeError as NSError {
+                    errorPointer?.pointee = encodeError
+                    return nil
+                }
+                
                 return nil
-            }
-            
-            let newProgress: SubjectProgress
-            if let existingData = subjectProgressDocument.data() {
-                let currentCorrect = existingData["questionsCorrect"] as? Int ?? 0
-                let currentAttempted = existingData["questionsAttempted"] as? Int ?? 0
-                newProgress = SubjectProgress(
-                    questionsAttempted: currentAttempted + 1,
-                    questionsCorrect: isCorrect ? currentCorrect + 1 : currentCorrect
-                )
-            } else {
-                newProgress = SubjectProgress(
-                    questionsAttempted: 1,
-                    questionsCorrect: isCorrect ? 1 : 0
-                )
-            }
-            
-            // Convert newProgress to a dictionary using Firestore.Encoder
-            do {
-                let data = try Firestore.Encoder().encode(newProgress)
-                transaction.setData(data, forDocument: subjectProgressRef)
-            } catch let encodeError as NSError {
-                errorPointer?.pointee = encodeError
-                return nil
-            }
-            
-            return nil
-        }) { (object, error) in
-            if let error = error {
-                print("Transaction failed: \(error)")
-                completion(.failure(error))
-            } else {
-                print("Transaction successfully committed!")
-                completion(.success(()))
+            }) { (object, error) in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
             }
         }
     }
 }
-

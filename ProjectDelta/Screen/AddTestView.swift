@@ -5,7 +5,6 @@
 //  Created by Jake Meissner on 12/2/23.
 //
 
-// AddTestView.swift
 import SwiftUI
 import FirebaseCore
 import FirebaseFirestore
@@ -20,7 +19,6 @@ struct AddTestView: View {
     @State private var timeLimit: Int = 0
     @State private var showingAlert = false
     @State private var alertMessage = ""
-    
     
     var body: some View {
         VStack {
@@ -71,9 +69,9 @@ struct AddTestView: View {
                 Button("Add Test") {
                     addTest()
                 }
-                    .alert(isPresented: $showingAlert) {
-                        Alert(title: Text("Error"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
-                    }
+                .alert(isPresented: $showingAlert) {
+                    Alert(title: Text("Error"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
+                }
             }
             .padding()
         } //: VSTACK
@@ -85,26 +83,29 @@ struct AddTestView: View {
             self.showingAlert = true
             return
         }
-        // Check if the testIdentifier is already taken
-        Firestore.firestore().collection("Subjects").document(subjectId).collection("Tests").whereField("testIdentifier", isEqualTo: testIdentifier).getDocuments { (querySnapshot, error) in
-            if let error = error {
-                self.alertMessage = "Error: \(error.localizedDescription)"
-                self.showingAlert = true
-            } else if let querySnapshot = querySnapshot, querySnapshot.documents.isEmpty {
-                // No existing test with the same identifier, proceed to add
-                let newTest = Test(questionAmount: questionAmount, subject: subjectName, testIdentifier: testIdentifier, timeLimit: timeLimit)
-                FirestoreManager().saveTest(subjectId: subjectId, test: newTest) { result in
-                    switch result {
-                    case .success(let docId):
-                        print("Test added successfully with ID: \(docId ?? "Unknown ID")")
-                    case .failure(let error):
-                        self.alertMessage = "Error adding test: \(error.localizedDescription)"
-                        self.showingAlert = true
-                    }
+        
+        Task {
+            do {
+                // Check if the testIdentifier is already taken
+                let querySnapshot = try await Firestore.firestore()
+                    .collection("Subjects")
+                    .document(subjectId)
+                    .collection("Tests")
+                    .whereField("testIdentifier", isEqualTo: testIdentifier)
+                    .getDocuments()
+                
+                if querySnapshot.documents.isEmpty {
+                    // No existing test with the same identifier, proceed to add
+                    let newTest = Test(questionAmount: questionAmount, subject: subjectName, testIdentifier: testIdentifier, timeLimit: timeLimit)
+                    let docId = try await FirestoreManager().saveTest(subjectId: subjectId, test: newTest)
+                    print("Test added successfully with ID: \(docId)")
+                } else {
+                    // Found existing test with the same identifier
+                    self.alertMessage = "A test with this identifier already exists."
+                    self.showingAlert = true
                 }
-            } else {
-                // Found existing test with the same identifier
-                self.alertMessage = "A test with this identifier already exists."
+            } catch {
+                self.alertMessage = "Error: \(error.localizedDescription)"
                 self.showingAlert = true
             }
         }
