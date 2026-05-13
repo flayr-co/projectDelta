@@ -5,7 +5,6 @@
 //  Created by Jake Meissner on 10/31/23.
 //
 
-// LessonView.swift
 import SwiftUI
 import FirebaseCore
 
@@ -19,121 +18,115 @@ struct LessonView: View {
     @State private var showHeader = true
     @State private var lastContentOffset: CGFloat = 0
     @Environment(\.colorScheme) var colorScheme
-    @Environment(\.dismiss) var dismiss // Upgraded to modern dismiss
+    @Environment(\.dismiss) var dismiss
 
     var body: some View {
-        VStack {
-            HStack(spacing: 16) {
-                BackButtonView {
-                    dismiss()
-                }
-                
-                Text("\(lessonVM.currentLessonName)")
-                    .font(.subheadline)
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
-                
-                Spacer()
-                
-                // Table of Contents Button
-                Button(action: {
-                    showTableOfContents.toggle()
-                    if showTableOfContents {
-                        lessonVM.fetchAllLessons(for: subjectName)
-                    }
-                }) {
-                    Image(systemName: "list.number")
-                        .accessibility(label: Text("Show Table of Contents"))
-                        .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
-                }
-                .padding()
-                .background(showTableOfContents ? Color.gray.opacity(0.2) : Color.clear)
-                .cornerRadius(8)
-                
-                // Bookmark button
-                Button(action: {
-                    lessonVM.toggleBookmark(authVM: authVM)
-                }) {
-                    let isBookmarked = lessonVM.isCurrentPageBookmarked
-                    Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                        .foregroundColor(isBookmarked ? Color.accentColor : Color.secondary)
-                }
-                .padding(.vertical)
-                .padding(.horizontal)
-            }
-            .padding(.top, 16)  // Adjust the padding to ensure it's visible at the top
-            .transition(.move(edge: .top))
-            .animation(.default, value: showHeader)
-            
-            if lessonVM.lessonPages.isEmpty {
-                Text("Loading lesson content...")
-            } else {
-                if showTableOfContents {
-                    TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName)
-                        .frame(width: 300)
-                        .background(Color.white)
-                        .cornerRadius(12)
-                        .shadow(radius: 5)
+        ZStack {
+            (colorScheme == .dark ? Color.customDarkGray : Color.white)
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                if showHeader {
+                    headerView
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                ScrollViewReader { proxy in
+                if lessonVM.lessonPages.isEmpty {
+                    Spacer()
+                    ProgressView("Loading lesson content...")
+                    Spacer()
+                } else {
                     TabView(selection: Bindable(lessonVM).currentPageIndex) {
                         ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
                             LessonContentPage(
-                                text: lessonVM.lessonPages[index].content,
-                                exampleText: lessonVM.lessonPages[index].example,
-                                graphicsURL: lessonVM.lessonPages[index].graphics,
-                                explanation: lessonVM.lessonPages[index].explanation,
-                                graphData: lessonVM.lessonPages[index].graphData,
-                                readyButtonDisplayed: lessonVM.lessonPages[index].readyButtonDisplayed,
+                                page: lessonVM.lessonPages[index],
                                 isInteractingWithExplanation: $isInteractingWithExplanation
                             )
                             .tag(index)
-                            .onAppear {
-                                print("Displaying page \(lessonVM.lessonPages[index].pageNumber), graphData: \(String(describing: lessonVM.lessonPages[index].graphData))")
-                            }
                         }
                     }
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                    .frame(maxHeight: .infinity)
-                    // iOS 17 compliant onChange signature
+                    .tabViewStyle(.page(indexDisplayMode: .never))
                     .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
-                        // Using native array bounds checking instead of missing [safe:] extension
                         if lessonVM.lessonPages.indices.contains(newPageIndex) {
                             let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
-                            print("Navigating to page number: \(newPageNumber)")
                             lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
                         }
                     }
                 }
-                .background(GeometryReader { geo in
-                    // iOS 17 compliant onChange signature
-                    Color.clear.onChange(of: geo.frame(in: .global).minY) { oldValue, value in
-                        if value < lastContentOffset {
-                            withAnimation {
-                                showHeader = false
-                            }
-                        } else {
-                            withAnimation {
-                                showHeader = true
-                            }
-                        }
-                        lastContentOffset = value
+            }
+            
+            if showTableOfContents {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation { showTableOfContents = false }
                     }
-                })
-
+                
+                TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName)
+                    .frame(width: 300)
+                    .background(colorScheme == .dark ? Color.customDarkGray : .white)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.2), radius: 10)
+                    .transition(.move(edge: .trailing))
+                    .padding(.trailing, 20)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if !lessonVM.lessonPages.isEmpty {
                 lessonNavigationControls
             }
         }
-        .toolbar(.hidden, for: .navigationBar) // Upgraded to modern standard
+        .toolbar(.hidden, for: .navigationBar)
         .task {
-            lessonVM.subjectName = subjectName  // Ensure subjectName is set
+            lessonVM.subjectName = subjectName
             await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
         }
-        .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
-        .overlay(lessonNavigationControls, alignment: .bottom)
     }
 
-    @ViewBuilder
+    private var headerView: some View {
+        HStack(spacing: 16) {
+            BackButtonView {
+                dismiss()
+            }
+
+            Text(lessonVM.currentLessonName)
+                .font(.headline)
+                .foregroundColor(.primary)
+                .lineLimit(1)
+
+            Spacer()
+
+            Button(action: {
+                withAnimation(.spring()) {
+                    showTableOfContents.toggle()
+                    if showTableOfContents {
+                        lessonVM.fetchAllLessons(for: subjectName)
+                    }
+                }
+            }) {
+                Image(systemName: "list.number")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
+                    .padding(8)
+                    .background(showTableOfContents ? Color.secondary.opacity(0.2) : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            Button(action: {
+                lessonVM.toggleBookmark(authVM: authVM)
+            }) {
+                Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
+                    .font(.system(size: 18))
+                    .foregroundColor(lessonVM.isCurrentPageBookmarked ? .accentColor : .secondary)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+        .background(colorScheme == .dark ? Color.customDarkGray : .white)
+    }
+
     private var lessonNavigationControls: some View {
         HStack {
             Button(action: {
@@ -141,199 +134,129 @@ struct LessonView: View {
                     lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
                 }
             }) {
-                Image(systemName: "chevron.left")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 30, height: 30)
-                    .padding(.leading, 20)
+                Image(systemName: "chevron.left.circle.fill")
+                    .font(.system(size: 32))
                     .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
             }
+            .disabled(lessonVM.currentPageIndex == 0)
+            .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
+
             Spacer()
+            
             Text("\(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
-                .foregroundColor(.gray)
+                .font(.footnote.monospacedDigit())
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Color.secondary.opacity(0.1)))
+
             Spacer()
+            
             Button(action: {
                 withAnimation {
                     lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
                 }
             }) {
-                Image(systemName: "chevron.right")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 30, height: 30)
-                    .padding(.trailing, 20)
+                Image(systemName: "chevron.right.circle.fill")
+                    .font(.system(size: 32))
                     .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
             }
+            .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
+            .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
         }
-        .padding(.bottom, 40)
+        .padding(.horizontal, 25)
+        .padding(.bottom, 30)
     }
 }
 
 // MARK: - LessonContentPage
 struct LessonContentPage: View {
-    var text: String
-    var exampleText: String?
-    var graphicsURL: String?
-    var explanation: String?
-    var graphData: GraphData?
-    var readyButtonDisplayed: Bool
+    let page: Page
     @Binding var isInteractingWithExplanation: Bool
-    @State private var isExplanationVisible: Bool = false
-    @State private var scrollOffset: CGFloat = 0
-    @State private var scrollViewContentHeight: CGFloat = 0
-    @State private var showScrollIndicator: Bool = false
-    @State private var timer: Timer?
     
+    @State private var isExplanationVisible: Bool = false
     @Environment(LessonViewModel.self) var lessonVM
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        NavigationStack {
-            GeometryReader { geometry in
-                ScrollView {
-                    VStack {
-                        Group {
-                            if exampleText == nil && graphicsURL == nil && explanation == nil {
-                                Spacer(minLength: geometry.size.height * 0.3)
-                            } else {
-                                Spacer(minLength: geometry.size.height * 0.03)
-                            }
-                        }
-                        
-                        TextStylingUtility.styledText(from: text)
-                            .font(.system(size: 18, weight: .regular, design: .serif))
-                            .minimumScaleFactor(0.5)
-                            .lineLimit(nil)
-                            .padding(.horizontal)
-                            .lineSpacing(10)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        
-                        // Graph display
-                        if let graphData = graphData {
-                            DynamicGraphView(data: graphData)
-                                .padding(.bottom, exampleText == nil || exampleText!.isEmpty ? 0 : 15)
-                                .padding(.top, exampleText == nil || exampleText!.isEmpty ? 80 : 58)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .onAppear {
-                                    print("Displaying graph data: \(graphData.xValues), \(graphData.yValues)")
-                                }
-                        }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                TextStylingUtility.styledText(from: page.content)
+                    .font(.system(size: 19, weight: .regular, design: .serif))
+                    .lineSpacing(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.top, 20)
 
-                        if let example = exampleText, !example.isEmpty {
-                            ExampleView(text: example)
-                                .padding(.top, graphData == nil ? 40 : 5)
-                                .padding(.bottom, 20)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                        }
-
-                        // Explanation dropdown
-                        if let explanationText = explanation, !explanationText.isEmpty {
-                            Button {
-                                withAnimation {
-                                    isExplanationVisible.toggle()
-                                    isInteractingWithExplanation = isExplanationVisible
-                                }
-                            } label: {
-                                HStack {
-                                    Image(systemName: "checkmark.seal.fill")
-                                    Text("See explanation")
-                                }
-                            }
-                            .foregroundColor(.HuluGreen)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            
-                            if isExplanationVisible {
-                                ExampleView(text: explanationText)
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                            }
-                        }
-
-                        // Ready button display
-                        if readyButtonDisplayed {
-                            VStack(spacing: 20) {
-                                Button(action: {
-                                    // Action for the ready button
-                                }) {
-                                    AnimatedActionButton()
-                                        .padding()
-                                }
-                                .padding(.top, 20)
-                                .frame(maxWidth: .infinity, alignment: .center)
-
-                                NavigationLink {
-                                    PracticeTestView(practiceTestViewModel: PracticeTestViewModel(authViewModel: AuthViewModel()), lessonID: lessonVM.currentLessonId, practiceTestID: "VYccqY1rjXETQOdMm4ap")
-                                } label: {
-                                    Text("Go to test")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(colorScheme == .dark ? .cyan : .green)
-                                }
-                            }
-                        }
-
-                        Spacer()
-                    }
-                    .background(GeometryReader { proxy in
-                        Color.clear.onAppear {
-                            scrollViewContentHeight = proxy.size.height
-                        }
-                    })
-                    .frame(minHeight: geometry.size.height)
-                    .background(GeometryReader { proxy in
-                        Color.clear.onAppear {
-                            scrollViewContentHeight = proxy.size.height
-                        }
-                    })
+                if let graphData = page.graphData {
+                    DynamicGraphView(data: graphData)
+                        .frame(height: 250)
+                        .padding(.horizontal)
                 }
-                .background(GeometryReader { proxy in
-                    Color.clear.onAppear {
-                        scrollViewContentHeight = proxy.size.height
-                    }
-                    // iOS 17 compliant onChange signature
-                    .onChange(of: scrollOffset) { oldValue, newValue in
-                        print("Scroll offset changed: \(newValue)")
-                    }
-                })
-                .overlay(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .onAppear {
-                                scrollOffset = proxy.frame(in: .global).minY
+
+                if let example = page.example, !example.isEmpty {
+                    ExampleView(text: example)
+                }
+
+                if let explanationText = page.explanation, !explanationText.isEmpty {
+                    VStack(spacing: 12) {
+                        Button {
+                            withAnimation(.spring()) {
+                                isExplanationVisible.toggle()
+                                isInteractingWithExplanation = isExplanationVisible
                             }
-                            // iOS 17 compliant onChange signature
-                            .onChange(of: proxy.frame(in: .global).minY) { oldValue, newValue in
-                                scrollOffset = newValue
-                                showScrollIndicator = true
-                                timer?.invalidate()
-                                timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
-                                    withAnimation {
-                                        showScrollIndicator = false
-                                    }
-                                }
+                        } label: {
+                            HStack {
+                                Image(systemName: isExplanationVisible ? "chevron.up.circle.fill" : "checkmark.seal.fill")
+                                Text(isExplanationVisible ? "Hide explanation" : "See explanation")
+                                    .fontWeight(.semibold)
                             }
-                    }
-                )
-                .overlay(
-                    VStack {
-                        Spacer()
-                        if showScrollIndicator && scrollOffset < scrollViewContentHeight - geometry.size.height - 20 {
-                            Image(systemName: "chevron.down")
-                                .foregroundColor(.gray)
-                                .padding()
-                                .background(Circle().fill(Color.white).shadow(radius: 10))
-                                .padding(.bottom, 30)
-                                .transition(.opacity)
-                                .animation(.easeInOut, value: scrollOffset)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 16)
+                            .background(Color.HuluGreen.opacity(0.1))
+                            .clipShape(Capsule())
+                        }
+                        .foregroundColor(.HuluGreen)
+                        .frame(maxWidth: .infinity)
+
+                        if isExplanationVisible {
+                            ExampleView(text: explanationText)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
-                )
+                }
+
+                if page.readyButtonDisplayed {
+                    VStack(spacing: 20) {
+                        Button(action: {}) {
+                            AnimatedActionButton()
+                        }
+
+                        NavigationLink {
+                            PracticeTestView(
+                                practiceTestViewModel: PracticeTestViewModel(authViewModel: AuthViewModel()),
+                                lessonID: lessonVM.currentLessonId,
+                                practiceTestID: "VYccqY1rjXETQOdMm4ap"
+                            )
+                        } label: {
+                            Text("Go to test")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundStyle(colorScheme == .dark ? .cyan : .green)
+                        }
+                    }
+                    .padding(.vertical, 30)
+                }
+                
+                Spacer(minLength: 120)
             }
         }
+        .scrollIndicators(.hidden)
     }
 }
 
-
+// MARK: - ExampleView
 struct ExampleView: View {
     var text: String
     @Environment(\.colorScheme) var colorScheme
@@ -347,105 +270,51 @@ struct ExampleView: View {
         }
     }
 
-    func calculateHeight(for latex: String) -> CGFloat {
+    private func calculateHeight(for latex: String) -> CGFloat {
         let lineBreaks = latex.components(separatedBy: "\\\\").count - 1
         let hasFraction = latex.contains("\\frac")
-        let baseHeight: CGFloat = 50
+        let baseHeight: CGFloat = 60
         let lineBreakHeight: CGFloat = 25 * CGFloat(lineBreaks)
-        let fractionHeight: CGFloat = hasFraction ? 25 : 0
+        let fractionHeight: CGFloat = hasFraction ? 30 : 0
         return baseHeight + lineBreakHeight + fractionHeight
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading) {
-                ForEach(parsedContent, id: \.0) { (example, explanation) in
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(parsedContent, id: \.0) { (example, explanation) in
+                VStack(alignment: .leading, spacing: 8) {
                     if example.contains("$$") {
                         let latex = example
                             .replacingOccurrences(of: "$$", with: "")
                             .replacingOccurrences(of: "\\\\newline", with: "\\\\")
+                        
                         let height = calculateHeight(for: latex)
-                        VStack {
-                            LatexView(latex: "$$\n\(latex)\n$$")
-                                .frame(minHeight: height)
-                                .padding(4)
-                                .background(colorScheme == .dark ? Color.gray.opacity(0.3) : Color.gray.opacity(0.2))
-                                .cornerRadius(10)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(colorScheme == .dark ? Color.black : Color.gray.opacity(0.2))
-                        .cornerRadius(10)
-                        .padding(.horizontal)
-                        .padding(.vertical, 2)
+                        
+                        LatexView(latex: "$$\n\(latex)\n$$")
+                            .frame(minHeight: height)
+                            .padding(12)
+                            .frame(maxWidth: .infinity)
+                            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
+                            .cornerRadius(12)
                     } else {
-                        VStack {
-                            let formattedText = TextStylingUtility.styledText(from: example)
-                            formattedText
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(colorScheme == .dark ? Color.black : Color.white)
-                                .cornerRadius(10)
-                                .padding(.horizontal)
-                                .padding(.vertical, 4)
-                                .lineSpacing(10)
-                        }
-                        .frame(minHeight: 50)
+                        TextStylingUtility.styledText(from: example)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                     }
 
                     if !explanation.isEmpty {
                         Text(explanation)
                             .font(.footnote)
-                            .foregroundColor(.gray)
-                            .padding(.horizontal)
-                            .padding(.bottom, 10)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
                     }
                 }
+                .padding(.horizontal)
             }
         }
-    }
-}
-
-
-struct ScrollOffsetKey: PreferenceKey {
-    typealias Value = CGFloat
-    static var defaultValue: CGFloat = .zero
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-struct ViewHeightKey: PreferenceKey {
-    typealias Value = CGFloat
-    static var defaultValue: CGFloat = .zero
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-extension NSRegularExpression {
-    func split(_ string: String, range: NSRange) -> [(text: String, separator: String)] {
-        var results = [(text: String, separator: String)]()
-        let matches = self.matches(in: string, options: [], range: range)
-        var lastEnd = range.lowerBound
-
-        for match in matches {
-            let textRange = NSRange(lastEnd..<match.range.lowerBound)
-            if let textRange = Range(textRange, in: string) {
-                let text = String(string[textRange])
-                let separator = (string as NSString).substring(with: match.range)
-                results.append((text, separator))
-            }
-            lastEnd = match.range.upperBound
-        }
-
-        if lastEnd < range.upperBound, let remainingRange = Range(NSRange(lastEnd..<range.upperBound), in: string) {
-            results.append((String(string[remainingRange]), ""))
-        }
-
-        return results
     }
 }
 
@@ -453,5 +322,4 @@ extension NSRegularExpression {
     LessonView(subjectName: "Algebra")
         .environment(LessonViewModel())
         .environment(AuthViewModel())
-//        .preferredColorScheme(.dark)
 }
