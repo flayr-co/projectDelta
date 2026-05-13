@@ -155,52 +155,69 @@ struct LessonView: View {
     }
 
     private var lessonNavigationControls: some View {
-        HStack {
-            Button(action: {
-                withAnimation {
-                    lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
+        VStack {
+            if lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 {
+                NavigationLink(destination: TestView(subject: subjectName)) {
+                    Text("Take Quiz")
+                        .font(.headline)
+                        .bold()
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(colorScheme == .dark ? Color.cyan : Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
                 }
-            }) {
-                Image(systemName: "chevron.left.circle.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
-                    .contentShape(Circle())
+                .padding(.horizontal, 25)
+                .padding(.bottom, 10)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .buttonStyle(.plain)
-            .disabled(lessonVM.currentPageIndex == 0)
-            .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
-
-            Spacer()
             
-            Text("\(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
-                .font(.footnote.monospacedDigit())
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-
-            Spacer()
-            
-            Button(action: {
-                withAnimation {
-                    lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
+            HStack {
+                Button(action: {
+                    withAnimation {
+                        lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
+                    }
+                }) {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                        .contentShape(Circle())
                 }
-            }) {
-                Image(systemName: "chevron.right.circle.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
-                    .contentShape(Circle())
+                .buttonStyle(.plain)
+                .disabled(lessonVM.currentPageIndex == 0)
+                .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
+
+                Spacer()
+                
+                Text("\(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
+                    .font(.footnote.monospacedDigit())
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+
+                Spacer()
+                
+                Button(action: {
+                    withAnimation {
+                        lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
+                    }
+                }) {
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
+                .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
             }
-            .buttonStyle(.plain)
-            .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
-            .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
+            .padding(.horizontal, 25)
+            .padding(.bottom, 30)
         }
-        .padding(.horizontal, 25)
-        .padding(.bottom, 30)
     }
 }
 
-// MARK: - LessonContentPage
 struct LessonContentPage: View {
     let page: Page
     @Binding var isInteractingWithExplanation: Bool
@@ -258,30 +275,6 @@ struct LessonContentPage: View {
                         }
                     }
                 }
-
-                if page.readyButtonDisplayed {
-                    VStack(spacing: 20) {
-                        Button(action: {}) {
-                            AnimatedActionButton()
-                        }
-                        .buttonStyle(.plain)
-
-                        NavigationLink {
-                            PracticeTestView(
-                                practiceTestViewModel: PracticeTestViewModel(authViewModel: AuthViewModel()),
-                                lessonID: lessonVM.currentLessonId,
-                                practiceTestID: "VYccqY1rjXETQOdMm4ap"
-                            )
-                        } label: {
-                            Text("Go to test")
-                                .font(.title3)
-                                .fontWeight(.bold)
-                                .foregroundStyle(colorScheme == .dark ? .cyan : .green)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.vertical, 30)
-                }
                 
                 Spacer(minLength: 120)
             }
@@ -294,7 +287,6 @@ struct LessonContentPage: View {
     }
 }
 
-// MARK: - ExampleView
 struct ExampleView: View {
     var text: String
     @Environment(\.colorScheme) var colorScheme
@@ -354,10 +346,4 @@ struct ExampleView: View {
             }
         }
     }
-}
-
-#Preview {
-    LessonView(subjectName: "Algebra")
-        .environment(LessonViewModel())
-        .environment(AuthViewModel())
 }
