@@ -92,8 +92,6 @@ struct TestView: View {
                     buttonTapped.toggle()
                 }
                 quizViewModel.fetchRandomTest(for: subject)
-                // Resize user answers based on expected questions count, defaulting to 10 for safety before fetch completes
-                userAnswers = [Int?](repeating: nil, count: max(quizViewModel.questions.count, 10))
             }) {
                 startButton
             }
@@ -136,9 +134,17 @@ struct TestView: View {
                         .transition(.opacity)
                 }
 
-                if !quizEnded && quizViewModel.questions.isEmpty {
+                // Explicitly check the loading state first
+                if quizViewModel.isGeneratingQuiz {
                     Spacer()
                     ProgressView("Generating quiz...")
+                    Spacer()
+                } else if !quizEnded && quizViewModel.questions.isEmpty {
+                    // Safe fallback if the array is empty after loading finishes
+                    Spacer()
+                    Text("No questions available.")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
                     Spacer()
                 } else if !quizEnded && currentQuestionIndex < quizViewModel.questions.count {
                     if showUIControls {
@@ -164,7 +170,8 @@ struct TestView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if !quizEnded && !quizViewModel.questions.isEmpty && showUIControls {
+            // Hide footer if we are loading or if there are no questions
+            if !quizEnded && !quizViewModel.isGeneratingQuiz && !quizViewModel.questions.isEmpty && showUIControls {
                 footerView
                     .transition(.opacity)
             }
