@@ -15,7 +15,7 @@ struct LessonView: View {
 
     @State private var showTableOfContents = false
     @State private var isInteractingWithExplanation: Bool = false
-    @State private var showHeader = true
+    @State private var showUIControls = true
     @State private var lastContentOffset: CGFloat = 0
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
@@ -26,9 +26,9 @@ struct LessonView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                if showHeader {
+                if showUIControls {
                     headerView
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(.opacity)
                 }
 
                 if lessonVM.lessonPages.isEmpty {
@@ -40,7 +40,12 @@ struct LessonView: View {
                         ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
                             LessonContentPage(
                                 page: lessonVM.lessonPages[index],
-                                isInteractingWithExplanation: $isInteractingWithExplanation
+                                isInteractingWithExplanation: $isInteractingWithExplanation,
+                                onBackgroundTap: {
+                                    withAnimation(.easeInOut(duration: 0.25)) {
+                                        showUIControls.toggle()
+                                    }
+                                }
                             )
                             .tag(index)
                         }
@@ -59,22 +64,25 @@ struct LessonView: View {
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
                     .onTapGesture {
-                        withAnimation { showTableOfContents = false }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showTableOfContents = false
+                        }
                     }
                 
-                TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName)
-                    .frame(width: 300)
+                TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName, isShowing: $showTableOfContents)
+                    .frame(width: 320)
                     .background(colorScheme == .dark ? Color.customDarkGray : .white)
                     .cornerRadius(16)
                     .shadow(color: .black.opacity(0.2), radius: 10)
                     .transition(.move(edge: .trailing))
-                    .padding(.trailing, 20)
+                    .padding(.trailing, 16)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .overlay(alignment: .bottom) {
-            if !lessonVM.lessonPages.isEmpty {
+            if !lessonVM.lessonPages.isEmpty && showUIControls {
                 lessonNavigationControls
+                    .transition(.opacity)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -85,40 +93,56 @@ struct LessonView: View {
     }
 
     private var headerView: some View {
-        HStack(spacing: 16) {
-            BackButtonView {
+        HStack(spacing: 12) {
+            Button(action: {
                 dismiss()
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: 16, weight: .bold))
+                }
+                .foregroundColor(.red)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.red.opacity(0.15))
+                .clipShape(Capsule())
             }
 
             Text(lessonVM.currentLessonName)
                 .font(.headline)
+                .fontWeight(.bold)
                 .foregroundColor(.primary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+                .multilineTextAlignment(.leading)
+                .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: 8)
 
-            Button(action: {
-                withAnimation(.spring()) {
-                    showTableOfContents.toggle()
-                    if showTableOfContents {
-                        lessonVM.fetchAllLessons(for: subjectName)
+            HStack(spacing: 16) {
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showTableOfContents.toggle()
+                        if showTableOfContents {
+                            lessonVM.fetchAllLessons(for: subjectName)
+                        }
                     }
+                }) {
+                    Image(systemName: "list.number")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(colorScheme == .dark ? .mint : .blue)
+                        .padding(8)
+                        .background(showTableOfContents ? Color.secondary.opacity(0.2) : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-            }) {
-                Image(systemName: "list.number")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
-                    .padding(8)
-                    .background(showTableOfContents ? Color.secondary.opacity(0.2) : Color.clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
 
-            Button(action: {
-                lessonVM.toggleBookmark(authVM: authVM)
-            }) {
-                Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
-                    .font(.system(size: 18))
-                    .foregroundColor(lessonVM.isCurrentPageBookmarked ? .accentColor : .secondary)
+                Button(action: {
+                    lessonVM.toggleBookmark(authVM: authVM)
+                }) {
+                    Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 18))
+                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? .blue : .secondary)
+                }
             }
         }
         .padding(.horizontal)
@@ -135,8 +159,8 @@ struct LessonView: View {
                 }
             }) {
                 Image(systemName: "chevron.left.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
+                    .font(.system(size: 36))
+                    .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
             }
             .disabled(lessonVM.currentPageIndex == 0)
             .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
@@ -159,8 +183,8 @@ struct LessonView: View {
                 }
             }) {
                 Image(systemName: "chevron.right.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(colorScheme == .dark ? .mint : .accentColor)
+                    .font(.system(size: 36))
+                    .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
             }
             .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
             .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
@@ -174,6 +198,7 @@ struct LessonView: View {
 struct LessonContentPage: View {
     let page: Page
     @Binding var isInteractingWithExplanation: Bool
+    var onBackgroundTap: () -> Void
     
     @State private var isExplanationVisible: Bool = false
     @Environment(LessonViewModel.self) var lessonVM
@@ -250,6 +275,10 @@ struct LessonContentPage: View {
                 }
                 
                 Spacer(minLength: 120)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onBackgroundTap()
             }
         }
         .scrollIndicators(.hidden)
