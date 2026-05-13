@@ -102,11 +102,11 @@ struct LessonView: View {
                         .font(.system(size: 16, weight: .bold))
                 }
                 .foregroundColor(.red)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(Color.red.opacity(0.15))
-                .clipShape(Capsule())
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
             Text(lessonVM.currentLessonName)
                 .font(.headline)
@@ -132,9 +132,9 @@ struct LessonView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(colorScheme == .dark ? .mint : .blue)
                         .padding(8)
-                        .background(showTableOfContents ? Color.secondary.opacity(0.2) : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
 
                 Button(action: {
                     lessonVM.toggleBookmark(authVM: authVM)
@@ -142,7 +142,10 @@ struct LessonView: View {
                     Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 18))
                         .foregroundColor(lessonVM.isCurrentPageBookmarked ? .blue : .secondary)
+                        .padding(8)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal)
@@ -161,7 +164,9 @@ struct LessonView: View {
                 Image(systemName: "chevron.left.circle.fill")
                     .font(.system(size: 36))
                     .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                    .contentShape(Circle())
             }
+            .buttonStyle(.plain)
             .disabled(lessonVM.currentPageIndex == 0)
             .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
 
@@ -173,7 +178,6 @@ struct LessonView: View {
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
-                .background(Capsule().fill(Color.secondary.opacity(0.1)))
 
             Spacer()
             
@@ -185,7 +189,9 @@ struct LessonView: View {
                 Image(systemName: "chevron.right.circle.fill")
                     .font(.system(size: 36))
                     .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                    .contentShape(Circle())
             }
+            .buttonStyle(.plain)
             .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
             .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
         }
@@ -242,6 +248,7 @@ struct LessonContentPage: View {
                             .background(Color.HuluGreen.opacity(0.1))
                             .clipShape(Capsule())
                         }
+                        .buttonStyle(.plain)
                         .foregroundColor(.HuluGreen)
                         .frame(maxWidth: .infinity)
 
@@ -257,6 +264,7 @@ struct LessonContentPage: View {
                         Button(action: {}) {
                             AnimatedActionButton()
                         }
+                        .buttonStyle(.plain)
 
                         NavigationLink {
                             PracticeTestView(
@@ -270,6 +278,7 @@ struct LessonContentPage: View {
                                 .fontWeight(.bold)
                                 .foregroundStyle(colorScheme == .dark ? .cyan : .green)
                         }
+                        .buttonStyle(.plain)
                     }
                     .padding(.vertical, 30)
                 }
