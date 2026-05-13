@@ -13,6 +13,7 @@ struct TableOfContentsView: View {
     @Binding var isShowing: Bool
     
     @Environment(\.colorScheme) var colorScheme
+    @State private var expandedStates: [String: Bool] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -29,8 +30,12 @@ struct TableOfContentsView: View {
                 ForEach(lessonVM.currentSubjectLessons, id: \.id) { lesson in
                     DisclosureGroup(
                         isExpanded: Binding(
-                            get: { lessonVM.currentLesson?.id == lesson.id },
-                            set: { _ in }
+                            get: {
+                                expandedStates[lesson.id ?? ""] ?? (lessonVM.currentLesson?.id == lesson.id)
+                            },
+                            set: { newValue in
+                                expandedStates[lesson.id ?? ""] = newValue
+                            }
                         )
                     ) {
                         ForEach(lesson.pages ?? [], id: \.id) { page in
@@ -62,7 +67,9 @@ struct TableOfContentsView: View {
                                     }
                                 }
                                 .padding(.vertical, 4)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                             .disabled(isCurrentPage(lesson: lesson, page: page))
                         }
                     } label: {
@@ -93,5 +100,4 @@ struct TableOfContentsView: View {
     lessonVM.currentPageIndex = 0
     
     return TableOfContentsView(lessonVM: lessonVM, subjectName: "Pre-Algebra", isShowing: .constant(true))
-//        .preferredColorScheme(.dark)
 }

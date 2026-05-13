@@ -233,20 +233,20 @@
 		5297E4342AD63C1E00220FC6 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */,
+				52C72D672AFB014800BDC77E /* BarChartView.swift */,
 				527F987D2AEC85030031F9E6 /* CloseButtonView.swift */,
 				5297E4392AD6434A00220FC6 /* CustomButtonView.swift */,
+				5254A5D02AF1C19300AAAA72 /* DisplayCards.swift */,
+				52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */,
 				5258BD552AE3264400F21A50 /* InputView.swift */,
+				5254A5CC2AF19F4200AAAA72 /* MainTabView.swift */,
+				52AFCA092BBF381B0081A309 /* ProgressBar.swift */,
 				5258BD5B2AE344C200F21A50 /* SettingsRowView.swift */,
 				527F987B2AEC5D410031F9E6 /* SubjectGridView.swift */,
-				5297E43D2AD64F4F00220FC6 /* TestContent.swift */,
-				5254A5CC2AF19F4200AAAA72 /* MainTabView.swift */,
-				5254A5D02AF1C19300AAAA72 /* DisplayCards.swift */,
-				52C72D672AFB014800BDC77E /* BarChartView.swift */,
-				529376582B3F6ADC001CC66A /* UserProgressDonut.swift */,
-				5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */,
 				52FA58222BBC993D0063091C /* TableOfContentsView.swift */,
-				52AFCA092BBF381B0081A309 /* ProgressBar.swift */,
-				52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */,
+				5297E43D2AD64F4F00220FC6 /* TestContent.swift */,
+				529376582B3F6ADC001CC66A /* UserProgressDonut.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
