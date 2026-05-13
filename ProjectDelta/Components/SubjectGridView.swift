@@ -16,18 +16,18 @@ enum NavigationSource {
 }
 
 struct SubjectGridView: View {
-    @EnvironmentObject var quizViewModel: QuizViewModel
-    @EnvironmentObject var lessonVM: LessonViewModel
+    @Environment(QuizViewModel.self) var quizViewModel
+    @Environment(LessonViewModel.self) var lessonVM
 
     @Environment(\.colorScheme) var colorScheme
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
     var navigationSource: NavigationSource
     
     var body: some View {
         NavigationStack {
             HStack {
                 BackButtonView {
-                    presentationMode.wrappedValue.dismiss()
+                    dismiss()
                 }
                 Spacer()
             }
@@ -43,13 +43,13 @@ struct SubjectGridView: View {
                         switch navigationSource {
                         case .homeView:
                             LessonView(subjectName: subject)
-                                .environmentObject(lessonVM)
+                                .environment(lessonVM)
                         case .testView:
                             TestView(subject: subject)
-                                .environmentObject(quizViewModel)
+                                .environment(quizViewModel)
                         case .cardView:
                             QuickTestView(subject: subject)
-                                .environmentObject(quizViewModel)
+                                .environment(quizViewModel)
                         }
                     } label: {
                         Text(subject)
@@ -65,13 +65,11 @@ struct SubjectGridView: View {
             }
             .navigationBarBackButtonHidden(true)
         }
-        .onAppear {
-            Task {
-                do {
-                    quizViewModel.subjects = try await quizViewModel.fetchSubjectsFromFirestore()
-                } catch {
-                    print("Error fetching subjects in SubjectGridView: \(error.localizedDescription)")
-                }
+        .task {
+            do {
+                quizViewModel.subjects = try await quizViewModel.fetchSubjectsFromFirestore()
+            } catch {
+                print("Error fetching subjects in SubjectGridView: \(error.localizedDescription)")
             }
         }
     }
@@ -79,10 +77,6 @@ struct SubjectGridView: View {
 
 #Preview {
     SubjectGridView(navigationSource: .homeView)
-        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
+        .environment(QuizViewModel(authViewModel: AuthViewModel()))
         .preferredColorScheme(.dark)
 }
-
-
-
-

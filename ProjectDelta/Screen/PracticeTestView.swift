@@ -6,13 +6,14 @@
 //
 
 import SwiftUI
-import Firebase
+import FirebaseCore
 import FirebaseFirestore
 
 struct PracticeTestView: View {
     // MARK: - PROPERTIES
-    @EnvironmentObject var viewModel: AuthViewModel
-    @ObservedObject var practiceTestViewModel: PracticeTestViewModel
+    @Environment(AuthViewModel.self) var viewModel
+    // Upgraded: Removed @ObservedObject. Simple 'var' works for Observation framework when passing models.
+    var practiceTestViewModel: PracticeTestViewModel
     @Environment(\.colorScheme) var colorScheme
     
     @State private var currentQuestionIndex = 0
@@ -67,7 +68,7 @@ struct PracticeTestView: View {
                                         .font(.headline)
                                         .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
                                 }
-                                .onChange(of: selectedQuestionIndex) { newIndex in
+                                .onChange(of: selectedQuestionIndex) { oldValue, newIndex in
                                     currentQuestionIndex = newIndex
                                 }
                                 
@@ -193,11 +194,9 @@ struct PracticeTestView: View {
                 } //: HSTACK WITH BUTTONS
             } //: BIG VSTACK
         } //: NAVIGATIONSTACK
-        .onAppear {
+        .task {
             // Fetch practice test questions first, which is needed for the current view.
-            Task {
-                await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID)
-            }
+            await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID)
         }
         .navigationBarBackButtonHidden(true)
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
@@ -272,10 +271,6 @@ struct PracticeTestView: View {
 
 #Preview {
     PracticeTestView(practiceTestViewModel: PracticeTestViewModel(authViewModel: AuthViewModel()), lessonID: "GZRfB4pXbn6rbxTeLpDp", practiceTestID: "VYccqY1rjXETQOdMm4ap")
-        .environmentObject(AuthViewModel())
+        .environment(AuthViewModel()) // Upgraded for previews
 //        .preferredColorScheme(.dark)
 }
-
-
-
-

@@ -9,8 +9,8 @@ import SwiftUI
 import Charts
 
 struct UserProgressPieChart: View {
-    @EnvironmentObject var viewModel: AuthViewModel
-    @EnvironmentObject var quizViewModel: QuizViewModel
+    @Environment(AuthViewModel.self) var viewModel
+    @Environment(QuizViewModel.self) var quizViewModel
     
     var body: some View {
         Group {
@@ -40,25 +40,21 @@ struct UserProgressPieChart: View {
                 Text("Loading progress...")
             }
         }
-        .onAppear {
-            Task {
-                guard let userId = viewModel.userSession?.uid else {
-                    print("User Id is nil or empty in Donut chart")
-                    return
+        .task {
+            guard let userId = viewModel.userSession?.uid else {
+                print("User Id is nil or empty in Donut chart")
+                return
+            }
+            
+            // Fetch the user progress
+            do {
+                if let fetchedUserProgress = try await quizViewModel.fetchUserProgress(forUserID: userId) {
+                    quizViewModel.userProgress = fetchedUserProgress
+                } else {
+                    print("No user progress available to show for donut chart")
                 }
-                
-                // Fetch the user progress
-                do {
-                    if let fetchedUserProgress = try await quizViewModel.fetchUserProgress(forUserID: userId) {
-                        DispatchQueue.main.async {
-                            quizViewModel.userProgress = fetchedUserProgress
-                        }
-                    } else {
-                        print("No user progress available to show for donut chart")
-                    }
-                } catch {
-                    print("Error fetching user progress for donut chart: \(error.localizedDescription)")
-                }
+            } catch {
+                print("Error fetching user progress for donut chart: \(error.localizedDescription)")
             }
         }
     }
@@ -82,6 +78,6 @@ extension SubjectArea {
 
 #Preview {
     UserProgressPieChart()
-        .environmentObject(AuthViewModel())
-        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
+        .environment(AuthViewModel())
+        .environment(QuizViewModel(authViewModel: AuthViewModel()))
 }

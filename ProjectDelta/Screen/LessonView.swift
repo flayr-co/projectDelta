@@ -11,21 +11,21 @@ import FirebaseCore
 
 struct LessonView: View {
     var subjectName: String
-    @EnvironmentObject var lessonVM: LessonViewModel
-    @EnvironmentObject var authVM: AuthViewModel
+    @Environment(LessonViewModel.self) var lessonVM
+    @Environment(AuthViewModel.self) var authVM
 
     @State private var showTableOfContents = false
     @State private var isInteractingWithExplanation: Bool = false
     @State private var showHeader = true
     @State private var lastContentOffset: CGFloat = 0
     @Environment(\.colorScheme) var colorScheme
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss // Upgraded to modern dismiss
 
     var body: some View {
         VStack {
             HStack(spacing: 16) {
                 BackButtonView {
-                    presentationMode.wrappedValue.dismiss()
+                    dismiss()
                 }
                 
                 Text("\(lessonVM.currentLessonName)")
@@ -76,7 +76,7 @@ struct LessonView: View {
                 }
 
                 ScrollViewReader { proxy in
-                    TabView(selection: $lessonVM.currentPageIndex) {
+                    TabView(selection: Bindable(lessonVM).currentPageIndex) {
                         ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
                             LessonContentPage(
                                 text: lessonVM.lessonPages[index].content,
@@ -124,12 +124,10 @@ struct LessonView: View {
                 lessonNavigationControls
             }
         }
-        .navigationBarHidden(true) // Hide the default navigation bar
-        .onAppear {
+        .toolbar(.hidden, for: .navigationBar) // Upgraded to modern standard
+        .task {
             lessonVM.subjectName = subjectName  // Ensure subjectName is set
-            Task {
-                await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
-            }
+            await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
         }
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
         .overlay(lessonNavigationControls, alignment: .bottom)
@@ -186,7 +184,7 @@ struct LessonContentPage: View {
     @State private var showScrollIndicator: Bool = false
     @State private var timer: Timer?
     
-    @EnvironmentObject var lessonVM: LessonViewModel
+    @Environment(LessonViewModel.self) var lessonVM
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -409,10 +407,6 @@ struct ExampleView: View {
 }
 
 
-
-
-
-
 struct ScrollOffsetKey: PreferenceKey {
     typealias Value = CGFloat
     static var defaultValue: CGFloat = .zero
@@ -457,7 +451,7 @@ extension NSRegularExpression {
 
 #Preview {
     LessonView(subjectName: "Algebra")
-        .environmentObject(LessonViewModel())
-        .environmentObject(AuthViewModel())
-        .preferredColorScheme(.dark)
+        .environment(LessonViewModel())
+        .environment(AuthViewModel())
+//        .preferredColorScheme(.dark)
 }

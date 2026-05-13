@@ -7,9 +7,12 @@
 
 import Foundation
 import FirebaseFirestore
+import Observation
+import SwiftUI
 
 @MainActor
-class QuestionGeneratorViewModel: ObservableObject {
+@Observable
+class QuestionGeneratorViewModel {
     struct SubjectItem {
         var id: String
         var name: String
@@ -20,12 +23,12 @@ class QuestionGeneratorViewModel: ObservableObject {
         var name: String
     }
 
-    @Published var subjects: [SubjectItem] = []
-    @Published var tests: [TestItem] = []
-    @Published var selectedSubjectId: String?
-    @Published var selectedTestId: String?
-    @Published var generatedQuestion: Question? = nil
-    @Published var isApprovalViewPresented: Bool = false
+    var subjects: [SubjectItem] = []
+    var tests: [TestItem] = []
+    var selectedSubjectId: String?
+    var selectedTestId: String?
+    var generatedQuestion: Question? = nil
+    var isApprovalViewPresented: Bool = false
     
     private var db = Firestore.firestore()
     

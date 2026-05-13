@@ -10,15 +10,17 @@ import FirebaseCore
 import FirebaseFirestore
 import FirebaseStorage
 import FirebaseAuth
+import Observation
 
 protocol AuthenticationFormProtocol {
     var formIsValid: Bool { get }
 }
 
 @MainActor
-class AuthViewModel: ObservableObject {
-    @Published var userSession: FirebaseAuth.User?
-    @Published var currentUser: User?
+@Observable
+class AuthViewModel {
+    var userSession: FirebaseAuth.User?
+    var currentUser: User?
     
     private var db = Firestore.firestore()
     
@@ -68,13 +70,12 @@ class AuthViewModel: ObservableObject {
         // Implementation for deleting user
     }
     
+    // Upgraded to native async/await without GCD main thread hops
     func fetchUser() async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         do {
             let snapshot = try await Firestore.firestore().collection("users").document(uid).getDocument()
-            DispatchQueue.main.async { [weak self] in
-                self?.currentUser = try? snapshot.data(as: User.self)
-            }
+            self.currentUser = try? snapshot.data(as: User.self)
         } catch {
             print("Error fetching user: \(error)")
         }
@@ -86,44 +87,32 @@ class AuthViewModel: ObservableObject {
         return try snapshot.data(as: UserProgress.self)
     }
 
+    // Upgraded from nested closures to clean async/await
     func uploadProfileImage(_ image: UIImage, for user: User) async {
         guard let userId = user.id else { return }
         
         guard let imageData = image.jpegData(compressionQuality: 0.5) else { return }
         let storageRef = Storage.storage().reference().child("profile_images/\(userId).jpg")
         
-        storageRef.putData(imageData, metadata: nil) { [weak self] metadata, error in
-            guard let self = self else { return }
-            if let error = error {
-                print("Error uploading image: \(error)")
-                return
-            }
-            
-            storageRef.downloadURL { url, error in
-                if let error = error {
-                    print("Error fetching download URL: \(error)")
-                    return
-                }
-                
-                if let url = url {
-                    self.updateUserProfilePictureUrl(url.absoluteString, for: user)
-                }
-            }
+        do {
+            let _ = try await storageRef.putDataAsync(imageData, metadata: nil)
+            let url = try await storageRef.downloadURL()
+            await updateUserProfilePictureUrl(url.absoluteString, for: user)
+        } catch {
+            print("Error uploading image: \(error)")
         }
     }
 
-    private func updateUserProfilePictureUrl(_ url: String, for user: User) {
+    // Upgraded from nested closures to clean async/await
+    private func updateUserProfilePictureUrl(_ url: String, for user: User) async {
         guard let userId = user.id else { return }
         
         let userRef = Firestore.firestore().collection("users").document(userId)
-        userRef.updateData(["profilePictureUrl": url]) { error in
-            if let error = error {
-                print("Error updating user profile picture URL: \(error)")
-            } else {
-                DispatchQueue.main.async {
-                    self.currentUser?.profilePictureUrl = url
-                }
-            }
+        do {
+            try await userRef.updateData(["profilePictureUrl": url])
+            self.currentUser?.profilePictureUrl = url
+        } catch {
+            print("Error updating user profile picture URL: \(error)")
         }
     }
 
@@ -221,7 +210,6 @@ class AuthViewModel: ObservableObject {
         }
     }
     
-    @MainActor
     func toggleBookmark(subjectId: String, lessonId: String, pageId: String) {
         guard var user = currentUser else {
             print("No current user found")
@@ -250,7 +238,6 @@ class AuthViewModel: ObservableObject {
         currentUser = user
     }
 
-    @MainActor
     func clearPreviousBookmark(subjectId: String, lessonId: String) {
         guard var user = currentUser else {
             print("No current user found")
@@ -272,7 +259,6 @@ class AuthViewModel: ObservableObject {
         currentUser = user
     }
 
-    @MainActor
     func saveBookmark(user: User) {
         guard let userId = user.id else { return }
         
@@ -284,7 +270,6 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    @MainActor
     func isPageBookmarked(subjectId: String, lessonId: String, pageId: String) -> Bool {
         guard let user = currentUser else { return false }
         let isBookmarked = user.bookmarks?.contains(where: {

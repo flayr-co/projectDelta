@@ -9,7 +9,8 @@
 import SwiftUI
 
 struct AddQuestionView: View {
-    @StateObject var viewModel = QuestionGeneratorViewModel()
+    // Upgraded to native @State for the Observation framework
+    @State var viewModel = QuestionGeneratorViewModel()
     @State private var options: [String] = ["", "", "", ""]
     @State private var correctOptionIndex: Int = 0
     

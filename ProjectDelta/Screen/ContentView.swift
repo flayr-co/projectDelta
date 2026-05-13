@@ -5,14 +5,14 @@
 //  Created by Jake Meissner on 10/6/23.
 //
 
-// ContentView.swift
 import SwiftUI
-import Firebase
+import FirebaseCore
 import FirebaseFirestore
 
 struct ContentView: View {
-    @EnvironmentObject var viewModel: AuthViewModel
-    @EnvironmentObject var lessonVM: LessonViewModel
+    // Upgraded to native Environment for the Observation framework
+    @Environment(AuthViewModel.self) var viewModel
+    @Environment(LessonViewModel.self) var lessonVM
     
     var body: some View {
         Group {
@@ -25,10 +25,9 @@ struct ContentView: View {
     }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-            .environmentObject(AuthViewModel())
-            .environmentObject(LessonViewModel())
-    }
+// Upgraded to iOS 17 #Preview macro
+#Preview {
+    ContentView()
+        .environment(AuthViewModel())
+        .environment(LessonViewModel())
 }

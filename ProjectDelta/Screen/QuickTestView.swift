@@ -7,14 +7,13 @@
 
 // QuickTestView
 import SwiftUI
-import Firebase
-import FirebaseFirestore
+import FirebaseCore
 import FirebaseFirestore
 
 struct QuickTestView: View {
     // MARK: - PROPERTIES
-    @EnvironmentObject var viewModel: AuthViewModel
-    @EnvironmentObject var quizViewModel: QuizViewModel
+    @Environment(AuthViewModel.self) var viewModel
+    @Environment(QuizViewModel.self) var quizViewModel
     @Environment(\.colorScheme) var colorScheme
     
     @State private var currentQuestionIndex = 0
@@ -33,7 +32,7 @@ struct QuickTestView: View {
                 HStack {
                     NavigationLink {
                         CardView()
-                            .navigationBarBackButtonHidden(true)
+                            .toolbar(.hidden, for: .navigationBar)
                     } label: {
                         CloseButtonView()
                     }
@@ -68,7 +67,7 @@ struct QuickTestView: View {
                                         .font(.headline)
                                         .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
                                 }
-                                .onChange(of: selectedQuestionIndex) { newIndex in
+                                .onChange(of: selectedQuestionIndex) { oldValue, newIndex in
                                     currentQuestionIndex = newIndex
                                 }
                                 
@@ -130,7 +129,7 @@ struct QuickTestView: View {
                             
                             NavigationLink {
                                 CardView()
-                                    .navigationBarBackButtonHidden(true)
+                                    .toolbar(.hidden, for: .navigationBar)
                             } label: {
                                 Text("Go Home?")
                                     .font(.subheadline)
@@ -194,36 +193,34 @@ struct QuickTestView: View {
                 } //: HSTACK WITH BUTTONS
             } //: BIG VSTACK
         } //: NAVIGATIONSTACK
-        .onAppear {
+        .task {
             // Fetch random test first, which is needed for the current view.
             quizViewModel.fetchRandomTest(for: subject)
 
             // Then, handle user progress.
-            Task {
-                guard let userId = viewModel.userSession?.uid else {
-                    print("User ID is nil or empty")
-                    return
-                }
+            guard let userId = viewModel.userSession?.uid else {
+                print("User ID is nil or empty")
+                return
+            }
 
-                // Fetch User's Progress first
-                do {
-                    let userProgress = try await quizViewModel.fetchUserProgress(forUserID: userId)
-                    if let userProgress = userProgress {
-                        // User progress exists
-                        print("User progress fetched: \(userProgress)")
-                        quizViewModel.userProgress = userProgress
-                    } else {
-                        // User progress does not exist, create it
-                        print("No user progress exists for user ID: \(userId), creating new one.")
-                        try await viewModel.createUserProgress(userId: userId)
-                    }
-                } catch {
-                    // Handle the error more specifically if possible
-                    print("Error fetching user progress: \(error.localizedDescription)")
+            // Fetch User's Progress first
+            do {
+                let userProgress = try await quizViewModel.fetchUserProgress(forUserID: userId)
+                if let userProgress = userProgress {
+                    // User progress exists
+                    print("User progress fetched: \(userProgress)")
+                    quizViewModel.userProgress = userProgress
+                } else {
+                    // User progress does not exist, create it
+                    print("No user progress exists for user ID: \(userId), creating new one.")
+                    try await viewModel.createUserProgress(userId: userId)
                 }
+            } catch {
+                // Handle the error more specifically if possible
+                print("Error fetching user progress: \(error.localizedDescription)")
             }
         }
-        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
     } //: BODY
     
@@ -296,7 +293,7 @@ struct QuickTestView: View {
 
 #Preview {
     QuickTestView(subject: "Pre-Algebra")
-        .environmentObject(AuthViewModel())
-        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
+        .environment(AuthViewModel())
+        .environment(QuizViewModel(authViewModel: AuthViewModel()))
 //        .preferredColorScheme(.dark)
 }

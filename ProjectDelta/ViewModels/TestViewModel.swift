@@ -6,26 +6,32 @@
 //
 
 import Foundation
-import Firebase
+import FirebaseCore
 import FirebaseFirestore
+import Observation
+import SwiftUI
 
 @MainActor
-class TestViewModel: ObservableObject {
+@Observable
+class TestViewModel {
     
     // Array of questions
-    @Published var questions: [Question] = []
+    var questions: [Question] = []
     
     // Current question index
-    @Published var currentQuestionIndex: Int = 0
+    var currentQuestionIndex: Int = 0
     
     // User's answers
-    @Published var userAnswers: [String] = []
+    var userAnswers: [String] = []
     
     // Firestore reference
     private var db = Firestore.firestore()
 
-    init() async {
-        await fetchQuestions()
+    // Upgraded initialization to safe MainActor Task
+    init() {
+        Task {
+            await fetchQuestions()
+        }
     }
     
     // Fetches the questions from Firestore
@@ -70,4 +76,3 @@ class TestViewModel: ObservableObject {
         await fetchQuestions()
     }
 }
-

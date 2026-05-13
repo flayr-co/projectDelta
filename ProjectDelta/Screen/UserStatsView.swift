@@ -9,8 +9,8 @@
 import SwiftUI
 
 struct UserStatsView: View {
-    @EnvironmentObject var authViewModel: AuthViewModel
-    @EnvironmentObject var quizViewModel: QuizViewModel
+    @Environment(AuthViewModel.self) var authViewModel
+    @Environment(QuizViewModel.self) var quizViewModel
 
     var body: some View {
 //        VStack {
@@ -30,9 +30,9 @@ struct UserStatsView: View {
 //                }
 //            }
 //        }
-//        .onAppear {
+//        .task {
 //            if let userID = authViewModel.currentUser?.id {
-//                quizViewModel.fetchUserProgress(forUserID: userID)
+//                await quizViewModel.fetchUserProgress(forUserID: userID)
 //            }
 //        }
         
@@ -40,9 +40,8 @@ struct UserStatsView: View {
     }
 }
 
-
 #Preview {
     UserStatsView()
-        .environmentObject(AuthViewModel())
-        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
+        .environment(AuthViewModel())
+        .environment(QuizViewModel(authViewModel: AuthViewModel()))
 }

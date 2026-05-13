@@ -15,7 +15,9 @@ struct RegistrationView: View {
     @State private var confirmPassword = ""
     @State private var selectedRole: UserRole = .student // Default role
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var viewModel: AuthViewModel
+    
+    // Upgraded to iOS 17 native Environment mapping
+    @Environment(AuthViewModel.self) var viewModel
     
     var body: some View {
         VStack {
@@ -126,7 +128,5 @@ extension RegistrationView: AuthenticationFormProtocol {
 
 #Preview {
     RegistrationView()
-        .environmentObject(AuthViewModel())
+        .environment(AuthViewModel())
 }
-
-

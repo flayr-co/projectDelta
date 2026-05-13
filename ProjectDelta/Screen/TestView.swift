@@ -14,8 +14,9 @@ struct TestView: View {
     @State private var score: Int = 0
     @State private var quizEnded: Bool = false
     @State private var selectedQuestionIndex: Int = 0
-    @EnvironmentObject var viewModel: AuthViewModel
-    @EnvironmentObject var quizViewModel: QuizViewModel
+    
+    @Environment(AuthViewModel.self) var viewModel
+    @Environment(QuizViewModel.self) var quizViewModel
     @Environment(\.colorScheme) var colorScheme
     var subject: String
 
@@ -25,6 +26,10 @@ struct TestView: View {
             mainContent
         }
         .edgesIgnoringSafeArea(.all) // Ensure the background fills the entire screen
+        .task {
+            await fetchUserProgress()
+        }
+        .navigationBarBackButtonHidden(true)
     }
 
     private var backgroundView: some View {
@@ -137,10 +142,6 @@ struct TestView: View {
             .frame(maxWidth: .infinity)
             .background(colorScheme == .dark ? Color.customDarkGray : Color.gray.opacity(0.2))
         }
-        .onAppear {
-            fetchUserProgress()
-        }
-        .navigationBarBackButtonHidden(true)
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
     }
 
@@ -158,8 +159,8 @@ struct TestView: View {
                     .font(.headline)
                     .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
             }
-            .onChange(of: selectedQuestionIndex) {
-                currentQuestionIndex = selectedQuestionIndex
+            .onChange(of: selectedQuestionIndex) { oldValue, newValue in
+                currentQuestionIndex = newValue
             }
             Spacer()
             Text("Question \(currentQuestionIndex + 1) of \(quizViewModel.questions.count)")
@@ -309,22 +310,20 @@ struct TestView: View {
         }
     }
 
-    private func fetchUserProgress() {
-        Task {
-            guard let userId = viewModel.userSession?.uid else {
-                print("User ID is nil or empty")
-                return
+    private func fetchUserProgress() async {
+        guard let userId = viewModel.userSession?.uid else {
+            print("User ID is nil or empty")
+            return
+        }
+        do {
+            let userProgress = try await viewModel.fetchUserProgress(forUserID: userId)
+            if let userProgress = userProgress {
+                quizViewModel.userProgress = userProgress
+            } else {
+                try await viewModel.createUserProgress(userId: userId)
             }
-            do {
-                let userProgress = try await viewModel.fetchUserProgress(forUserID: userId)
-                if let userProgress = userProgress {
-                    quizViewModel.userProgress = userProgress
-                } else {
-                    try await viewModel.createUserProgress(userId: userId)
-                }
-            } catch {
-                print("Error fetching user progress: \(error.localizedDescription)")
-            }
+        } catch {
+            print("Error fetching user progress: \(error.localizedDescription)")
         }
     }
 
@@ -344,8 +343,6 @@ struct TestView: View {
 
 #Preview {
     TestView(subject: "Pre-Algebra")
-        .environmentObject(AuthViewModel())
-        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
+        .environment(AuthViewModel())
+        .environment(QuizViewModel(authViewModel: AuthViewModel()))
 }
-
-

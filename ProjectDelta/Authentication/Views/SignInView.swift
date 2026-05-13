@@ -11,7 +11,9 @@ struct SignInView: View {
     // MARK: - PROPERTIES
     @State private var email = ""
     @State private var password = ""
-    @EnvironmentObject var viewModel: AuthViewModel
+    
+    // Upgraded to iOS 17 native Environment mapping
+    @Environment(AuthViewModel.self) var viewModel
     
     var body: some View {
         NavigationStack {
@@ -90,7 +92,5 @@ extension SignInView: AuthenticationFormProtocol {
 
 #Preview {
     SignInView()
-        .environmentObject(AuthViewModel())
+        .environment(AuthViewModel())
 }
-
-

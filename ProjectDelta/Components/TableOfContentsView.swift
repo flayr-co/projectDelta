@@ -8,7 +8,8 @@
 import SwiftUI
 
 struct TableOfContentsView: View {
-    @ObservedObject var lessonVM: LessonViewModel
+    // Upgraded for Observation: Removed @ObservedObject since it's passed in and used directly
+    var lessonVM: LessonViewModel
     let subjectName: String
     @Environment(\.colorScheme) var colorScheme
 
@@ -58,5 +59,5 @@ struct TableOfContentsView: View {
     lessonVM.currentSubjectLessons = [lesson]
     
     return TableOfContentsView(lessonVM: lessonVM, subjectName: "Pre-Algebra")
-        .preferredColorScheme(.dark)
+//        .preferredColorScheme(.dark)
 }

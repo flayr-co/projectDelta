@@ -12,7 +12,8 @@ import FirebaseFirestore
 
 struct AddTestView: View {
     // MARK: - PROPERTIES
-    @StateObject var viewModel = QuestionGeneratorViewModel()
+    // Upgraded to native @State for the Observation framework
+    @State var viewModel = QuestionGeneratorViewModel()
     @State private var selectedSubjectId: String? = nil
     @State private var testIdentifier: Int = 0
     @State private var questionAmount: Int = 0

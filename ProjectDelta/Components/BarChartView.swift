@@ -17,16 +17,13 @@ struct BarChartData: Identifiable, Equatable {
 }
 
 struct BarChartView: View {
-    @EnvironmentObject var viewModel: AuthViewModel
-//    var user: User // User instance containing points history NOT NEEDED ANYMORE
+    @Environment(AuthViewModel.self) var viewModel
     @State private var data: [BarChartData] = []
     @State private var averageIsShown: Bool = false
 
     var maxChartData: BarChartData? {
         data.max(by: { $0.pointsCount < $1.pointsCount })
     }
-    
-    // No need for a placeholder function anymore since data comes from the user instance
     
     func loadLast7DaysData() {
         guard let pointsHistory = viewModel.currentUser?.pointsHistory else { return }
@@ -62,10 +59,9 @@ struct BarChartView: View {
         .frame(width: 350, height: 250)
         .aspectRatio(contentMode: .fit)
         .onAppear(perform: loadLast7DaysData)
-        .onChange(of: viewModel.currentUser) { _ in
+        .onChange(of: viewModel.currentUser) { oldValue, newValue in
             loadLast7DaysData()
         }
-
         
         Toggle(isOn: $averageIsShown.animation()) {
             Text(averageIsShown ? "Hide Average": "Show Average")
@@ -89,5 +85,5 @@ extension Collection where Element == Int {
 
 #Preview {
     BarChartView()
-        .environmentObject(AuthViewModel())
+        .environment(AuthViewModel())
 }

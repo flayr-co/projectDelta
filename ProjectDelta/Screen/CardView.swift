@@ -9,9 +9,10 @@ import SwiftUI
 
 struct CardView: View {
     // MARK: - PROPERTIES
-    @EnvironmentObject var viewModel: AuthViewModel
+    // Upgraded to native Environment for the Observation framework
+    @Environment(AuthViewModel.self) var viewModel
     @Environment(\.colorScheme) var colorScheme
-    @EnvironmentObject var quizViewModel: QuizViewModel
+    @Environment(QuizViewModel.self) var quizViewModel
     
     var body: some View {
         NavigationStack {
@@ -24,7 +25,7 @@ struct CardView: View {
 //                }
 //                Text("Go back")
 //                    .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
-//                
+//
 //                Spacer()
 //            }
             
@@ -73,6 +74,6 @@ struct CardView: View {
 
 #Preview {
     CardView()
-        .environmentObject(AuthViewModel())
-        .environmentObject(QuizViewModel(authViewModel: AuthViewModel()))
+        .environment(AuthViewModel())
+        .environment(QuizViewModel(authViewModel: AuthViewModel()))
 }

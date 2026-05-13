@@ -5,25 +5,27 @@
 //  Created by Jake Meissner on 10/27/23.
 //
 
-// QuizViewModel
 import Foundation
 import FirebaseCore
 import FirebaseFirestore
 import FirebaseAuth
+import Observation
 import SwiftUI
 
-class QuizViewModel: ObservableObject {
-    @Published var subjects: [String] = []
-    @Published var testsForSelectedSubject: [Test] = []
-    @Published var questions: [Question] = []
-    @Published var selectedSubjectDocId: String?
-    @Published var userProgress: UserProgress?
-    @Published var userProgressBySubject: [String: SubjectProgress] = [:]
-    @Published var currentSubject: Subject?
-    @Published var currentSubjectArea: String?
-    @Published var currentQuestionDocId: String?
-    @Published var answeredCorrectly = Set<Int>()
-    @Published var score = 0
+@MainActor
+@Observable
+class QuizViewModel {
+    var subjects: [String] = []
+    var testsForSelectedSubject: [Test] = []
+    var questions: [Question] = []
+    var selectedSubjectDocId: String?
+    var userProgress: UserProgress?
+    var userProgressBySubject: [String: SubjectProgress] = [:]
+    var currentSubject: Subject?
+    var currentSubjectArea: String?
+    var currentQuestionDocId: String?
+    var answeredCorrectly = Set<Int>()
+    var score = 0
     
     private var db = Firestore.firestore()
     private var authViewModel: AuthViewModel
@@ -47,7 +49,7 @@ class QuizViewModel: ObservableObject {
         }
         
         if fetchedSubjects.isEmpty {
-            throw NSError(domain: "com.yourdomain.yourapp", code: 1001, userInfo: [NSLocalizedDescriptionKey: "No subjects were fetched from Firestore."])
+            throw NSError(domain: "com.projectdelta.error", code: 1001, userInfo: [NSLocalizedDescriptionKey: "No subjects were fetched from Firestore."])
         }
         
         return fetchedSubjects
@@ -77,90 +79,78 @@ class QuizViewModel: ObservableObject {
     // MARK: - FETCH TESTS
 
     func fetchRandomTest(for subject: String) {
-        db.collection("Subjects").whereField("name", isEqualTo: subject).getDocuments { (snapshot, error) in
-            if let error = error {
-                print("Error fetching document ID for subject \(subject): \(error)")
-            } else if let snapshot = snapshot, let document = snapshot.documents.first {
-                let subjectDocumentID = document.documentID
-                print("Fetched document ID for subject \(subject): \(subjectDocumentID)")
-                
-                DispatchQueue.main.async {
+        Task {
+            do {
+                let snapshot = try await db.collection("Subjects").whereField("name", isEqualTo: subject).getDocuments()
+                if let document = snapshot.documents.first {
+                    let subjectDocumentID = document.documentID
+                    print("Fetched document ID for subject \(subject): \(subjectDocumentID)")
                     self.selectedSubjectDocId = subjectDocumentID
+                    await self.fetchTestsForSubjectID(subjectDocumentID, subjectName: subject)
+                } else {
+                    print("No document ID found for subject \(subject)")
                 }
-
-                self.fetchTestsForSubjectID(subjectDocumentID, subjectName: subject)
-            } else {
-                print("No document ID found for subject \(subject)")
+            } catch {
+                print("Error fetching document ID for subject \(subject): \(error)")
             }
         }
     }
 
-    private func fetchTestsForSubjectID(_ subjectID: String, subjectName: String) {
-        db.collection("Subjects").document(subjectID).collection("Tests").getDocuments(completion: { (testsSnapshot, error) in
-            if let error = error {
-                print("Error fetching tests for subject \(subjectName): \(error.localizedDescription)")
-            } else if let testsSnapshot = testsSnapshot, !testsSnapshot.isEmpty {
+    private func fetchTestsForSubjectID(_ subjectID: String, subjectName: String) async {
+        do {
+            let testsSnapshot = try await db.collection("Subjects").document(subjectID).collection("Tests").getDocuments()
+            if !testsSnapshot.isEmpty {
                 let tests = testsSnapshot.documents
                 print("Fetched \(tests.count) tests for subject: \(subjectName)")
                 let randomTest = tests.randomElement()
 
                 if let testDocumentID = randomTest?.documentID {
                     print("Random test document ID for subject \(subjectName): \(testDocumentID)")
-                    self.fetchQuestions(forTestID: testDocumentID, subjectID: subjectID)
+                    await self.fetchQuestions(forTestID: testDocumentID, subjectID: subjectID)
                 }
             } else {
                 print("No tests found for subject: \(subjectName)")
             }
-        })
-        
-        db.collection("Subjects").document(subjectID).getDocument { [weak self] (subjectSnapshot, error) in
-            if let error = error {
-                print("Error fetching subject details: \(error.localizedDescription)")
-            } else if let subjectSnapshot = subjectSnapshot, subjectSnapshot.exists {
-                do {
-                    var subject = try subjectSnapshot.data(as: Subject.self)
-                    subject.id = subjectSnapshot.documentID
-                    self?.currentSubject = subject
-                    print("Successfully fetched and decoded subject details: \(subject)")
-                } catch {
-                    print("Error decoding subject for \(subjectName): \(error.localizedDescription)")
-                }
+            
+            let subjectSnapshot = try await db.collection("Subjects").document(subjectID).getDocument()
+            if subjectSnapshot.exists {
+                var subject = try subjectSnapshot.data(as: Subject.self)
+                subject.id = subjectSnapshot.documentID
+                self.currentSubject = subject
+                print("Successfully fetched and decoded subject details: \(subject)")
             } else {
                 print("Document for subject \(subjectName) does not exist.")
             }
+        } catch {
+            print("Error fetching tests or subject details: \(error.localizedDescription)")
         }
     }
     
     // MARK: - FETCH QUESTIONS
     
-    private func fetchQuestions(forTestID testID: String, subjectID: String) {
-        db.collection("Subjects").document(subjectID).collection("Tests").document(testID).collection("Questions").getDocuments { (snapshot, error) in
-            if let error = error {
-                print("Error fetching questions for testID \(testID) and subject \(subjectID): \(error)")
-            } else if let snapshot = snapshot {
-                self.questions.removeAll()
-                for document in snapshot.documents {
-                    print("Question document ID: \(document.documentID)")
-                    var question = try? document.data(as: Question.self)
-                    print("Fetched Question: \(question?.questionText ?? "N/A"), Options: \(question?.options.joined(separator: ", ") ?? "N/A")")
-                    if question?.id == nil {
-                        question?.id = document.documentID
-                    }
-                    if let fetchedQuestion = question {
-                        print("Fetched question for testID \(testID) and subject \(subjectID): \(fetchedQuestion)")
-                        self.questions.append(fetchedQuestion)
-                    }
+    private func fetchQuestions(forTestID testID: String, subjectID: String) async {
+        do {
+            let snapshot = try await db.collection("Subjects").document(subjectID).collection("Tests").document(testID).collection("Questions").getDocuments()
+            self.questions.removeAll()
+            for document in snapshot.documents {
+                print("Question document ID: \(document.documentID)")
+                var question = try? document.data(as: Question.self)
+                if question?.id == nil {
+                    question?.id = document.documentID
                 }
-                print("Total questions fetched for testID \(testID) and subject \(subjectID): \(self.questions.count)")
+                if let fetchedQuestion = question {
+                    self.questions.append(fetchedQuestion)
+                }
             }
+            print("Total questions fetched for testID \(testID) and subject \(subjectID): \(self.questions.count)")
+        } catch {
+            print("Error fetching questions for testID \(testID) and subject \(subjectID): \(error)")
         }
     }
     
     func setCurrentQuestionDocId(for index: Int) {
         guard index >= 0 && index < questions.count else { return }
-        DispatchQueue.main.async {
-            self.currentQuestionDocId = self.questions[index].id
-        }
+        self.currentQuestionDocId = self.questions[index].id
     }
     
     func checkAnswerAndUpdateScore(userAnswer: Int?, currentQuestionIndex: Int) {
@@ -173,44 +163,26 @@ class QuizViewModel: ObservableObject {
     // MARK: - FETCH QUESTIONS FOR USER
 
     func fetchQuestionsForUser(forTestID testID: String, subjectID: String, userID: String) {
-        self.db.collection("UserProgress").document(userID).getDocument { (progressSnapshot, error) in
-            if let error = error {
-                print("Error fetching user progress: \(error)")
-                return
-            }
-
-            guard let progressSnapshot = progressSnapshot else {
-                print("Error: DocumentSnapshot is nil or couldn't retrieve data")
-                return
-            }
-
-            guard let userProgress = try? progressSnapshot.data(as: UserProgress.self) else {
-                print("Error decoding user progress")
-                return
-            }
-
-            DispatchQueue.main.async {
-                self.userProgress = userProgress
-            }
-
-            self.db.collection("Subjects").document(subjectID).collection("Tests").document(testID).collection("Questions").getDocuments { (snapshot, error) in
-                if let error = error {
-                    print("Error fetching questions: \(error)")
-                    return
+        Task {
+            do {
+                let progressSnapshot = try await db.collection("UserProgress").document(userID).getDocument()
+                if let userProgress = try? progressSnapshot.data(as: UserProgress.self) {
+                    self.userProgress = userProgress
+                } else {
+                    print("Error decoding user progress or DocumentSnapshot is nil")
                 }
 
-                guard let questionDocuments = snapshot?.documents else {
-                    print("Error: No questions found or couldn't retrieve documents")
-                    return
-                }
-
+                let snapshot = try await db.collection("Subjects").document(subjectID).collection("Tests").document(testID).collection("Questions").getDocuments()
                 self.questions.removeAll()
-                for document in questionDocuments {
+                
+                for document in snapshot.documents {
                     if var question = try? document.data(as: Question.self) {
                         question.id = document.documentID
                         self.questions.append(question)
                     }
                 }
+            } catch {
+                print("Error fetching questions for user: \(error)")
             }
         }
     }
@@ -306,40 +278,32 @@ class QuizViewModel: ObservableObject {
             throw NSError(domain: "AppError", code: -1, userInfo: [NSLocalizedDescriptionKey: "User ID not found"])
         }
 
-        let userProgressRef = db.collection("UserProgress").document(userID)
-        let answeredQuestionsRef = userProgressRef.collection("answeredQuestions").document(questionID)
+        let answeredQuestionsRef = db.collection("UserProgress").document(userID).collection("answeredQuestions").document(questionID)
 
         let questionData = [
             "hasUserAttempted": true,
             "hasUserAttemptedCorrectly": answeredCorrectly
         ] as [String: Any]
 
-        return try await withCheckedThrowingContinuation { continuation in
-            answeredQuestionsRef.setData(questionData) { error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: ())
-                }
-            }
-        }
+        try await answeredQuestionsRef.setData(questionData)
     }
 
     func resetUserProgress(userId: String) {
-        let userProgressRef = db.collection("UserProgress").document(userId)
-        
-        let resetData = [
-            "Algebra": ["questionsAttempted": 0, "questionsCorrect": 0],
-            "Advanced Math": ["questionsAttempted": 0, "questionsCorrect": 0],
-            "Problem Solving & Data Analysis": ["questionsAttempted": 0, "questionsCorrect": 0],
-            "Geometry & Trigonometry": ["questionsAttempted": 0, "questionsCorrect": 0]
-        ]
-        
-        userProgressRef.updateData(["progress": resetData]) { error in
-            if let error = error {
-                print("Error resetting user progress: \(error.localizedDescription)")
-            } else {
+        Task {
+            do {
+                let userProgressRef = db.collection("UserProgress").document(userId)
+                
+                let resetData = [
+                    "Algebra": ["questionsAttempted": 0, "questionsCorrect": 0],
+                    "Advanced Math": ["questionsAttempted": 0, "questionsCorrect": 0],
+                    "Problem Solving & Data Analysis": ["questionsAttempted": 0, "questionsCorrect": 0],
+                    "Geometry & Trigonometry": ["questionsAttempted": 0, "questionsCorrect": 0]
+                ]
+                
+                try await userProgressRef.updateData(["progress": resetData])
                 print("User progress reset successfully.")
+            } catch {
+                print("Error resetting user progress: \(error.localizedDescription)")
             }
         }
     }

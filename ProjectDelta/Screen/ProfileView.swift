@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ProfileView: View {
-    @EnvironmentObject var viewModel: AuthViewModel
+    @Environment(AuthViewModel.self) var viewModel
     @Environment(\.colorScheme) var colorScheme
     @State private var showImagePicker = false
     @State private var showProfileDetail = false
@@ -50,7 +50,7 @@ struct ProfileView: View {
                             .padding(.top, 50)
                             .sheet(isPresented: $showImagePicker) {
                                 PhotoPicker(image: $pickedImage)
-                                    .onChange(of: pickedImage) { newImage in
+                                    .onChange(of: pickedImage) { oldValue, newImage in
                                         if let image = newImage {
                                             Task {
                                                 await viewModel.uploadProfileImage(image, for: user)
@@ -102,16 +102,16 @@ struct ProfileView: View {
                         }
                         .sheet(isPresented: $showProfileDetail) {
                             ProfileViewDetail(isPresented: $showProfileDetail)
-                                .environmentObject(viewModel)
+                                .environment(viewModel)
                         }
                         
                         NavigationLink {
                             UserStatsView()
-                                .navigationBarBackButtonHidden(true)
+                                .toolbar(.hidden, for: .navigationBar)
                         } label: {
                             SettingsRowView(imageName: "chart.bar.xaxis", title: "View your progress", tintColor: .cyan)
                         }
-                        .navigationBarBackButtonHidden(true)
+                        .toolbar(.hidden, for: .navigationBar)
                         
                         Button {
                             viewModel.signOut()
@@ -133,9 +133,6 @@ struct ProfileView: View {
     authViewModel.currentUser = User.MOCK_USERS.first
     
     return ProfileView()
-        .environmentObject(authViewModel)
+        .environment(authViewModel)
 //        .preferredColorScheme(.dark)
 }
-
-
-

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ProfileViewDetail: View {
-    @EnvironmentObject var viewModel: AuthViewModel
+    @Environment(AuthViewModel.self) var viewModel
     @Binding var isPresented: Bool
     @State private var email: String = ""
     @State private var fullname: String = ""
@@ -124,6 +124,5 @@ struct ProfileViewDetail: View {
 
 #Preview {
     ProfileViewDetail(isPresented: .constant(true))
-        .environmentObject(AuthViewModel())
+        .environment(AuthViewModel())
 }
-

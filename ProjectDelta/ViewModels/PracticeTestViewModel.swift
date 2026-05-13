@@ -7,8 +7,8 @@
 
 import Foundation
 import FirebaseFirestore
-import FirebaseFirestore
 
+@MainActor
 class PracticeTestViewModel: ObservableObject {
     @Published var questions: [Question] = []
     @Published var currentSubject: Subject?
@@ -48,8 +48,3 @@ class PracticeTestViewModel: ObservableObject {
         // Your implementation for updating user progress
     }
 }
-
-
-
-
-
