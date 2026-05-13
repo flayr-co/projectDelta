@@ -14,6 +14,7 @@ struct TestView: View {
     @State private var selectedQuestionIndex: Int = 0
     @State private var showUIControls: Bool = true
     @State private var isSubmitting: Bool = false
+    @State private var isHintExpanded: Bool = false
     
     @Environment(AuthViewModel.self) var viewModel
     @Environment(QuizViewModel.self) var quizViewModel
@@ -155,144 +156,139 @@ struct TestView: View {
 
     private func questionContentPage(for index: Int) -> some View {
         ScrollView {
-            // CRITICAL SAFETY CHECK: Prevent index out of range
             if index < quizViewModel.questions.count {
                 let question = quizViewModel.questions[index]
-                let qId = question.id ?? ""
-                let selectedIndex = quizViewModel.userAnswers[qId]
+                let qId = question.id ?? UUID().uuidString
                 
                 VStack(alignment: .leading, spacing: 24) {
                     Text(question.questionText)
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
-                        .padding()
-
-                    VStack(spacing: 16) {
-                        ForEach(Array(question.options.enumerated()), id: \.offset) { optIndex, option in
-                            Button {
-                                quizViewModel.selectAnswer(for: qId, optionIndex: optIndex)
-                            } label: {
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    
+                    // Standard Hint Dropdown
+                    if let hint = question.hint, !hint.isEmpty {
+                        DisclosureGroup("Hint", isExpanded: $isHintExpanded) {
+                            Text(hint)
+                                .font(.callout)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 8)
+                        }
+                        .tint(.cyan)
+                    }
+                    
+                    VStack(spacing: 12) {
+                        // Iterating the physical text string of each option rather than mapping A/B/C/D
+                        ForEach(Array(question.options.enumerated()), id: \.offset) { optionIndex, optionText in
+                            let isSelected = quizViewModel.userAnswers[qId] == optionIndex
+                            
+                            Button(action: {
+                                quizViewModel.selectAnswer(for: qId, optionIndex: optionIndex)
+                            }) {
                                 HStack {
-                                    Text(option)
+                                    Text(optionText)
+                                        .font(.body)
+                                        .foregroundColor(isSelected ? .white : .primary)
                                         .multilineTextAlignment(.leading)
                                     Spacer()
-                                    if selectedIndex == optIndex {
+                                    if isSelected {
                                         Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.white)
+                                    } else {
+                                        Circle()
+                                            .stroke(Color.secondary, lineWidth: 1)
+                                            .frame(width: 20, height: 20)
                                     }
                                 }
                                 .padding()
-                                .background(selectedIndex == optIndex ? Color.cyan.opacity(0.2) : Color.gray.opacity(0.1))
+                                .background(isSelected ? Color.cyan : Color.secondary.opacity(0.1))
                                 .cornerRadius(12)
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal)
                 }
+                .padding()
             }
-        }
-    }
-
-    private var quizEndView: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                Spacer().frame(height: 40)
-                Image(systemName: "flag.checkered.circle.fill").font(.system(size: 60)).foregroundColor(.cyan)
-                Text("Quiz Complete!").font(.title2).bold()
-                
-                if let snapshot = quizViewModel.currentSnapshot {
-                    Text("Score: \(snapshot.score) / \(snapshot.totalQuestions)").font(.headline)
-                    Text("+\(snapshot.score * 10) Points!").font(.title3).bold().foregroundColor(.green)
-                    
-                    VStack(spacing: 16) {
-                        ForEach(snapshot.questionResults) { result in
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text(result.questionText)
-                                    .font(.headline)
-                                
-                                HStack {
-                                    let userAnswerString = result.userSelectedOptionIndex != nil ? result.options[result.userSelectedOptionIndex!] : "No Answer"
-                                    Text("Your Answer: \(userAnswerString)")
-                                        .foregroundColor(result.isCorrect ? .green : .red)
-                                    Spacer()
-                                    if !result.isCorrect {
-                                        Text("Correct: \(result.options[result.correctOptionIndex])")
-                                            .foregroundColor(.green)
-                                    }
-                                }
-                                .font(.subheadline)
-                                
-                                Divider()
-                                
-                                Text("Feedback:")
-                                    .font(.caption)
-                                    .bold()
-                                    .foregroundColor(.secondary)
-                                Text(result.feedback)
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(12)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 20)
-                    
-                } else {
-                    ProgressView("Loading Results...")
-                }
-                
-                Button("Finish") { dismiss() }.buttonStyle(.borderedProminent)
-                Spacer()
-            }
-            .padding(.bottom, 40)
         }
     }
 
     private var footerView: some View {
         HStack {
-            Button(action: { if currentQuestionIndex > 0 { currentQuestionIndex -= 1 } }) {
-                Image(systemName: "chevron.left.circle.fill").font(.system(size: 36))
+            if currentQuestionIndex > 0 {
+                Button("Previous") {
+                    withAnimation { currentQuestionIndex -= 1 }
+                }
+                .buttonStyle(.bordered)
+                .tint(.cyan)
             }
-            .disabled(currentQuestionIndex == 0)
-
+            
             Spacer()
             
-            let currentQuestionId = quizViewModel.questions.indices.contains(currentQuestionIndex) ? (quizViewModel.questions[currentQuestionIndex].id ?? "") : ""
-            let hasAnswered = quizViewModel.userAnswers[currentQuestionId] != nil
-            
-            Button(action: {
-                if currentQuestionIndex < quizViewModel.questions.count - 1 {
-                    withAnimation {
-                        currentQuestionIndex += 1
-                    }
-                } else {
+            if currentQuestionIndex < quizViewModel.questions.count - 1 {
+                Button("Next") {
+                    withAnimation { currentQuestionIndex += 1 }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.cyan)
+            } else {
+                Button("Submit") {
                     isSubmitting = true
                     Task {
-                        await quizViewModel.finishQuiz(subjectId: subject, subtopic: subtopic ?? subject)
+                        await quizViewModel.finishQuiz(subjectId: subject, subtopic: subtopic ?? "")
                         quizEnded = true
                         isSubmitting = false
                     }
                 }
-            }) {
-                if isSubmitting {
-                    ProgressView()
-                } else {
-                    Image(systemName: currentQuestionIndex < quizViewModel.questions.count - 1 ? "chevron.right.circle.fill" : "checkmark.circle.fill")
-                        .font(.system(size: 36))
-                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .disabled(isSubmitting)
             }
-            .disabled(!hasAnswered || isSubmitting)
         }
-        .padding(.horizontal, 25)
-        .padding(.bottom, 30)
+        .padding()
+        .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
     }
 
-    private func fetchUserProgress() async {
-        guard let userId = viewModel.currentUser?.id else { return }
-        if let progress = try? await viewModel.fetchUserProgress(forUserID: userId) {
-            quizViewModel.userProgress = progress
+    private var quizEndView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Text("Quiz Complete!")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            
+            if let snapshot = quizViewModel.currentSnapshot {
+                Text("Score: \(snapshot.score) / \(snapshot.totalQuestions)")
+                    .font(.title)
+                
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ForEach(snapshot.questionResults) { result in
+                            HStack {
+                                Text(result.questionText)
+                                    .lineLimit(1)
+                                    .font(.subheadline)
+                                Spacer()
+                                Image(systemName: result.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundColor(result.isCorrect ? .green : .red)
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
+                    .padding()
+                }
+            }
+            
+            Button("Done") {
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.cyan)
+            .padding(.bottom, 30)
         }
+    }
+    
+    private func fetchUserProgress() async {
+        // Implementation hook
     }
 }

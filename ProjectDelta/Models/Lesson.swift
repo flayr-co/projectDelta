@@ -5,21 +5,20 @@
 //  Created by Jake Meissner on 3/15/24.
 //
 
-// Lesson.swift
 import Foundation
 import Firebase
 import FirebaseFirestore
 
-struct Lesson: Identifiable, Decodable {
+struct Lesson: Identifiable, Codable { // Changed to Codable for full CRUD
     @DocumentID var id: String?
     var name: String
     var description: String
     var completed: Bool
-    var lessonNumber: Int  // Use a separate property for "Lesson1", "Lesson2", etc.
+    var lessonNumber: Int
     var pages: [Page]?
 }
 
-struct Page: Decodable, Identifiable, Equatable {
+struct Page: Codable, Identifiable, Equatable { // Changed to Codable
     @DocumentID var id: String?
     var content: String
     var pageNumber: Int
@@ -61,22 +60,19 @@ struct Page: Decodable, Identifiable, Equatable {
         self.explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
         self.graphics = try container.decodeIfPresent(String.self, forKey: .graphics)
         self.graphData = try container.decodeIfPresent(GraphData.self, forKey: .graphData)
-        
-        // Debug logs
-        print("Decoded Page: \(self.content), pageNumber: \(self.pageNumber), graphData: \(String(describing: self.graphData))")
     }
 }
 
-struct GraphData: Decodable, Equatable {
+struct GraphData: Codable, Equatable { // Changed to Codable
     var xValues: [Double]
     var yValues: [Double]
-    var secondaryYValues: [Double]?  // Optional secondary data
+    var secondaryYValues: [Double]?
     var inequality: Inequality?
     
-    struct Inequality: Decodable, Equatable {
+    struct Inequality: Codable, Equatable { // Changed to Codable
         var slope: Double
         var intercept: Double
-        var shadeAbove: Bool  // true for y > mx + b, false for y < mx + b
+        var shadeAbove: Bool
     }
 }
 
@@ -89,5 +85,3 @@ extension Lesson: Hashable {
         hasher.combine(id)
     }
 }
-
-

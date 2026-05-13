@@ -19,10 +19,10 @@ struct Question: Identifiable, Codable {
     var questionText: String
     var type: String
     var subject: String
+    var subtopic: String? // Added this
     var hint: String?
     var feedback: String?
 
-    // Computed property to convert Question to dictionary
     var dictionary: [String: Any] {
         var dict: [String: Any] = [
             "correctOptionIndex": correctOptionIndex,
@@ -33,6 +33,10 @@ struct Question: Identifiable, Codable {
             "subject": subject
         ]
 
+        if let subtopic = subtopic {
+            dict["subtopic"] = subtopic
+        }
+        
         if let hint = hint {
             dict["hint"] = hint
         }

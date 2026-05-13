@@ -5,7 +5,6 @@
 //  Created by Jake Meissner on 10/27/23.
 //
 
-// Subject.swift
 import Foundation
 import Firebase
 import FirebaseFirestore
@@ -15,7 +14,8 @@ struct Subject: Identifiable, Codable, Hashable {
     var name: String
     var description: String
     var difficulty: Int
-    var subjectArea: String // where we determine which of the SAT Subject Areas the Subject belongs to -- Algebra, Advanced Math, Problem Solving and Data Analysis, Geometry and Trigonometry
+    var subjectArea: SubjectArea // Using the enum for type safety
+    var imageName: String // Added to support your Admin logic
 }
 
 public enum SubjectArea: String, Codable, Comparable, CaseIterable, Identifiable {
@@ -30,5 +30,3 @@ public enum SubjectArea: String, Codable, Comparable, CaseIterable, Identifiable
         return lhs.rawValue < rhs.rawValue
     }
 }
-
-

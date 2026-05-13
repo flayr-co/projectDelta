@@ -18,94 +18,96 @@ struct ProfileViewDetail: View {
     @State private var profileImage: UIImage?
 
     var body: some View {
-        VStack {
-            if let user = viewModel.currentUser {
-                Form {
-                    // MARK: - PROFILE PICTURE
-                    Section(header: Text("Profile Picture")) {
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                showingImagePicker = true
-                            }) {
-                                if let profileImage = profileImage {
-                                    Image(uiImage: profileImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 100, height: 100)
-                                        .clipShape(Circle())
-                                } else if let url = URL(string: profilePictureUrl) {
-                                    AsyncImage(url: url) { image in
-                                        image
+        NavigationStack {
+            VStack {
+                if let user = viewModel.currentUser {
+                    Form {
+                        Section(header: Text("Profile Picture")) {
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    showingImagePicker = true
+                                }) {
+                                    if let profileImage = profileImage {
+                                        Image(uiImage: profileImage)
                                             .resizable()
                                             .scaledToFill()
                                             .frame(width: 100, height: 100)
                                             .clipShape(Circle())
-                                    } placeholder: {
-                                        ProgressView()
+                                    } else if let url = URL(string: profilePictureUrl) {
+                                        AsyncImage(url: url) { image in
+                                            image.resizable()
+                                                .scaledToFill()
+                                                .frame(width: 100, height: 100)
+                                                .clipShape(Circle())
+                                        } placeholder: {
+                                            ProgressView()
+                                                .frame(width: 100, height: 100)
+                                        }
+                                    } else {
+                                        Image(systemName: "person.crop.circle.fill")
+                                            .resizable()
+                                            .scaledToFit()
                                             .frame(width: 100, height: 100)
+                                            .foregroundColor(.gray)
                                     }
-                                } else {
-                                    Image(systemName: "person.crop.circle.fill")
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: 100, height: 100)
-                                        .foregroundColor(.gray)
                                 }
-                            }
-                            .sheet(isPresented: $showingImagePicker) {
-                                PhotoPicker(image: $profileImage)
-                            }
-                            Spacer()
-                        }
-                    }
-
-                    // MARK: - USER DETAILS
-                    Section(header: Text("User Details")) {
-                        TextField("Full Name", text: $fullname)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                        TextField("Email", text: $email)
-                            .autocapitalization(.none)
-                            .keyboardType(.emailAddress)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        Picker("Role", selection: $selectedRole) {
-                            Text("Student").tag(UserRole.student)
-                            Text("Teacher").tag(UserRole.teacher)
-                            Text("Parent").tag(UserRole.parent)
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                    }
-
-                    // MARK: - SAVE BUTTON
-                    Section {
-                        Button(action: {
-                            Task {
-                                if let profileImage = profileImage {
-                                    await viewModel.uploadProfileImage(profileImage, for: viewModel.currentUser!)
+                                .sheet(isPresented: $showingImagePicker) {
+                                    PhotoPicker(image: $profileImage)
                                 }
-                                await viewModel.updateUserDetails(email: email, fullname: fullname, role: selectedRole)
-                                isPresented = false // Dismiss the sheet
-                            }
-                        }) {
-                            HStack {
-                                Spacer()
-                                Text("Save Changes")
-                                    .fontWeight(.bold)
                                 Spacer()
                             }
                         }
-                        .disabled(!formIsValid)
+
+                        Section(header: Text("User Details")) {
+                            TextField("Full Name", text: $fullname)
+                            TextField("Email", text: $email)
+                                .autocapitalization(.none)
+                                .keyboardType(.emailAddress)
+
+                            Picker("Account Mode", selection: $selectedRole) {
+                                Text("Student").tag(UserRole.student)
+                                Text("Teacher").tag(UserRole.teacher)
+                                Text("Parent").tag(UserRole.parent)
+                            }
+                            .pickerStyle(.segmented)
+                        }
+
+                        Section {
+                            Button(action: {
+                                Task {
+                                    if let profileImage = profileImage {
+                                        await viewModel.uploadProfileImage(profileImage, for: user)
+                                    }
+                                    await viewModel.updateUserDetails(email: email, fullname: fullname, role: selectedRole)
+                                    isPresented = false
+                                }
+                            }) {
+                                HStack {
+                                    Spacer()
+                                    Text("Save Changes")
+                                        .fontWeight(.bold)
+                                    Spacer()
+                                }
+                            }
+                            .disabled(!formIsValid)
+                        }
                     }
+                } else {
+                    ProgressView("Loading user details...")
                 }
-                .onAppear {
-                    loadUserDetails()
+            }
+            .navigationTitle("Edit Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { isPresented = false }
                 }
-            } else {
-                Text("Loading user details...")
+            }
+            .onAppear {
+                loadUserDetails()
             }
         }
-        .navigationTitle("Profile Details")
     }
 
     private func loadUserDetails() {
@@ -120,9 +122,4 @@ struct ProfileViewDetail: View {
     private var formIsValid: Bool {
         return !email.isEmpty && email.contains("@") && !fullname.isEmpty
     }
-}
-
-#Preview {
-    ProfileViewDetail(isPresented: .constant(true))
-        .environment(AuthViewModel())
 }

@@ -320,19 +320,18 @@ struct PracticeTestView: View {
             await viewModel.updateUserPointsInFirestore(newPoints: (viewModel.currentUser?.points ?? 0) + totalPointsChange)
             await viewModel.storeTodaysPoints(pointsGainedToday: totalPointsChange)
             
-            if let currentSubjectArea = practiceTestViewModel.currentSubject?.subjectArea {
-                if let subjectAreaEnum = SubjectArea(rawValue: currentSubjectArea),
-                   let currentQuestionDocId = practiceTestViewModel.currentQuestionDocId {
-                    do {
-                        try await practiceTestViewModel.updateUserProgressForSubject(
-                            userID: userId,
-                            subjectArea: subjectAreaEnum,
-                            answeredCorrectly: score == practiceTestViewModel.questions.count,
-                            questionDocumentID: currentQuestionDocId
-                        )
-                    } catch {
-                        print("Failed to update user progress in Firestore: \(error.localizedDescription)")
-                    }
+            // Fixed: currentSubjectArea is already a SubjectArea type from our model update
+            if let currentSubjectArea = practiceTestViewModel.currentSubject?.subjectArea,
+               let currentQuestionDocId = practiceTestViewModel.currentQuestionDocId {
+                do {
+                    try await practiceTestViewModel.updateUserProgressForSubject(
+                        userID: userId,
+                        subjectArea: currentSubjectArea,
+                        answeredCorrectly: score == practiceTestViewModel.questions.count,
+                        questionDocumentID: currentQuestionDocId
+                    )
+                } catch {
+                    print("Failed to update user progress in Firestore: \(error.localizedDescription)")
                 }
             }
         }

@@ -13,7 +13,7 @@ struct ProfileView: View {
     @State private var showImagePicker = false
     @State private var showProfileDetail = false
     @State private var pickedImage: UIImage?
-    @AppStorage("isDarkMode") private var isDarkMode = false // AppStorage to save theme preference
+    @AppStorage("isDarkMode") private var isDarkMode = false
     
     var body: some View {
         NavigationStack {
@@ -24,7 +24,6 @@ struct ProfileView: View {
                             Button {
                                 showImagePicker = true
                             } label: {
-                                // Profile picture or initials
                                 if let urlString = user.profilePictureUrl, let url = URL(string: urlString) {
                                     AsyncImage(url: url) { image in
                                         image.resizable()
@@ -34,7 +33,7 @@ struct ProfileView: View {
                                             .fontWeight(.semibold)
                                             .foregroundColor(colorScheme == .dark ? .white : .black)
                                     }
-                                    .scaledToFit()
+                                    .scaledToFill()
                                     .frame(width: 120, height: 120)
                                     .clipShape(Circle())
                                     .overlay(Circle().stroke(Color.gray, lineWidth: 1))
@@ -44,13 +43,13 @@ struct ProfileView: View {
                                         .fontWeight(.semibold)
                                         .foregroundColor(colorScheme == .dark ? .white : .black)
                                         .frame(width: 120, height: 120)
-                                        .background(Circle().fill(Color.gray))
+                                        .background(Circle().fill(Color.gray.opacity(0.3)))
                                 }
                             }
-                            .padding(.top, 50)
+                            .padding(.top, 20)
                             .sheet(isPresented: $showImagePicker) {
                                 PhotoPicker(image: $pickedImage)
-                                    .onChange(of: pickedImage) { oldValue, newImage in
+                                    .onChange(of: pickedImage) { _, newImage in
                                         if let image = newImage {
                                             Task {
                                                 await viewModel.uploadProfileImage(image, for: user)
@@ -67,37 +66,59 @@ struct ProfileView: View {
                             Text(user.email)
                                 .font(.callout)
                                 .foregroundColor(colorScheme == .dark ? .gray : .secondary)
-                        } //: VSTACK
+                            
+                            // Role Badge for visual confirmation
+                            Text(user.role.rawValue.uppercased())
+                                .font(.caption2)
+                                .fontWeight(.black)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(user.role == .teacher ? Color.purple : Color.blue)
+                                .foregroundColor(.white)
+                                .clipShape(Capsule())
+                        }
                         .frame(maxWidth: .infinity)
-                    } //: SECTION 1
+                    }
+                    .listRowBackground(Color.clear)
+                    
+                    // MARK: - Administrative Access
+                    if user.role == .teacher {
+                        Section("Administrative") {
+                            NavigationLink {
+                                AdminView()
+                            } label: {
+                                SettingsRowView(imageName: "lock.shield.fill",
+                                                title: "Admin Panel",
+                                                tintColor: .purple)
+                            }
+                        }
+                    }
                     
                     Section("General") {
                         NavigationLink {
-                            
+                            // About View
                         } label: {
-                            SettingsRowView(imageName: "plus",
+                            SettingsRowView(imageName: "info.circle.fill",
                                             title: "About Vrtex",
                                             tintColor: Color.green)
                         }
                         
                         HStack {
-                            SettingsRowView(imageName: "paintbrush", title: "Theme", tintColor: .blue)
-                            
-                            // Toggle for Dark Mode and Light Mode
+                            SettingsRowView(imageName: "paintbrush.fill", title: "Theme", tintColor: .blue)
                             Toggle(isOn: $isDarkMode) {
                                 Image(systemName: isDarkMode ? "moon.fill" : "sun.max.fill")
                                     .foregroundColor(isDarkMode ? .yellow : .orange)
                             }
                             .toggleStyle(SwitchToggleStyle(tint: .purple))
                         }
-                    } //: SECTION 2
+                    }
                     
                     Section("Account") {
                         Button(action: {
                             showProfileDetail = true
                         }) {
-                            SettingsRowView(imageName: "person",
-                                            title: "Profile",
+                            SettingsRowView(imageName: "person.fill",
+                                            title: "Profile Settings",
                                             tintColor: colorScheme == .dark ? Color.white : Color(.systemGray))
                         }
                         .sheet(isPresented: $showProfileDetail) {
@@ -106,12 +127,11 @@ struct ProfileView: View {
                         }
                         
                         NavigationLink {
-                            UserStatsView()
-                                .toolbar(.hidden, for: .navigationBar)
+                            QuizSnapshotsHistoryView()
+                                .environment(viewModel)
                         } label: {
                             SettingsRowView(imageName: "chart.bar.xaxis", title: "View your progress", tintColor: .cyan)
                         }
-                        .toolbar(.hidden, for: .navigationBar)
                         
                         Button {
                             viewModel.signOut()
@@ -120,19 +140,16 @@ struct ProfileView: View {
                                             title: "Sign Out",
                                             tintColor: .red)
                         }
-                    } //: SECTION 3
+                    }
                 }
             }
-        } //: NAVIGATIONSTACK
+        }
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
     }
 }
 
 #Preview {
     let authViewModel = AuthViewModel()
-    authViewModel.currentUser = User.MOCK_USERS.first
-    
-    return ProfileView()
-        .environment(authViewModel)
-//        .preferredColorScheme(.dark)
+    authViewModel.currentUser = User(fullname: "Mock User", email: "mock@example.com", role: .student)
+    return ProfileView().environment(authViewModel)
 }

@@ -45,11 +45,10 @@ class QuizViewModel {
         userAnswers[questionId] = optionIndex
     }
     
-    /// The powerhouse of the test system: Fetches 10 random questions filtered by Subject and Subtopic
+    /// Fetches questions in segmented chunks of 10 and rotates through batches based on user attempts.
     func fetchSubtopicTest(for subjectName: String, subtopic: String? = nil) {
         Task {
             self.isGeneratingQuiz = true
-            // IMPORTANT: Clear current questions to prevent index out of range crashes during TabView transitions
             self.questions = []
             self.userAnswers = [:]
             self.isQuizComplete = false
@@ -63,23 +62,60 @@ class QuizViewModel {
                 }
                 
                 let snapshot = try await query.getDocuments()
-                let fetchedQuestions = snapshot.documents.compactMap { document -> Question? in
+                var fetchedQuestions = snapshot.documents.compactMap { document -> Question? in
                     try? document.data(as: Question.self)
                 }
                 
-                if fetchedQuestions.isEmpty {
-                    print("No questions found for \(subjectName) - \(subtopic ?? "All"). Using fallback data.")
-                    self.questions = generateMockQuestions(for: subjectName)
-                } else {
-                    self.questions = Array(fetchedQuestions.shuffled().prefix(10))
-                }
+                // Sort questions strictly by ID to ensure consistency in batch layout
+                fetchedQuestions.sort { ($0.id ?? "") < ($1.id ?? "") }
                 
+                if fetchedQuestions.isEmpty {
+                    print("No questions found for \(subjectName) - \(subtopic ?? "All").")
+                    self.questions = []
+                } else {
+                    let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: subtopic)
+                    
+                    let batchSize = 10
+                    var batches: [[Question]] = []
+                    
+                    // Slice the fetched array into sub-arrays of size 10
+                    for i in stride(from: 0, to: fetchedQuestions.count, by: batchSize) {
+                        let end = min(i + batchSize, fetchedQuestions.count)
+                        batches.append(Array(fetchedQuestions[i..<end]))
+                    }
+                    
+                    if batches.isEmpty {
+                        self.questions = []
+                    } else {
+                        // Modulo operator continuously loops the user through available batches
+                        let batchIndex = attemptCount % batches.count
+                        self.questions = batches[batchIndex]
+                    }
+                }
             } catch {
                 print("Firestore Error: \(error.localizedDescription)")
-                self.questions = generateMockQuestions(for: subjectName)
             }
             
             self.isGeneratingQuiz = false
+        }
+    }
+    
+    /// Evaluates the user's progression specifically for finding rotating batch intervals
+    private func fetchAttemptCount(for subject: String, subtopic: String?) async -> Int {
+        guard let userId = authViewModel.currentUser?.id else { return 0 }
+        do {
+            var query: Query = db.collection("quizSnapshots")
+                .whereField("userId", isEqualTo: userId)
+                .whereField("subjectId", isEqualTo: subject)
+            
+            if let subtopic = subtopic, !subtopic.isEmpty {
+                query = query.whereField("subtopic", isEqualTo: subtopic)
+            }
+            
+            let aggregation = try await query.count.getAggregation(source: .server)
+            return Int(truncating: aggregation.count)
+        } catch {
+            return 0
         }
     }
     
@@ -100,25 +136,20 @@ class QuizViewModel {
             }
             
             let result = QuestionResult(
+                id: UUID().uuidString,
                 questionId: questionId,
-                questionText: question.questionText,
+                questionText: question.questionText ?? "",
                 options: question.options,
                 correctOptionIndex: question.correctOptionIndex,
                 userSelectedOptionIndex: selectedIndex,
                 isCorrect: isCorrect,
-                feedback: question.feedback ?? "No additional feedback provided."
+                feedback: question.feedback ?? ""
             )
             results.append(result)
-            
-            // Update continuous progress data per question silently
-            do {
-                try await firestoreManager.updateUserProgress(userId: userId, subjectId: subjectId, questionId: questionId, isCorrect: isCorrect)
-            } catch {
-                print("Failed to update continuous progress: \(error.localizedDescription)")
-            }
         }
         
         let snapshot = QuizSnapshot(
+            id: UUID().uuidString,
             userId: userId,
             subjectId: subjectId,
             subtopic: subtopic,
@@ -131,31 +162,11 @@ class QuizViewModel {
         self.currentSnapshot = snapshot
         
         do {
-            try await firestoreManager.saveQuizSnapshot(snapshot)
-            let pointsGained = correctCount * 10
-            let currentPoints = authViewModel.currentUser?.points ?? 0
-            let newTotal = currentPoints + pointsGained
-            
-            await authViewModel.updateUserPointsInFirestore(newPoints: newTotal)
-            await authViewModel.storeTodaysPoints(pointsGainedToday: pointsGained)
-            
-            self.isQuizComplete = true
+            try db.collection("quizSnapshots").document(snapshot.id ?? UUID().uuidString).setData(from: snapshot)
         } catch {
-            print("Failed to complete quiz pipeline: \(error.localizedDescription)")
+            print("Failed to save snapshot: \(error.localizedDescription)")
         }
-    }
-    
-    func setCurrentQuestionDocId(for index: Int) {
-        if index >= 0 && index < questions.count {
-            self.currentQuestionDocId = questions[index].id
-        }
-    }
-    
-    private func generateMockQuestions(for subject: String) -> [Question] {
-        return [
-            Question(id: UUID().uuidString, correctOptionIndex: 1, options: ["Option A", "Option B", "Option C", "Option D"], points: 10, questionText: "Calculated \(subject) Question: Solve for x if 2x + 5 = 15.", type: "multipleChoice", subject: subject, hint: "Subtract 5 from both sides first.", feedback: "2x = 10 -> x = 5."),
-            Question(id: UUID().uuidString, correctOptionIndex: 2, options: ["12", "24", "48", "96"], points: 10, questionText: "Advanced \(subject) Logic: What is the area of a circle with radius 4?", type: "multipleChoice", subject: subject, hint: "Formula is πr².", feedback: "Area = π(4)² = 16π ≈ 50.26. Closest functional abstract is 48 in this mock data."),
-            Question(id: UUID().uuidString, correctOptionIndex: 0, options: ["True", "False"], points: 10, questionText: "Fundamental Theory: Is the square root of 144 equal to 12?", type: "trueFalse", subject: subject, hint: "Multiply 12 by itself.", feedback: "12 * 12 = 144. The principal root is positive 12.")
-        ]
+        
+        self.isQuizComplete = true
     }
 }

@@ -12,6 +12,7 @@
 		5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */; };
 		5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */; };
 		521887B92FB4FB7F00D97803 /* QuizSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */; };
+		521887BB2FB5131300D97803 /* QuizSnapshotsHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */; };
 		5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */; };
 		5229BB0A2AD0CC8A0094395D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB092AD0CC8A0094395D /* ContentView.swift */; };
 		5229BB0C2AD0CC8B0094395D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5229BB0B2AD0CC8B0094395D /* Assets.xcassets */; };
@@ -76,6 +77,7 @@
 		5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonViewModel.swift; sourceTree = "<group>"; };
 		5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedActionButton.swift; sourceTree = "<group>"; };
 		521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSnapshot.swift; sourceTree = "<group>"; };
+		521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSnapshotsHistoryView.swift; sourceTree = "<group>"; };
 		5229BB042AD0CC8A0094395D /* ProjectDelta.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProjectDelta.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDeltaApp.swift; sourceTree = "<group>"; };
 		5229BB092AD0CC8A0094395D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -257,6 +259,7 @@
 		5297E4362AD63C6000220FC6 /* Screen */ = {
 			isa = PBXGroup;
 			children = (
+				521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */,
 				52920AE82B15662900B60A14 /* AddQuestionView.swift */,
 				52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */,
 				5297E4372AD63C8B00220FC6 /* CardView.swift */,
@@ -446,6 +449,7 @@
 				5254A5D32AF1D40300AAAA72 /* LessonView.swift in Sources */,
 				5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */,
 				527F98742AEB33590031F9E6 /* TestViewModel.swift in Sources */,
+				521887BB2FB5131300D97803 /* QuizSnapshotsHistoryView.swift in Sources */,
 				5258BD612AE4858300F21A50 /* AuthViewModel.swift in Sources */,
 				5258BD5E2AE4753F00F21A50 /* User.swift in Sources */,
 				52920AE92B15662900B60A14 /* AddQuestionView.swift in Sources */,

@@ -11,6 +11,7 @@ import FirebaseFirestore
 import FirebaseStorage
 import FirebaseAuth
 import Observation
+import UIKit
 
 protocol AuthenticationFormProtocol {
     var formIsValid: Bool { get }
@@ -49,7 +50,7 @@ class AuthViewModel {
             self.userSession = result.user
             let user = User(id: result.user.uid, fullname: fullname, email: email, role: role)
             let encodedUser = try Firestore.Encoder().encode(user)
-            try await Firestore.firestore().collection("users").document(user.id!).setData(encodedUser) // setting the user document in Firestore
+            try await Firestore.firestore().collection("users").document(user.id!).setData(encodedUser)
             await fetchUser()
         } catch {
             print("Failed to create user with error: \(error.localizedDescription)")
@@ -70,7 +71,6 @@ class AuthViewModel {
         // Implementation for deleting user
     }
     
-    // Upgraded to native async/await without GCD main thread hops
     func fetchUser() async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         do {
@@ -87,7 +87,6 @@ class AuthViewModel {
         return try snapshot.data(as: UserProgress.self)
     }
 
-    // Upgraded from nested closures to clean async/await
     func uploadProfileImage(_ image: UIImage, for user: User) async {
         guard let userId = user.id else { return }
         
@@ -103,7 +102,6 @@ class AuthViewModel {
         }
     }
 
-    // Upgraded from nested closures to clean async/await
     private func updateUserProfilePictureUrl(_ url: String, for user: User) async {
         guard let userId = user.id else { return }
         
@@ -116,6 +114,7 @@ class AuthViewModel {
         }
     }
 
+    /// Updates user metadata and role, reflecting changes immediately in the UI.
     func updateUserDetails(email: String, fullname: String, role: UserRole) async {
         guard var user = currentUser, let userId = user.id else { return }
         
@@ -126,6 +125,7 @@ class AuthViewModel {
         do {
             let encodedUser = try Firestore.Encoder().encode(user)
             try await Firestore.firestore().collection("users").document(userId).setData(encodedUser)
+            // Update the observable state to trigger UI refreshes
             self.currentUser = user
         } catch {
             print("Error updating user details: \(error.localizedDescription)")
