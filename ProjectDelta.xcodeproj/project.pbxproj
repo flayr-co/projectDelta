@@ -54,6 +54,7 @@
 		5297E43E2AD64F4F00220FC6 /* TestContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5297E43D2AD64F4F00220FC6 /* TestContent.swift */; };
 		5297E4792AD7AA2800220FC6 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 5297E4782AD7AA2800220FC6 /* GoogleService-Info.plist */; };
 		52AFCA0A2BBF381B0081A309 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AFCA092BBF381B0081A309 /* ProgressBar.swift */; };
+		52C68AC32FB64BBF001CD906 /* LessonEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */; };
 		52C72D682AFB014800BDC77E /* BarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C72D672AFB014800BDC77E /* BarChartView.swift */; };
 		52C90ED62FB3D1EB0088A60F /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED52FB3D1EB0088A60F /* FirebaseAuth */; };
 		52C90ED82FB3D1EB0088A60F /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED72FB3D1EB0088A60F /* FirebaseFirestore */; };
@@ -119,6 +120,7 @@
 		5297E43D2AD64F4F00220FC6 /* TestContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestContent.swift; sourceTree = "<group>"; };
 		5297E4782AD7AA2800220FC6 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		52AFCA092BBF381B0081A309 /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
+		52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonEditorView.swift; sourceTree = "<group>"; };
 		52C72D672AFB014800BDC77E /* BarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartView.swift; sourceTree = "<group>"; };
 		52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeTestViewModel.swift; sourceTree = "<group>"; };
 		52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTestView.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 		520B96822BA5372600332AF3 /* Admin */ = {
 			isa = PBXGroup;
 			children = (
+				52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */,
 				520B96832BA5375600332AF3 /* AdminView.swift */,
 				520B96852BA538BD00332AF3 /* AdminViewModel.swift */,
 			);
@@ -437,6 +440,7 @@
 				52D998F02ADB3120007F90A6 /* Test.swift in Sources */,
 				52CB38B72C0C050200B15F63 /* PracticeTestViewModel.swift in Sources */,
 				527F98782AEC518E0031F9E6 /* Subject.swift in Sources */,
+				52C68AC32FB64BBF001CD906 /* LessonEditorView.swift in Sources */,
 				52DAF6922BED5EF2006EE19F /* TextStylingUtility.swift in Sources */,
 				52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */,
 				52E371B92B215253004CFDDA /* PhotoPicker.swift in Sources */,

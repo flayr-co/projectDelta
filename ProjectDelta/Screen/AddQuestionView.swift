@@ -2,117 +2,71 @@
 //  AddQuestionView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 11/27/23.
-//
 
 import SwiftUI
 
 struct AddQuestionView: View {
-    // Upgraded to native @State for the Observation framework
-    @State var viewModel = QuestionGeneratorViewModel()
+    @Bindable var viewModel: AdminViewModel
+    var subject: Subject
+    var test: Test
+    
+    @State private var questionText: String = ""
     @State private var options: [String] = ["", "", "", ""]
-    @State private var correctOptionIndex: Int = 0
+    @State private var correctIndex: Int = 0
+    @State private var hint: String = ""
     
     var body: some View {
-        VStack {
-            // Subjects Display
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    ForEach(viewModel.subjects, id: \.id) { subject in
-                        Text(subject.name)
-                            .padding()
-                            .background(viewModel.selectedSubjectId == subject.id ? Color.blue : Color.gray)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                            .onTapGesture {
-                                viewModel.selectedSubjectId = subject.id
-                                viewModel.selectedTestId = nil // Reset selectedTestId when a subject is selected
-                                viewModel.tests = []
-                                // Bridge the async call into the synchronous tap gesture
-                                Task {
-                                    await viewModel.fetchTestsForSubject(subjectId: subject.id)
-                                }
-                            }
-                    }
-                }
-            }
-            .padding()
-            // Modern iOS 15+ standard for firing async work when a view appears
-            .task {
-                await viewModel.fetchSubjects()
+        Form {
+            Section("Question Text") {
+                TextEditor(text: $questionText)
+                    .frame(height: 100)
             }
             
-            // Tests Display
-            if let selectedSubjectId = viewModel.selectedSubjectId, !viewModel.tests.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
+            Section("Options") {
+                ForEach(options.indices, id: \.self) { index in
                     HStack {
-                        ForEach(viewModel.tests, id: \.id) { test in
-                            Text(test.name) // Assuming test.name now contains the testIdentifier
-                                .padding()
-                                .background(viewModel.selectedTestId == test.id ? Color.blue : Color.gray)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                                .onTapGesture {
-                                    viewModel.selectedTestId = test.id // Set selectedTestId when a test is selected
-                                }
+                        TextField("Option \(index + 1)", text: $options[index])
+                        if correctIndex == index {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                         }
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture { correctIndex = index }
                 }
-                .padding()
-            } else if viewModel.selectedSubjectId != nil {
-                Text("Loading tests...")
             }
             
-            // Generate Question Button
-//            if viewModel.selectedSubjectId != nil && viewModel.selectedTestId != nil {
-//                Button("Generate Question") {
-//                    viewModel.generateQuestion(subjectId: viewModel.selectedSubjectId!, testId: viewModel.selectedTestId!)
-//                }
-//                .padding()
-//            }
+            Section("Assistance") {
+                TextField("Hint", text: $hint)
+            }
             
-            // Approval View
-            if viewModel.isApprovalViewPresented, let question = viewModel.generatedQuestion {
-                VStack {
-                    Text("Generated Question: \(question.questionText)")
-                    ForEach(Array(zip(options.indices, $options)), id: \.0) { index, optionBinding in
-                        TextField("Option \(index + 1)", text: optionBinding)
-                    }
-                    Picker("Correct Option", selection: $correctOptionIndex) {
-                        ForEach(0..<options.count, id: \.self) {
-                            Text("Option \($0 + 1)")
-                        }
-                    }
-                    Button("Approve and Add Question") {
-                        // Update the question with the edited options and correct option index before saving
-                        var updatedQuestion = question
-                        updatedQuestion.options = options
-                        updatedQuestion.correctOptionIndex = correctOptionIndex
-                        
-                        viewModel.generatedQuestion = updatedQuestion
-                        
-                        // Fire the async operation sequentially
-                        Task {
-                            await viewModel.saveQuestion()
-                            // This executes only after the question is successfully saved to Firestore
-                            options = ["", "", "", ""] // Reset the options to empty strings
-                            correctOptionIndex = 0 // Reset the correct option index to its default
-                        }
-                    }
+            Button("Save Question") {
+                // The explicit memberwise initializer requires precise ordering and all non-optional properties
+                let newQuestion = Question(
+                    correctOptionIndex: correctIndex,
+                    options: options,
+                    points: 10, // Default point value added
+                    questionText: questionText,
+                    type: "multiple_choice", // Default type added
+                    subject: subject.name,
+                    subtopic: test.subtopic,
+                    hint: hint.isEmpty ? nil : hint,
+                    feedback: nil, // Default feedback added
+                    testId: test.id
+                )
+                
+                Task {
+                    await viewModel.saveQuestion(question: newQuestion)
+                    questionText = ""
+                    options = ["", "", "", ""]
+                    hint = ""
+                    correctIndex = 0
                 }
-                .padding()
             }
-        } //: VSTACK
-        .onAppear {
-            // When the approval view is presented, initialize the options and correct option index
-            if let question = viewModel.generatedQuestion {
-                options = question.options
-                correctOptionIndex = question.correctOptionIndex
-            }
+            .disabled(questionText.isEmpty || options.contains(where: \.isEmpty))
+        }
+        .navigationTitle("Add Question")
+        .alert("Saved", isPresented: $viewModel.showSubmissionSuccessAlert) {
+            Button("OK") { }
         }
     }
-}
-
-#Preview {
-    AddQuestionView()
 }

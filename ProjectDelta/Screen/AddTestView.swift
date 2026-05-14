@@ -2,116 +2,45 @@
 //  AddTestView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 12/2/23.
-//
 
 import SwiftUI
-import FirebaseCore
-import FirebaseFirestore
 
 struct AddTestView: View {
-    // MARK: - PROPERTIES
-    // Upgraded to native @State for the Observation framework
-    @State var viewModel = QuestionGeneratorViewModel()
-    @State private var selectedSubjectId: String? = nil
-    @State private var testIdentifier: Int = 0
-    @State private var questionAmount: Int = 0
-    @State private var timeLimit: Int = 0
-    @State private var showingAlert = false
-    @State private var alertMessage = ""
+    var viewModel: AdminViewModel
+    var subject: Subject
+    
+    @State private var subtopic: String = ""
+    @State private var testIdentifier: Int = 1
+    @State private var questionAmount: Int = 10
+    @State private var timeLimit: Int = 20
+    @Environment(\.dismiss) var dismiss
     
     var body: some View {
-        VStack {
-            // Subjects Display
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    ForEach(viewModel.subjects, id: \.id) { subject in
-                        Text(subject.name)
-                            .padding()
-                            .background(selectedSubjectId == subject.id ? Color.blue : Color.gray)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                            .onTapGesture {
-                                self.selectedSubjectId = subject.id
-                                // No need to reset or reference 'selectedTestId' when a subject is selected
-                                viewModel.tests = []
-                                Task {
-                                    await viewModel.fetchTestsForSubject(subjectId: subject.id)
-                                }
-                            }
-                    }
-                }
-            }
-            .padding()
-            .task {
-                await viewModel.fetchSubjects()
+        Form {
+            Section("Test Setup") {
+                TextField("Subtopic", text: $subtopic)
+                Stepper("Test Identifier: \(testIdentifier)", value: $testIdentifier, in: 1...100)
             }
             
-            // Test Details Input
-            Form {
-                Section(header: Text("Test Details")) {
-                    HStack {
-                        Text("Test Identifier:")
-                        TextField("Identifier", value: $testIdentifier, formatter: NumberFormatter())
-                            .keyboardType(.numberPad)
-                    }
-                    HStack {
-                        Text("Question Amount:")
-                        TextField("Amount", value: $questionAmount, formatter: NumberFormatter())
-                            .keyboardType(.numberPad)
-                    }
-                    HStack {
-                        Text("Time Limit (minutes):")
-                        TextField("Limit", value: $timeLimit, formatter: NumberFormatter())
-                            .keyboardType(.numberPad)
-                    }
-                }
-                Button("Add Test") {
-                    addTest()
-                }
-                .alert(isPresented: $showingAlert) {
-                    Alert(title: Text("Error"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
+            Section("Constraints") {
+                Stepper("Questions: \(questionAmount)", value: $questionAmount, in: 1...50)
+                Stepper("Time Limit: \(timeLimit) mins", value: $timeLimit, in: 1...120)
+            }
+            
+            Button("Create Test") {
+                let newTest = Test(
+                    questionAmount: questionAmount,
+                    subject: subject.name,
+                    testIdentifier: testIdentifier,
+                    timeLimit: timeLimit,
+                    subtopic: subtopic
+                )
+                Task {
+                    await viewModel.addTest(subjectId: subject.id ?? "", test: newTest)
+                    dismiss()
                 }
             }
-            .padding()
-        } //: VSTACK
-    }
-    
-    func addTest() {
-        guard let subjectId = selectedSubjectId, let subjectName = viewModel.subjects.first(where: { $0.id == subjectId })?.name else {
-            self.alertMessage = "Please select a subject first."
-            self.showingAlert = true
-            return
         }
-        
-        Task {
-            do {
-                // Check if the testIdentifier is already taken
-                let querySnapshot = try await Firestore.firestore()
-                    .collection("Subjects")
-                    .document(subjectId)
-                    .collection("Tests")
-                    .whereField("testIdentifier", isEqualTo: testIdentifier)
-                    .getDocuments()
-                
-                if querySnapshot.documents.isEmpty {
-                    // No existing test with the same identifier, proceed to add
-                    let newTest = Test(questionAmount: questionAmount, subject: subjectName, testIdentifier: testIdentifier, timeLimit: timeLimit)
-                    let docId = try await FirestoreManager().saveTest(subjectId: subjectId, test: newTest)
-                    print("Test added successfully with ID: \(docId)")
-                } else {
-                    // Found existing test with the same identifier
-                    self.alertMessage = "A test with this identifier already exists."
-                    self.showingAlert = true
-                }
-            } catch {
-                self.alertMessage = "Error: \(error.localizedDescription)"
-                self.showingAlert = true
-            }
-        }
+        .navigationTitle("New Test")
     }
-}
-
-#Preview {
-    AddTestView()
 }

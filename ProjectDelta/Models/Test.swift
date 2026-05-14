@@ -5,7 +5,6 @@
 //  Created by Jake Meissner on 10/14/23.
 //
 
-// Test.swift
 import Foundation
 import FirebaseFirestore
 
@@ -15,6 +14,17 @@ struct Test: Identifiable, Codable, Hashable {
     var subject: String
     var testIdentifier: Int
     var timeLimit: Int
+    var subtopic: String? // Added to resolve the missing member error
+    
+    // Explicit initializer to handle the new subtopic field and ensure smooth Codable operations
+    init(id: String? = nil, questionAmount: Int, subject: String, testIdentifier: Int, timeLimit: Int, subtopic: String? = nil) {
+        self.id = id
+        self.questionAmount = questionAmount
+        self.subject = subject
+        self.testIdentifier = testIdentifier
+        self.timeLimit = timeLimit
+        self.subtopic = subtopic
+    }
 }
 
 struct PracticeTest: Identifiable, Codable, Hashable {

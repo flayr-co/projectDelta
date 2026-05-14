@@ -5,7 +5,6 @@
 //  Created by Jake Meissner on 10/17/23.
 //
 
-// Question.swift
 import Foundation
 import SwiftUI
 import Firebase
@@ -19,9 +18,10 @@ struct Question: Identifiable, Codable {
     var questionText: String
     var type: String
     var subject: String
-    var subtopic: String? // Added this
+    var subtopic: String?
     var hint: String?
     var feedback: String?
+    var testId: String? // Added to link to specific tests
 
     var dictionary: [String: Any] {
         var dict: [String: Any] = [
@@ -43,6 +43,10 @@ struct Question: Identifiable, Codable {
         
         if let feedback = feedback {
             dict["feedback"] = feedback
+        }
+        
+        if let testId = testId {
+            dict["testId"] = testId
         }
         
         return dict
