@@ -2,8 +2,6 @@
 //  AdminViewModel.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 3/15/24.
-//
 
 import Foundation
 import FirebaseFirestore
@@ -25,7 +23,6 @@ class AdminViewModel {
     
     init() {
         Task {
-            // Added isProcessing toggle here so the UI knows data is loading on open
             self.isProcessing = true
             await fetchSubjects()
             await fetchAllQuestions()
@@ -38,10 +35,44 @@ class AdminViewModel {
     func fetchSubjects() async {
         do {
             let snapshot = try await db.collection("Subjects").getDocuments()
+            let fetched = snapshot.documents.compactMap { try? $0.data(as: Subject.self) }
+            
+            if fetched.isEmpty {
+                // Automatically seed the database with the default math subjects if none exist
+                await seedDefaultSubjects()
+            } else {
+                self.subjects = fetched.sorted { $0.name < $1.name }
+            }
+        } catch {
+            print("Error fetching subjects: \(error.localizedDescription)")
+        }
+    }
+    
+    private func seedDefaultSubjects() async {
+        for area in SubjectArea.allCases {
+            let newSubject = Subject(
+                id: area.rawValue,
+                name: area.rawValue,
+                description: "Curriculum for \(area.rawValue)",
+                difficulty: 1,
+                subjectArea: area,
+                imageName: "folder"
+            )
+            do {
+                // Using the exact raw string (e.g., "Algebra") as the document ID for architectural consistency
+                try db.collection("Subjects").document(area.rawValue).setData(from: newSubject)
+            } catch {
+                print("Error seeding subject \(area.rawValue): \(error.localizedDescription)")
+            }
+        }
+        
+        // Refetch after seeding to populate the view
+        do {
+            let snapshot = try await db.collection("Subjects").getDocuments()
             self.subjects = snapshot.documents.compactMap { try? $0.data(as: Subject.self) }
                 .sorted { $0.name < $1.name }
         } catch {
-            print("Error fetching subjects: \(error.localizedDescription)")
+            print("Error fetching after seed: \(error.localizedDescription)")
         }
     }
     
@@ -50,12 +81,15 @@ class AdminViewModel {
         defer { isProcessing = false }
         
         let id = UUID().uuidString
+        // Fallback to .algebra if a custom string doesn't map to a SubjectArea
+        let mappedArea = SubjectArea(rawValue: name) ?? .algebra
+        
         let newSubject = Subject(
             id: id,
             name: name,
             description: "Curriculum for \(name)",
             difficulty: 1,
-            subjectArea: .algebra, // Default, can be edited later
+            subjectArea: mappedArea,
             imageName: "folder"
         )
         do {

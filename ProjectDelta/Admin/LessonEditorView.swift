@@ -16,12 +16,22 @@ struct LessonEditorView: View {
     @State private var latexEquation: String = ""
     @State private var graphData: String = ""
     
+    @State private var selectedSubjectArea: SubjectArea = .algebra
+    
     enum ContentType: String, CaseIterable {
         case text = "Text", latex = "LaTeX", graph = "Graph"
     }
     
     var body: some View {
         Form {
+            Section("Subject Context") {
+                Picker("Subject", selection: $selectedSubjectArea) {
+                    ForEach(SubjectArea.allCases) { area in
+                        Text(area.rawValue).tag(area)
+                    }
+                }
+            }
+            
             Section("Page Order") {
                 Stepper("Page: \(pageNumber)", value: $pageNumber)
                 Picker("Type", selection: $contentType) {
@@ -45,11 +55,17 @@ struct LessonEditorView: View {
                 let newPage = Page(content: content, pageNumber: pageNumber, readyButtonDisplayed: true, graphics: finalGraphics)
                 
                 Task {
-                    await viewModel.savePage(subjectId: subject.id ?? "", lessonId: lesson.id ?? "", page: newPage)
+                    let idToSave = subject.id ?? selectedSubjectArea.rawValue
+                    await viewModel.savePage(subjectId: idToSave, lessonId: lesson.id ?? "", page: newPage)
                     pageNumber += 1; content = ""; latexEquation = ""; graphData = ""
                 }
             }
         }
         .navigationTitle("Edit Lesson")
+        .onAppear {
+            if let initialArea = SubjectArea(rawValue: subject.name) ?? SubjectArea(rawValue: subject.subjectArea.rawValue) {
+                selectedSubjectArea = initialArea
+            }
+        }
     }
 }

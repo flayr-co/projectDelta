@@ -153,9 +153,11 @@
 		520B96822BA5372600332AF3 /* Admin */ = {
 			isa = PBXGroup;
 			children = (
-				52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */,
+				52920AE82B15662900B60A14 /* AddQuestionView.swift */,
+				52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */,
 				520B96832BA5375600332AF3 /* AdminView.swift */,
 				520B96852BA538BD00332AF3 /* AdminViewModel.swift */,
+				52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */,
 			);
 			path = Admin;
 			sourceTree = "<group>";
@@ -263,8 +265,6 @@
 			isa = PBXGroup;
 			children = (
 				521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */,
-				52920AE82B15662900B60A14 /* AddQuestionView.swift */,
-				52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */,
 				5297E4372AD63C8B00220FC6 /* CardView.swift */,
 				5229BB092AD0CC8A0094395D /* ContentView.swift */,
 				5254A5CE2AF1ABAC00AAAA72 /* HomeView.swift */,
