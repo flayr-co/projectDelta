@@ -51,19 +51,29 @@ class LessonViewModel {
         
         do {
             let subjectQuerySnapshot = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
-            guard let subjectDocument = subjectQuerySnapshot.documents.first else {
+            guard !subjectQuerySnapshot.isEmpty else {
                 print("Subject \(subjectName) not found.")
                 return
             }
             
-            let lessonQuerySnapshot = try await db.collection("Subjects").document(subjectDocument.documentID)
+            // Auto-detect the correct legacy document by verifying the presence of a Lessons subcollection
+            var targetSubjectID = subjectQuerySnapshot.documents.first!.documentID
+            for doc in subjectQuerySnapshot.documents {
+                let lessonCheck = try await db.collection("Subjects").document(doc.documentID).collection("Lessons").limit(to: 1).getDocuments()
+                if !lessonCheck.isEmpty {
+                    targetSubjectID = doc.documentID
+                    break
+                }
+            }
+            
+            let lessonQuerySnapshot = try await db.collection("Subjects").document(targetSubjectID)
                 .collection("Lessons").whereField("name", isEqualTo: lessonName).getDocuments()
             guard let lessonDocument = lessonQuerySnapshot.documents.first else {
                 print("Lesson \(lessonName) not found within \(subjectName).")
                 return
             }
             
-            let pagesQuerySnapshot = try await db.collection("Subjects").document(subjectDocument.documentID)
+            let pagesQuerySnapshot = try await db.collection("Subjects").document(targetSubjectID)
                 .collection("Lessons").document(lessonDocument.documentID)
                 .collection("Pages").order(by: "pageNumber").getDocuments()
             
@@ -94,17 +104,25 @@ class LessonViewModel {
 
     func fetchAllLessons(for subjectName: String) {
         print("Fetching all lessons for subject: \(subjectName)")
-        // Replaced hazardous DispatchGroup with safe Task architecture
         Task {
             let db = Firestore.firestore()
             do {
                 let subjectSnapshot = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
-                guard let subjectDocument = subjectSnapshot.documents.first else {
+                guard !subjectSnapshot.isEmpty else {
                     print("Subject \(subjectName) not found")
                     return
                 }
                 
-                let lessonSnapshot = try await db.collection("Subjects").document(subjectDocument.documentID).collection("Lessons").getDocuments()
+                var targetSubjectID = subjectSnapshot.documents.first!.documentID
+                for doc in subjectSnapshot.documents {
+                    let lessonCheck = try await db.collection("Subjects").document(doc.documentID).collection("Lessons").limit(to: 1).getDocuments()
+                    if !lessonCheck.isEmpty {
+                        targetSubjectID = doc.documentID
+                        break
+                    }
+                }
+                
+                let lessonSnapshot = try await db.collection("Subjects").document(targetSubjectID).collection("Lessons").getDocuments()
                 
                 guard !lessonSnapshot.isEmpty else {
                     print("No lessons found for subject \(subjectName)")
@@ -119,7 +137,7 @@ class LessonViewModel {
                     let lessonName = document.data()["name"] as? String ?? ""
                     let lessonNumber = document.data()["lessonNumber"] as? Int ?? 0
                     
-                    let pageSnapshot = try? await db.collection("Subjects").document(subjectDocument.documentID).collection("Lessons").document(lessonID).collection("Pages").order(by: "pageNumber").getDocuments()
+                    let pageSnapshot = try? await db.collection("Subjects").document(targetSubjectID).collection("Lessons").document(lessonID).collection("Pages").order(by: "pageNumber").getDocuments()
                     
                     let pages = pageSnapshot?.documents.compactMap { doc -> Page? in
                         guard let content = doc.data()["content"] as? String,
@@ -159,12 +177,21 @@ class LessonViewModel {
         
         do {
             let subjectSnapshot = try await subjectsRef.whereField("name", isEqualTo: subjectName).getDocuments()
-            guard let subjectDocument = subjectSnapshot.documents.first else {
+            guard !subjectSnapshot.isEmpty else {
                 print("Subject \(subjectName) not found.")
                 return ("", "")
             }
             
-            let lessonsRef = subjectsRef.document(subjectDocument.documentID).collection("Lessons")
+            var targetSubjectID = subjectSnapshot.documents.first!.documentID
+            for doc in subjectSnapshot.documents {
+                let check = try await subjectsRef.document(doc.documentID).collection("Lessons").limit(to: 1).getDocuments()
+                if !check.isEmpty {
+                    targetSubjectID = doc.documentID
+                    break
+                }
+            }
+            
+            let lessonsRef = subjectsRef.document(targetSubjectID).collection("Lessons")
             let lessonsSnapshot = try await lessonsRef.order(by: "lessonNumber").whereField("completed", isEqualTo: false).getDocuments()
             guard let firstIncompleteLessonDocument = lessonsSnapshot.documents.first else {
                 print("No incomplete lessons found for \(subjectName).")
@@ -229,15 +256,11 @@ class LessonViewModel {
 
     func toggleBookmark(authVM: AuthViewModel) {
         if let lessonId = currentLesson?.id, let pageId = currentPageDocumentId {
-            // Check if the current page is already bookmarked
             if authVM.isPageBookmarked(subjectId: subjectName, lessonId: lessonId, pageId: pageId) {
-                // If bookmarked, clear the bookmark
                 authVM.clearPreviousBookmark(subjectId: subjectName, lessonId: lessonId)
             } else {
-                // Toggle the new bookmark
                 authVM.toggleBookmark(subjectId: subjectName, lessonId: lessonId, pageId: pageId)
             }
-            // Update the bookmark status
             updateBookmarkStatus(authVM: authVM)
         }
     }
