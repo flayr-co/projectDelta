@@ -2,8 +2,6 @@
 //  LessonView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/31/23.
-//
 
 import SwiftUI
 import FirebaseCore
@@ -31,15 +29,21 @@ struct LessonView: View {
                         .transition(.opacity)
                 }
 
-                if lessonVM.lessonPages.isEmpty {
+                if lessonVM.isLoading {
                     Spacer()
                     ProgressView("Loading lesson content...")
                     Spacer()
+                } else if lessonVM.lessonPages.isEmpty {
+                    Spacer()
+                    Text("No content available.")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    Spacer()
                 } else {
                     TabView(selection: Bindable(lessonVM).currentPageIndex) {
-                        ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
+                        ForEach(Array(zip(lessonVM.lessonPages.indices, lessonVM.lessonPages)), id: \.1.id) { index, page in
                             LessonContentPage(
-                                page: lessonVM.lessonPages[index],
+                                page: page,
                                 isInteractingWithExplanation: $isInteractingWithExplanation,
                                 onBackgroundTap: {
                                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -51,6 +55,7 @@ struct LessonView: View {
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
+                    .id(lessonVM.currentLessonId)
                     .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                         if lessonVM.lessonPages.indices.contains(newPageIndex) {
                             let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
@@ -80,7 +85,7 @@ struct LessonView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if !lessonVM.lessonPages.isEmpty && showUIControls {
+            if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
                 lessonNavigationControls
                     .transition(.opacity)
             }
@@ -155,48 +160,66 @@ struct LessonView: View {
     }
 
     private var lessonNavigationControls: some View {
-        HStack {
-            Button(action: {
-                withAnimation {
-                    lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
+        VStack {
+            if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 {
+                NavigationLink(destination: TestView(subject: subjectName)) {
+                    Text("Take Quiz")
+                        .font(.headline)
+                        .bold()
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(colorScheme == .dark ? .cyan : .green)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
                 }
-            }) {
-                Image(systemName: "chevron.left.circle.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
-                    .contentShape(Circle())
+                .padding(.horizontal, 25)
+                .padding(.bottom, 10)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .buttonStyle(.plain)
-            .disabled(lessonVM.currentPageIndex == 0)
-            .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
-
-            Spacer()
             
-            Text("\(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
-                .font(.footnote.monospacedDigit())
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-
-            Spacer()
-            
-            Button(action: {
-                withAnimation {
-                    lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
+            HStack {
+                Button(action: {
+                    withAnimation {
+                        lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
+                    }
+                }) {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                        .contentShape(Circle())
                 }
-            }) {
-                Image(systemName: "chevron.right.circle.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
-                    .contentShape(Circle())
+                .buttonStyle(.plain)
+                .disabled(lessonVM.currentPageIndex == 0)
+                .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
+
+                Spacer()
+                
+                Text("\(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
+                    .font(.footnote.monospacedDigit())
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+
+                Spacer()
+                
+                Button(action: {
+                    withAnimation {
+                        lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
+                    }
+                }) {
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
+                .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
             }
-            .buttonStyle(.plain)
-            .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
-            .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
+            .padding(.horizontal, 25)
+            .padding(.bottom, 30)
         }
-        .padding(.horizontal, 25)
-        .padding(.bottom, 30)
     }
 }
 
