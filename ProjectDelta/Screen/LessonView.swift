@@ -2,6 +2,8 @@
 //  LessonView.swift
 //  ProjectDelta
 //
+//  Created by Jake Meissner on 10/31/23.
+//
 
 import SwiftUI
 import FirebaseCore
@@ -17,13 +19,10 @@ struct LessonView: View {
     @State private var lastContentOffset: CGFloat = 0
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
-    
-    let warmTan = Color(red: 0.96, green: 0.94, blue: 0.90)
-    let emeraldAccent = Color(red: 0.18, green: 0.80, blue: 0.44)
 
     var body: some View {
         ZStack {
-            (colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.15) : warmTan)
+            (colorScheme == .dark ? Color.customDarkGray : Color.white)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -32,23 +31,15 @@ struct LessonView: View {
                         .transition(.opacity)
                 }
 
-                if lessonVM.isLoading {
+                if lessonVM.lessonPages.isEmpty {
                     Spacer()
                     ProgressView("Loading lesson content...")
-                        .tint(emeraldAccent)
-                    Spacer()
-                } else if lessonVM.lessonPages.isEmpty {
-                    Spacer()
-                    Text("No content available.")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
                     Spacer()
                 } else {
-                    // CRITICAL FIX: Zipped index mapping explicitly ties structural identity to the object, preserving TabView state
                     TabView(selection: Bindable(lessonVM).currentPageIndex) {
-                        ForEach(Array(zip(lessonVM.lessonPages.indices, lessonVM.lessonPages)), id: \.1.id) { index, page in
+                        ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
                             LessonContentPage(
-                                page: page,
+                                page: lessonVM.lessonPages[index],
                                 isInteractingWithExplanation: $isInteractingWithExplanation,
                                 onBackgroundTap: {
                                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -60,7 +51,6 @@ struct LessonView: View {
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
-                    .id(lessonVM.currentLessonId)
                     .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                         if lessonVM.lessonPages.indices.contains(newPageIndex) {
                             let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
@@ -81,7 +71,7 @@ struct LessonView: View {
                 
                 TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName, isShowing: $showTableOfContents)
                     .frame(width: 320)
-                    .background(colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.15) : warmTan)
+                    .background(colorScheme == .dark ? Color.customDarkGray : .white)
                     .cornerRadius(16)
                     .shadow(color: .black.opacity(0.2), radius: 10)
                     .transition(.move(edge: .trailing))
@@ -90,14 +80,13 @@ struct LessonView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
+            if !lessonVM.lessonPages.isEmpty && showUIControls {
                 lessonNavigationControls
                     .transition(.opacity)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            // Task fires once per load; safe to trigger init logic here
             lessonVM.subjectName = subjectName
             await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
         }
@@ -141,7 +130,7 @@ struct LessonView: View {
                 }) {
                     Image(systemName: "list.number")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(emeraldAccent)
+                        .foregroundStyle(colorScheme == .dark ? .mint : .blue)
                         .padding(8)
                         .contentShape(Rectangle())
                 }
@@ -152,7 +141,7 @@ struct LessonView: View {
                 }) {
                     Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 18))
-                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? emeraldAccent : .secondary)
+                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? .blue : .secondary)
                         .padding(8)
                         .contentShape(Rectangle())
                 }
@@ -162,70 +151,52 @@ struct LessonView: View {
         .padding(.horizontal)
         .padding(.top, 8)
         .padding(.bottom, 12)
-        .background(colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.15) : warmTan)
+        .background(colorScheme == .dark ? Color.customDarkGray : .white)
     }
 
     private var lessonNavigationControls: some View {
-        VStack {
-            if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 {
-                NavigationLink(destination: TestView(subject: subjectName)) {
-                    Text("Take Quiz")
-                        .font(.headline)
-                        .bold()
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(emeraldAccent)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
+        HStack {
+            Button(action: {
+                withAnimation {
+                    lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
                 }
-                .padding(.horizontal, 25)
-                .padding(.bottom, 10)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }) {
+                Image(systemName: "chevron.left.circle.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                    .contentShape(Circle())
             }
+            .buttonStyle(.plain)
+            .disabled(lessonVM.currentPageIndex == 0)
+            .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
+
+            Spacer()
             
-            HStack {
-                Button(action: {
-                    withAnimation {
-                        lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
-                    }
-                }) {
-                    Image(systemName: "chevron.left.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(emeraldAccent)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .disabled(lessonVM.currentPageIndex == 0)
-                .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
+            Text("\(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
+                .font(.footnote.monospacedDigit())
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
 
-                Spacer()
-                
-                Text("\(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
-                    .font(.footnote.monospacedDigit())
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
-
-                Spacer()
-                
-                Button(action: {
-                    withAnimation {
-                        lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
-                    }
-                }) {
-                    Image(systemName: "chevron.right.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(emeraldAccent)
-                        .contentShape(Circle())
+            Spacer()
+            
+            Button(action: {
+                withAnimation {
+                    lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
                 }
-                .buttonStyle(.plain)
-                .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
-                .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
+            }) {
+                Image(systemName: "chevron.right.circle.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                    .contentShape(Circle())
             }
-            .padding(.horizontal, 25)
-            .padding(.bottom, 30)
+            .buttonStyle(.plain)
+            .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
+            .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
         }
+        .padding(.horizontal, 25)
+        .padding(.bottom, 30)
     }
 }
 

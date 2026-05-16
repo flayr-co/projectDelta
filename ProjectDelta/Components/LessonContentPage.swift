@@ -83,7 +83,7 @@ struct LessonContentPage: View {
                             Text("Go to test")
                                 .font(.title3)
                                 .fontWeight(.bold)
-                                .foregroundStyle(Color(red: 0.18, green: 0.80, blue: 0.44))
+                                .foregroundStyle(colorScheme == .dark ? .cyan : Color(red: 0.18, green: 0.80, blue: 0.44))
                         }
                         .buttonStyle(.plain)
                     }
