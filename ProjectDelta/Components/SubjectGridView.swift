@@ -2,8 +2,6 @@
 //  SubjectGridView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/27/23.
-//
 
 import SwiftUI
 import Firebase
@@ -22,92 +20,71 @@ struct SubjectGridView: View {
     @Environment(\.dismiss) var dismiss
     var navigationSource: NavigationSource
     
-    // Subtopics usually fetched from Firestore or Hardcoded based on curriculum
-    let mathSubtopics: [String: [String]] = [
-        "Algebra": ["Linear Equations", "Systems of Equations", "Inequalities", "Functions"],
-        "Advanced Math": ["Polynomials", "Rational Expressions", "Exponents", "Radicals"],
-        "Problem Solving & Data Analysis": ["Ratios", "Percentages", "Probability", "Statistics"],
-        "Geometry & Trigonometry": ["Area & Volume", "Right Triangles", "Circle Theorems", "Trig Identities"]
-    ]
+    let warmTan = Color(red: 0.96, green: 0.94, blue: 0.90)
+    let emeraldAccent = Color(red: 0.18, green: 0.80, blue: 0.44)
     
-    @State private var selectedMainSubject: String? = nil
-    @State private var showingSubtopics: Bool = false
-
     var body: some View {
         NavigationStack {
             ZStack {
-                (colorScheme == .dark ? Color.customDarkGray : Color.white)
+                (colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.15) : warmTan)
                     .ignoresSafeArea()
                 
-                VStack(spacing: 0) {
+                VStack {
                     HStack {
-                        Button(action: { dismiss() }) {
-                            Image(systemName: "arrow.left").font(.system(size: 16, weight: .bold)).foregroundColor(.red).padding(8)
-                        }.buttonStyle(.plain)
+                        BackButtonView {
+                            dismiss()
+                        }
                         Spacer()
-                    }.padding(.horizontal).padding(.top, 8)
+                    }
                     
-                    Text(showingSubtopics ? "Pick a Topic" : "Choose a Subject")
-                        .font(.title2).fontWeight(.bold).padding(.vertical, 20)
+                    Text("Choose a Subject")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .padding()
                     
                     ScrollView {
-                        VStack(spacing: 16) {
-                            if !showingSubtopics {
-                                ForEach(quizViewModel.subjects, id: \.self) { subject in
-                                    Button {
-                                        selectedMainSubject = subject
-                                        withAnimation { showingSubtopics = true }
-                                    } label: {
-                                        SubjectRow(title: subject)
-                                    }
+                        ForEach(quizViewModel.subjects, id: \.self) { subject in
+                            NavigationLink {
+                                switch navigationSource {
+                                case .homeView:
+                                    LessonView(subjectName: subject)
+                                        .environment(lessonVM)
+                                case .testView:
+                                    TestView(subject: subject)
+                                        .environment(quizViewModel)
+                                case .cardView:
+                                    QuickTestView(subject: subject)
+                                        .environment(quizViewModel)
                                 }
-                            } else {
-                                ForEach(mathSubtopics[selectedMainSubject ?? ""] ?? [], id: \.self) { subtopic in
-                                    NavigationLink {
-                                        destinationView(subject: selectedMainSubject ?? "", subtopic: subtopic)
-                                    } label: {
-                                        SubjectRow(title: subtopic, isSubtopic: true)
-                                    }
-                                }
-                                
-                                Button("Back to Subjects") {
-                                    withAnimation { showingSubtopics = false }
-                                }.padding().foregroundColor(.secondary)
+                            } label: {
+                                Text(subject)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(emeraldAccent.opacity(0.15))
+                                            .frame(width: 120, height: 50)
+                                    )
+                                    .font(.headline)
+                                    .foregroundColor(emeraldAccent)
+                                    .padding(15)
                             }
                         }
-                        .padding(.top, 10).padding(.bottom, 40)
-                    }.scrollIndicators(.hidden)
+                    }
                 }
-            }.navigationBarBackButtonHidden(true)
+            }
+            .navigationBarBackButtonHidden(true)
         }
-    }
-    
-    @ViewBuilder
-    private func destinationView(subject: String, subtopic: String) -> some View {
-        switch navigationSource {
-        case .homeView:
-            LessonView(subjectName: subject).environment(lessonVM)
-        case .testView:
-            TestView(subject: subject, subtopic: subtopic).environment(quizViewModel)
-        case .cardView:
-            QuickTestView(subject: subject, subtopic: subtopic).environment(quizViewModel)
+        .task {
+            do {
+                quizViewModel.subjects = try await quizViewModel.fetchSubjectsFromFirestore()
+            } catch {
+                print("Error fetching subjects in SubjectGridView: \(error.localizedDescription)")
+            }
         }
     }
 }
 
-struct SubjectRow: View {
-    var title: String
-    var isSubtopic: Bool = false
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        Text(title)
-            .font(.headline)
-            .foregroundColor(colorScheme == .dark ? .white : .primary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 70)
-            .background(RoundedRectangle(cornerRadius: 16).fill(isSubtopic ? Color.gray.opacity(0.1) : (colorScheme == .dark ? Color.cyan.opacity(0.15) : Color.blue.opacity(0.1))))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(colorScheme == .dark ? Color.cyan.opacity(0.3) : Color.blue.opacity(0.2), lineWidth: 1))
-            .padding(.horizontal, 24)
-    }
+#Preview {
+    SubjectGridView(navigationSource: .homeView)
+        .environment(QuizViewModel(authViewModel: AuthViewModel()))
+        .preferredColorScheme(.dark)
 }

@@ -35,10 +35,14 @@ class AdminViewModel {
     func fetchSubjects() async {
         do {
             let snapshot = try await db.collection("Subjects").getDocuments()
-            let fetched = snapshot.documents.compactMap { try? $0.data(as: Subject.self) }
+            let fetched = snapshot.documents.compactMap { doc -> Subject? in
+                var subject = try? doc.data(as: Subject.self)
+                // Explicitly bind the documentID to bypass the custom decoder's @DocumentID failure
+                subject?.id = doc.documentID
+                return subject
+            }
             
             if fetched.isEmpty {
-                // Automatically seed the database with the default math subjects if none exist
                 await seedDefaultSubjects()
             } else {
                 self.subjects = fetched.sorted { $0.name < $1.name }
@@ -56,17 +60,16 @@ class AdminViewModel {
                 description: "Curriculum for \(area.rawValue)",
                 difficulty: 1,
                 subjectArea: area,
-                imageName: "folder"
+                imageName: "folder",
+                subtopics: []
             )
             do {
-                // Using the exact raw string (e.g., "Algebra") as the document ID for architectural consistency
                 try db.collection("Subjects").document(area.rawValue).setData(from: newSubject)
             } catch {
                 print("Error seeding subject \(area.rawValue): \(error.localizedDescription)")
             }
         }
         
-        // Refetch after seeding to populate the view
         do {
             let snapshot = try await db.collection("Subjects").getDocuments()
             self.subjects = snapshot.documents.compactMap { try? $0.data(as: Subject.self) }
@@ -81,7 +84,6 @@ class AdminViewModel {
         defer { isProcessing = false }
         
         let id = UUID().uuidString
-        // Fallback to .algebra if a custom string doesn't map to a SubjectArea
         let mappedArea = SubjectArea(rawValue: name) ?? .algebra
         
         let newSubject = Subject(
@@ -90,13 +92,25 @@ class AdminViewModel {
             description: "Curriculum for \(name)",
             difficulty: 1,
             subjectArea: mappedArea,
-            imageName: "folder"
+            imageName: "folder",
+            subtopics: []
         )
         do {
             try db.collection("Subjects").document(id).setData(from: newSubject)
             await fetchSubjects()
         } catch {
             print("Error adding subject: \(error.localizedDescription)")
+        }
+    }
+
+    func deleteSubject(id: String) async {
+        isProcessing = true
+        defer { isProcessing = false }
+        do {
+            try await db.collection("Subjects").document(id).delete()
+            await fetchSubjects()
+        } catch {
+            print("Error deleting subject: \(error.localizedDescription)")
         }
     }
     
@@ -113,12 +127,6 @@ class AdminViewModel {
             for doc in snapshot.documents {
                 if var lesson = try? doc.data(as: Lesson.self) {
                     lesson.id = doc.documentID
-                    let pageSnapshot = try await db.collection("Subjects").document(subjectId)
-                        .collection("Lessons").document(doc.documentID)
-                        .collection("Pages").getDocuments()
-                    
-                    lesson.pages = pageSnapshot.documents.compactMap { try? $0.data(as: Page.self) }
-                        .sorted { $0.pageNumber < $1.pageNumber }
                     fetchedLessons.append(lesson)
                 }
             }
@@ -128,39 +136,51 @@ class AdminViewModel {
         }
     }
     
-    func addLesson(subjectId: String, name: String, description: String) async {
-        isProcessing = true
-        defer { isProcessing = false }
+    func addLesson(to subject: Subject, lesson: Lesson) async throws {
+        guard let subjectId = subject.id else { return }
+        self.isProcessing = true
+        defer { self.isProcessing = false }
         
-        let lessonId = UUID().uuidString
-        let newLesson = Lesson(
-            id: lessonId,
-            name: name,
-            description: description,
-            completed: false,
-            lessonNumber: (lessons.count + 1),
-            pages: []
-        )
-        do {
-            try db.collection("Subjects").document(subjectId).collection("Lessons").document(lessonId).setData(from: newLesson)
-            await fetchLessons(for: subjectId)
-        } catch {
-            print("Error adding lesson: \(error.localizedDescription)")
+        if let id = lesson.id, !id.isEmpty {
+            try db.collection("Subjects").document(subjectId).collection("Lessons").document(id).setData(from: lesson)
+        } else {
+            _ = try db.collection("Subjects").document(subjectId).collection("Lessons").addDocument(from: lesson)
         }
+        await fetchLessons(for: subjectId)
     }
     
-    func savePage(subjectId: String, lessonId: String, page: Page) async {
-        isProcessing = true
-        defer { isProcessing = false }
+    // MARK: - Migrations
+    
+    func rescueLegacyAlgebraLessons(defaultSubtopic: String = "Linear Equations") async {
+        self.isProcessing = true
+        defer { self.isProcessing = false }
         
         do {
-            try db.collection("Subjects").document(subjectId)
-                .collection("Lessons").document(lessonId)
-                .collection("Pages").addDocument(from: page)
-            showSubmissionSuccessAlert = true
-            await fetchLessons(for: subjectId)
+            // 1. Dynamically query for your legacy Algebra subject by name to get its true auto-generated UUID
+            let subjectSnap = try await db.collection("Subjects").whereField("name", isEqualTo: SubjectArea.algebra.rawValue).getDocuments()
+            
+            guard let subjectDoc = subjectSnap.documents.first else {
+                print("Legacy Algebra subject not found.")
+                return
+            }
+            
+            let realSubjectId = subjectDoc.documentID
+            
+            // 2. Target the exact auto-generated document path holding your actual hard work
+            let lessonsRef = db.collection("Subjects").document(realSubjectId).collection("Lessons")
+            let snapshot = try await lessonsRef.getDocuments()
+            
+            for document in snapshot.documents {
+                try await lessonsRef.document(document.documentID).setData([
+                    "subtopic": defaultSubtopic
+                ], merge: true)
+            }
+            
+            print("Successfully rescued and migrated \(snapshot.documents.count) Algebra lessons.")
+            await fetchLessons(for: realSubjectId)
+            
         } catch {
-            print("Error adding page: \(error.localizedDescription)")
+            print("Failed to execute migration script: \(error.localizedDescription)")
         }
     }
     

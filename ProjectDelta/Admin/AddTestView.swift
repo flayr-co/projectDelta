@@ -9,7 +9,6 @@ struct AddTestView: View {
     var viewModel: AdminViewModel
     var subject: Subject
     
-    @State private var subtopic: String = ""
     @State private var testIdentifier: Int = 1
     @State private var questionAmount: Int = 10
     @State private var timeLimit: Int = 20
@@ -19,17 +18,18 @@ struct AddTestView: View {
     @State private var selectedSubtopic: String = ""
     
     let mathSubtopics: [String: [String]] = [
-        SubjectArea.algebra.rawValue: ["Linear Equations", "Systems of Equations", "Inequalities", "Functions"],
-        SubjectArea.advancedMath.rawValue: ["Polynomials", "Rational Expressions", "Exponents", "Radicals"],
-        SubjectArea.problemSolvingDataAnalysis.rawValue: ["Ratios", "Percentages", "Probability", "Statistics"],
-        SubjectArea.geometryTrigonometry.rawValue: ["Area & Volume", "Right Triangles", "Circle Theorems", "Trig Identities"]
+        "Algebra": ["Linear Equations", "Systems of Equations", "Inequalities", "Functions"],
+        "Advanced Math": ["Polynomials", "Rational Expressions", "Exponents", "Radicals"],
+        "Problem Solving and Data Analysis": ["Ratios", "Percentages", "Probability", "Statistics"],
+        "Geometry and Trigonometry": ["Area & Volume", "Right Triangles", "Circle Theorems", "Trig Identities"]
     ]
     
     var body: some View {
         Form {
             Section("Subject & Subtopic") {
                 Picker("Subject", selection: $selectedSubjectArea) {
-                    ForEach(SubjectArea.allCases) { area in
+                    // Requires id: \.self since SubjectArea is not natively Identifiable
+                    ForEach(SubjectArea.allCases, id: \.self) { area in
                         Text(area.rawValue).tag(area)
                     }
                 }
@@ -62,7 +62,6 @@ struct AddTestView: View {
                     subtopic: selectedSubtopic
                 )
                 Task {
-                    // Defaults to using the raw string value (e.g. "Algebra") as the Firestore document ID to match SubjecGridView architecture
                     let idToSave = subject.id ?? selectedSubjectArea.rawValue
                     await viewModel.addTest(subjectId: idToSave, test: newTest)
                     dismiss()

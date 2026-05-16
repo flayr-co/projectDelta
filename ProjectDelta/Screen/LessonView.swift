@@ -2,8 +2,6 @@
 //  LessonView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/31/23.
-//
 
 import SwiftUI
 import FirebaseCore
@@ -19,10 +17,13 @@ struct LessonView: View {
     @State private var lastContentOffset: CGFloat = 0
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
+    
+    let warmTan = Color(red: 0.96, green: 0.94, blue: 0.90)
+    let emeraldAccent = Color(red: 0.18, green: 0.80, blue: 0.44)
 
     var body: some View {
         ZStack {
-            (colorScheme == .dark ? Color.customDarkGray : Color.white)
+            (colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.15) : warmTan)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -31,15 +32,23 @@ struct LessonView: View {
                         .transition(.opacity)
                 }
 
-                if lessonVM.lessonPages.isEmpty {
+                if lessonVM.isLoading {
                     Spacer()
                     ProgressView("Loading lesson content...")
+                        .tint(emeraldAccent)
+                    Spacer()
+                } else if lessonVM.lessonPages.isEmpty {
+                    Spacer()
+                    Text("No content available.")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
                     Spacer()
                 } else {
+                    // CRITICAL FIX: Zipped index mapping explicitly ties structural identity to the object, preserving TabView state
                     TabView(selection: Bindable(lessonVM).currentPageIndex) {
-                        ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
+                        ForEach(Array(zip(lessonVM.lessonPages.indices, lessonVM.lessonPages)), id: \.1.id) { index, page in
                             LessonContentPage(
-                                page: lessonVM.lessonPages[index],
+                                page: page,
                                 isInteractingWithExplanation: $isInteractingWithExplanation,
                                 onBackgroundTap: {
                                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -51,6 +60,7 @@ struct LessonView: View {
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
+                    .id(lessonVM.currentLessonId)
                     .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                         if lessonVM.lessonPages.indices.contains(newPageIndex) {
                             let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
@@ -71,7 +81,7 @@ struct LessonView: View {
                 
                 TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName, isShowing: $showTableOfContents)
                     .frame(width: 320)
-                    .background(colorScheme == .dark ? Color.customDarkGray : .white)
+                    .background(colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.15) : warmTan)
                     .cornerRadius(16)
                     .shadow(color: .black.opacity(0.2), radius: 10)
                     .transition(.move(edge: .trailing))
@@ -80,13 +90,14 @@ struct LessonView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if !lessonVM.lessonPages.isEmpty && showUIControls {
+            if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
                 lessonNavigationControls
                     .transition(.opacity)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
+            // Task fires once per load; safe to trigger init logic here
             lessonVM.subjectName = subjectName
             await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
         }
@@ -130,7 +141,7 @@ struct LessonView: View {
                 }) {
                     Image(systemName: "list.number")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(colorScheme == .dark ? .mint : .blue)
+                        .foregroundStyle(emeraldAccent)
                         .padding(8)
                         .contentShape(Rectangle())
                 }
@@ -141,7 +152,7 @@ struct LessonView: View {
                 }) {
                     Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 18))
-                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? .blue : .secondary)
+                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? emeraldAccent : .secondary)
                         .padding(8)
                         .contentShape(Rectangle())
                 }
@@ -151,19 +162,19 @@ struct LessonView: View {
         .padding(.horizontal)
         .padding(.top, 8)
         .padding(.bottom, 12)
-        .background(colorScheme == .dark ? Color.customDarkGray : .white)
+        .background(colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.15) : warmTan)
     }
 
     private var lessonNavigationControls: some View {
         VStack {
-            if lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 {
+            if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 {
                 NavigationLink(destination: TestView(subject: subjectName)) {
                     Text("Take Quiz")
                         .font(.headline)
                         .bold()
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(colorScheme == .dark ? Color.cyan : Color.blue)
+                        .background(emeraldAccent)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                 }
@@ -180,7 +191,7 @@ struct LessonView: View {
                 }) {
                     Image(systemName: "chevron.left.circle.fill")
                         .font(.system(size: 36))
-                        .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                        .foregroundStyle(emeraldAccent)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -205,7 +216,7 @@ struct LessonView: View {
                 }) {
                     Image(systemName: "chevron.right.circle.fill")
                         .font(.system(size: 36))
-                        .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                        .foregroundStyle(emeraldAccent)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -218,132 +229,8 @@ struct LessonView: View {
     }
 }
 
-struct LessonContentPage: View {
-    let page: Page
-    @Binding var isInteractingWithExplanation: Bool
-    var onBackgroundTap: () -> Void
-    
-    @State private var isExplanationVisible: Bool = false
-    @Environment(LessonViewModel.self) var lessonVM
-    @Environment(\.colorScheme) var colorScheme
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                TextStylingUtility.styledText(from: page.content)
-                    .font(.system(size: 19, weight: .regular, design: .serif))
-                    .lineSpacing(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal)
-                    .padding(.top, 20)
-
-                if let graphData = page.graphData {
-                    DynamicGraphView(data: graphData)
-                        .frame(height: 250)
-                        .padding(.horizontal)
-                }
-
-                if let example = page.example, !example.isEmpty {
-                    ExampleView(text: example)
-                }
-
-                if let explanationText = page.explanation, !explanationText.isEmpty {
-                    VStack(spacing: 12) {
-                        Button {
-                            withAnimation(.spring()) {
-                                isExplanationVisible.toggle()
-                                isInteractingWithExplanation = isExplanationVisible
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: isExplanationVisible ? "chevron.up.circle.fill" : "checkmark.seal.fill")
-                                Text(isExplanationVisible ? "Hide explanation" : "See explanation")
-                                    .fontWeight(.semibold)
-                            }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 16)
-                            .background(Color.HuluGreen.opacity(0.1))
-                            .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.HuluGreen)
-                        .frame(maxWidth: .infinity)
-
-                        if isExplanationVisible {
-                            ExampleView(text: explanationText)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
-                    }
-                }
-                
-                Spacer(minLength: 120)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                onBackgroundTap()
-            }
-        }
-        .scrollIndicators(.hidden)
-    }
-}
-
-struct ExampleView: View {
-    var text: String
-    @Environment(\.colorScheme) var colorScheme
-
-    var parsedContent: [(String, String)] {
-        text.split(separator: "\n").map { line in
-            let parts = line.split(separator: "||", maxSplits: 1, omittingEmptySubsequences: false)
-            let example = String(parts[0])
-            let explanation = parts.count > 1 ? String(parts[1]) : ""
-            return (example, explanation)
-        }
-    }
-
-    private func calculateHeight(for latex: String) -> CGFloat {
-        let lineBreaks = latex.components(separatedBy: "\\\\").count - 1
-        let hasFraction = latex.contains("\\frac")
-        let baseHeight: CGFloat = 60
-        let lineBreakHeight: CGFloat = 25 * CGFloat(lineBreaks)
-        let fractionHeight: CGFloat = hasFraction ? 30 : 0
-        return baseHeight + lineBreakHeight + fractionHeight
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            ForEach(parsedContent, id: \.0) { (example, explanation) in
-                VStack(alignment: .leading, spacing: 8) {
-                    if example.contains("$$") {
-                        let latex = example
-                            .replacingOccurrences(of: "$$", with: "")
-                            .replacingOccurrences(of: "\\\\newline", with: "\\\\")
-                        
-                        let height = calculateHeight(for: latex)
-                        
-                        LatexView(latex: "$$\n\(latex)\n$$")
-                            .frame(minHeight: height)
-                            .padding(12)
-                            .frame(maxWidth: .infinity)
-                            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-                            .cornerRadius(12)
-                    } else {
-                        TextStylingUtility.styledText(from: example)
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
-                            .cornerRadius(12)
-                            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-                    }
-
-                    if !explanation.isEmpty {
-                        Text(explanation)
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                    }
-                }
-                .padding(.horizontal)
-            }
-        }
-    }
+#Preview {
+    LessonView(subjectName: "Algebra")
+        .environment(LessonViewModel())
+        .environment(AuthViewModel())
 }

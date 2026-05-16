@@ -2,14 +2,12 @@
 //  Lesson.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 3/15/24.
-//
 
 import Foundation
 import Firebase
 import FirebaseFirestore
 
-struct Lesson: Identifiable, Codable { // Changed to Codable for full CRUD
+struct Lesson: Identifiable, Codable {
     @DocumentID var id: String?
     var name: String
     var description: String
@@ -18,7 +16,7 @@ struct Lesson: Identifiable, Codable { // Changed to Codable for full CRUD
     var pages: [Page]?
 }
 
-struct Page: Codable, Identifiable, Equatable { // Changed to Codable
+struct Page: Codable, Identifiable, Equatable {
     @DocumentID var id: String?
     var content: String
     var pageNumber: Int
@@ -48,31 +46,6 @@ struct Page: Codable, Identifiable, Equatable { // Changed to Codable
         self.explanation = explanation
         self.graphics = graphics
         self.graphData = graphData
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.id = try container.decodeIfPresent(String.self, forKey: .id)
-        self.content = try container.decode(String.self, forKey: .content)
-        self.pageNumber = try container.decode(Int.self, forKey: .pageNumber)
-        self.readyButtonDisplayed = try container.decode(Bool.self, forKey: .readyButtonDisplayed)
-        self.example = try container.decodeIfPresent(String.self, forKey: .example)
-        self.explanation = try container.decodeIfPresent(String.self, forKey: .explanation)
-        self.graphics = try container.decodeIfPresent(String.self, forKey: .graphics)
-        self.graphData = try container.decodeIfPresent(GraphData.self, forKey: .graphData)
-    }
-}
-
-struct GraphData: Codable, Equatable { // Changed to Codable
-    var xValues: [Double]
-    var yValues: [Double]
-    var secondaryYValues: [Double]?
-    var inequality: Inequality?
-    
-    struct Inequality: Codable, Equatable { // Changed to Codable
-        var slope: Double
-        var intercept: Double
-        var shadeAbove: Bool
     }
 }
 

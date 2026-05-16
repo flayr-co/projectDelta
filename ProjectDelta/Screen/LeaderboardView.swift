@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct LeaderboardView: View {
-    let testGraphData = GraphData(xValues: [0, 1, 2, 3, 4], yValues: [7, 7, 7, 7, 7])
+    let testGraphData = GraphData(xValues: [0.0, 1.0, 2.0, 3.0, 4.0], yValues: [7.0, 7.0, 7.0, 7.0, 7.0])
     
     var body: some View {
         NavigationStack {

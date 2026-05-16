@@ -2,10 +2,7 @@
 //  UserProgress.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 12/7/23.
-//
 
-// UserProgress.swift
 import Foundation
 
 struct UserProgress: Codable {
@@ -36,7 +33,8 @@ struct UserProgress: Codable {
                 let subjectProgress = try progressContainer.decode(SubjectProgress.self, forKey: key)
                 tempProgress[subjectArea] = subjectProgress
             } else {
-                throw DecodingError.dataCorruptedError(forKey: key, in: progressContainer, debugDescription: "Cannot initialize SubjectArea from invalid String value \(key.stringValue)")
+                // Safely bypass unknown/legacy keys instead of throwing a fatal error
+                print("Warning: Bypassing unknown SubjectArea key: \(key.stringValue)")
             }
         }
         progress = tempProgress
@@ -86,4 +84,3 @@ struct SubjectProgress: Codable {
     var questionsAttempted: Int
     var questionsCorrect: Int
 }
-

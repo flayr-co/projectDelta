@@ -13,6 +13,7 @@ struct TableOfContentsView: View {
     @Binding var isShowing: Bool
     
     @Environment(\.colorScheme) var colorScheme
+    @Environment(AuthViewModel.self) var authVM
     @State private var expandedStates: [String: Bool] = [:]
 
     var body: some View {
@@ -28,49 +29,18 @@ struct TableOfContentsView: View {
             
             List {
                 ForEach(lessonVM.currentSubjectLessons, id: \.id) { lesson in
+                    let lessonId = lesson.id ?? ""
+                    
                     DisclosureGroup(
                         isExpanded: Binding(
-                            get: {
-                                expandedStates[lesson.id ?? ""] ?? (lessonVM.currentLesson?.id == lesson.id)
-                            },
-                            set: { newValue in
-                                expandedStates[lesson.id ?? ""] = newValue
-                            }
+                            get: { expandedStates[lessonId] ?? (lessonVM.currentLesson?.id == lesson.id) },
+                            set: { val in expandedStates[lessonId] = val }
                         )
                     ) {
-                        ForEach(lesson.pages ?? [], id: \.id) { page in
-                            Button(action: {
-                                Task {
-                                    await lessonVM.fetchLessonContent(for: subjectName, lessonName: lesson.name)
-                                    if let pageIndex = lesson.pages?.firstIndex(where: { $0.pageNumber == page.pageNumber }) {
-                                        await MainActor.run {
-                                            lessonVM.currentPageIndex = pageIndex
-                                            lessonVM.currentLesson = lesson
-                                            lessonVM.currentLessonName = lesson.name
-                                            lessonVM.currentLessonId = lesson.id ?? ""
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                isShowing = false
-                                            }
-                                        }
-                                    }
-                                }
-                            }) {
-                                HStack {
-                                    Text("Page \(page.pageNumber)")
-                                        .font(.system(.body, design: .rounded))
-                                        .foregroundStyle(isCurrentPage(lesson: lesson, page: page) ? (colorScheme == .dark ? .cyan : .blue) : .primary)
-                                        .fontWeight(isCurrentPage(lesson: lesson, page: page) ? .semibold : .regular)
-                                    Spacer()
-                                    if isCurrentPage(lesson: lesson, page: page) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
-                                    }
-                                }
-                                .padding(.vertical, 4)
-                                .contentShape(Rectangle())
+                        if let pages = lesson.pages {
+                            ForEach(pages, id: \.id) { page in
+                                pageRow(lesson: lesson, page: page)
                             }
-                            .buttonStyle(.plain)
-                            .disabled(isCurrentPage(lesson: lesson, page: page))
                         }
                     } label: {
                         Text(lesson.name)
@@ -84,20 +54,69 @@ struct TableOfContentsView: View {
         }
     }
     
+    @ViewBuilder
+    private func pageRow(lesson: Lesson, page: Page) -> some View {
+        let isActive = isCurrentPage(lesson: lesson, page: page)
+        
+        Button(action: {
+            navigateToPage(lesson: lesson, page: page)
+        }) {
+            HStack {
+                Text("Page \(page.pageNumber)")
+                    .font(.system(.body, design: .rounded))
+                    .foregroundStyle(isActive ? (colorScheme == .dark ? .cyan : .blue) : .primary)
+                    .fontWeight(isActive ? .semibold : .regular)
+                Spacer()
+                if isActive {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
+                }
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isActive)
+    }
+    
+    private func navigateToPage(lesson: Lesson, page: Page) {
+        Task {
+            await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
+            
+            await MainActor.run {
+                if let foundLesson = lessonVM.currentSubjectLessons.first(where: { $0.id == lesson.id }),
+                   let pages = foundLesson.pages,
+                   let pageIndex = pages.firstIndex(where: { $0.pageNumber == page.pageNumber }) {
+                    
+                    lessonVM.currentLesson = foundLesson
+                    lessonVM.currentPageIndex = pageIndex
+                    lessonVM.currentLessonName = foundLesson.name
+                    lessonVM.currentLessonId = foundLesson.id ?? ""
+                    
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        isShowing = false
+                    }
+                }
+            }
+        }
+    }
+    
     private func isCurrentPage(lesson: Lesson, page: Page) -> Bool {
-        return lessonVM.currentLesson?.id == lesson.id && lessonVM.currentPageIndex == page.pageNumber - 1
+        guard let current = lessonVM.currentLesson else { return false }
+        return current.id == lesson.id && lessonVM.currentPageIndex == (page.pageNumber - 1)
     }
 }
 
 #Preview {
-    let page1 = Page(id: "1", content: "Page 1 Content", pageNumber: 1, readyButtonDisplayed: false, example: nil, graphics: nil)
-    let page2 = Page(id: "2", content: "Page 2 Content", pageNumber: 2, readyButtonDisplayed: false, example: nil, graphics: nil)
-    let lesson = Lesson(id: "1", name: "Introduction", description: "", completed: false, lessonNumber: 1, pages: [page1, page2])
+    let page1 = Page(content: "Intro", pageNumber: 1, readyButtonDisplayed: false)
+    let page2 = Page(content: "Details", pageNumber: 2, readyButtonDisplayed: false)
+    let lesson = Lesson(id: "test_id", name: "Linear Equations", description: "", completed: false, lessonNumber: 1, pages: [page1, page2])
     
-    let lessonVM = LessonViewModel()
-    lessonVM.currentSubjectLessons = [lesson]
-    lessonVM.currentLesson = lesson
-    lessonVM.currentPageIndex = 0
+    let vm = LessonViewModel()
+    vm.currentSubjectLessons = [lesson]
+    vm.currentLesson = lesson
+    vm.currentPageIndex = 0
     
-    return TableOfContentsView(lessonVM: lessonVM, subjectName: "Pre-Algebra", isShowing: .constant(true))
+    return TableOfContentsView(lessonVM: vm, subjectName: "Algebra", isShowing: .constant(true))
+        .environment(AuthViewModel())
 }

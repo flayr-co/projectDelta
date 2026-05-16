@@ -40,6 +40,29 @@ class QuizViewModel {
         self.authViewModel = authViewModel
     }
     
+    func fetchSubjectsFromFirestore() async throws -> [String] {
+        let db = Firestore.firestore()
+        let snapshot = try await db.collection("Subjects").getDocuments()
+        
+        let fetchedNames = snapshot.documents.compactMap { doc -> String? in
+            // 1. Check if the document has a dedicated "name" field (New Architecture)
+            if let name = doc.data()["name"] as? String, !name.isEmpty {
+                return name
+            }
+            
+            // 2. If it's a 20-character auto-generated Firestore ID with no name, ignore it (Ghost Doc)
+            if doc.documentID.count == 20 {
+                return nil
+            }
+            
+            // 3. Fallback: Use the Document ID itself (Legacy Architecture like your "Algebra" doc)
+            return doc.documentID
+        }
+        
+        // Remove any accidental duplicates and sort alphabetically
+        return Array(Set(fetchedNames)).sorted()
+    }
+    
     /// Records the user's selected option index for a specific question.
     func selectAnswer(for questionId: String, optionIndex: Int) {
         userAnswers[questionId] = optionIndex

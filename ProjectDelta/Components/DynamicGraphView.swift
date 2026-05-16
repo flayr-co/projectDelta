@@ -9,7 +9,33 @@ import Foundation
 import SwiftUI
 import Charts
 
-// Sample data for the graph
+// MARK: - GraphData Model
+public struct GraphData: Codable, Equatable {
+    public var xValues: [Double]
+    public var yValues: [Double]
+    public var secondaryYValues: [Double]?
+    public var inequality: Inequality?
+    
+    public struct Inequality: Codable, Equatable {
+        public var slope: Double
+        public var intercept: Double
+        public var shadeAbove: Bool
+        
+        public init(slope: Double, intercept: Double, shadeAbove: Bool) {
+            self.slope = slope
+            self.intercept = intercept
+            self.shadeAbove = shadeAbove
+        }
+    }
+    
+    public init(xValues: [Double], yValues: [Double], secondaryYValues: [Double]? = nil, inequality: Inequality? = nil) {
+        self.xValues = xValues
+        self.yValues = yValues
+        self.secondaryYValues = secondaryYValues
+        self.inequality = inequality
+    }
+}
+
 // Sample data for the graph
 let sampleData = GraphData(
     xValues: [1.0, 2.0, 3.0, 4.0, 5.0],
@@ -69,21 +95,6 @@ struct DynamicGraphView: View {
                         .foregroundStyle(Color.cyan.opacity(0.3))
                     }
                 }
-//                // Area between the primary and secondary lines to show inequality
-//                if let secondaryYValues = data.secondaryYValues {
-//                    ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
-//                        let xValue = data.xValues[xIndex]
-//                        let yValue = data.yValues[yIndex]
-//                        let secondaryYValue = secondaryYValues[yIndex]
-//                        
-//                        AreaMark(
-//                            x: .value("X Value", xValue),
-//                            yStart: .value("Y Start", min(yValue, secondaryYValue)),
-//                            yEnd: .value("Y End", max(yValue, secondaryYValue))
-//                        )
-//                        .foregroundStyle(primaryColor.opacity(0.3))
-//                    }
-//                }
                 
                 // Primary data
                 ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
@@ -407,12 +418,4 @@ struct NegativeSlopeGraphView: View {
 
 #Preview {
     DynamicGraphView(data: sampleData)
-    //        .preferredColorScheme(.dark)
 }
-
-
-
-
-
-
-

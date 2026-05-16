@@ -18,19 +18,20 @@ struct AddQuestionView: View {
     @State private var selectedSubjectArea: SubjectArea = .algebra
     @State private var selectedSubtopic: String = ""
     
-    // Aligned the dictionary keys to exactly match the SubjectArea.rawValue strings
+    // Aligned the dictionary keys to exact string literals to prevent compilation scope errors
     let mathSubtopics: [String: [String]] = [
-        SubjectArea.algebra.rawValue: ["Linear Equations", "Systems of Equations", "Inequalities", "Functions"],
-        SubjectArea.advancedMath.rawValue: ["Polynomials", "Rational Expressions", "Exponents", "Radicals"],
-        SubjectArea.problemSolvingDataAnalysis.rawValue: ["Ratios", "Percentages", "Probability", "Statistics"],
-        SubjectArea.geometryTrigonometry.rawValue: ["Area & Volume", "Right Triangles", "Circle Theorems", "Trig Identities"]
+        "Algebra": ["Linear Equations", "Systems of Equations", "Inequalities", "Functions"],
+        "Advanced Math": ["Polynomials", "Rational Expressions", "Exponents", "Radicals"],
+        "Problem Solving and Data Analysis": ["Ratios", "Percentages", "Probability", "Statistics"],
+        "Geometry and Trigonometry": ["Area & Volume", "Right Triangles", "Circle Theorems", "Trig Identities"]
     ]
     
     var body: some View {
         Form {
             Section("Subject & Subtopic") {
                 Picker("Subject", selection: $selectedSubjectArea) {
-                    ForEach(SubjectArea.allCases) { area in
+                    // Requires id: \.self since SubjectArea is not natively Identifiable
+                    ForEach(SubjectArea.allCases, id: \.self) { area in
                         Text(area.rawValue).tag(area)
                     }
                 }
@@ -78,7 +79,7 @@ struct AddQuestionView: View {
                     subtopic: selectedSubtopic,
                     hint: hint.isEmpty ? nil : hint,
                     feedback: nil,
-                    testId: test.id
+                    testId: test.id ?? ""
                 )
                 
                 Task {
@@ -96,7 +97,15 @@ struct AddQuestionView: View {
             if let initialArea = SubjectArea(rawValue: subject.name) ?? SubjectArea(rawValue: subject.subjectArea.rawValue) {
                 selectedSubjectArea = initialArea
             }
-            let safeSubtopic = test.subtopic ?? ""
+            
+            // Safe extraction ensuring compilation whether Test.subtopic is Optional or non-Optional
+            let safeSubtopic: String
+            if let s = test.subtopic as Any as? String {
+                safeSubtopic = s
+            } else {
+                safeSubtopic = ""
+            }
+            
             selectedSubtopic = safeSubtopic.isEmpty ? (mathSubtopics[selectedSubjectArea.rawValue]?.first ?? "") : safeSubtopic
         }
         .alert("Saved", isPresented: $viewModel.showSubmissionSuccessAlert) {
