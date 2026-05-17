@@ -7,9 +7,13 @@ import SwiftUI
 
 struct AdminView: View {
     @State private var viewModel = AdminViewModel()
+    @Environment(\.colorScheme) private var colorScheme
     
-    let backgroundColor = Color(red: 0.96, green: 0.94, blue: 0.90)
     let primaryAccent = Color.teal
+
+    var backgroundColor: Color {
+        colorScheme == .dark ? Color(UIColor.systemBackground) : Color(red: 0.96, green: 0.94, blue: 0.90)
+    }
 
     var body: some View {
         NavigationStack {
