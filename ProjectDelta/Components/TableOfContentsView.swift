@@ -38,7 +38,7 @@ struct TableOfContentsView: View {
                         )
                     ) {
                         if let pages = lesson.pages {
-                            ForEach(pages, id: \.id) { page in
+                            ForEach(pages, id: \.pageNumber) { page in
                                 pageRow(lesson: lesson, page: page)
                             }
                         }
@@ -81,21 +81,11 @@ struct TableOfContentsView: View {
     
     private func navigateToPage(lesson: Lesson, page: Page) {
         Task {
-            await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
-            
             await MainActor.run {
-                if let foundLesson = lessonVM.currentSubjectLessons.first(where: { $0.id == lesson.id }),
-                   let pages = foundLesson.pages,
-                   let pageIndex = pages.firstIndex(where: { $0.pageNumber == page.pageNumber }) {
-                    
-                    lessonVM.currentLesson = foundLesson
-                    lessonVM.currentPageIndex = pageIndex
-                    lessonVM.currentLessonName = foundLesson.name
-                    lessonVM.currentLessonId = foundLesson.id ?? ""
-                    
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        isShowing = false
-                    }
+                lessonVM.navigateToPage(lessonName: lesson.name, pageNumber: page.pageNumber, authVM: authVM)
+                
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    isShowing = false
                 }
             }
         }

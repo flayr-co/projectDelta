@@ -106,27 +106,35 @@ class LessonViewModel {
             
             let lessonQuerySnapshot = try await db.collection("Subjects").document(subjectId)
                 .collection("Lessons").whereField("name", isEqualTo: lessonName).getDocuments()
-            guard let lessonDocument = lessonQuerySnapshot.documents.first else {
+            guard let lessonDocument = lessonQuerySnapshot.documents.first,
+                  let lesson = try? lessonDocument.data(as: Lesson.self) else {
                 print("Lesson \(lessonName) not found within \(subjectName).")
                 return
             }
             
-            var pagesQuerySnapshot = try await db.collection("Subjects").document(subjectId)
-                .collection("Lessons").document(lessonDocument.documentID)
-                .collection("Pages").order(by: "pageNumber").getDocuments()
+            var fetchedPages: [Page] = []
             
-            if pagesQuerySnapshot.isEmpty {
-                pagesQuerySnapshot = try await db.collection("Subjects").document(subjectId)
+            // NEW ARCHITECTURE: Read from embedded array
+            if let embeddedPages = lesson.pages, !embeddedPages.isEmpty {
+                fetchedPages = embeddedPages.map { page in
+                    var p = page
+                    if p.id == nil { p.id = "page_\(p.pageNumber)" }
+                    return p
+                }.sorted { $0.pageNumber < $1.pageNumber }
+            } else {
+                // LEGACY ARCHITECTURE: Fallback to subcollection
+                var pagesQuerySnapshot = try await db.collection("Subjects").document(subjectId)
                     .collection("Lessons").document(lessonDocument.documentID)
-                    .collection("pages").order(by: "pageNumber").getDocuments()
-            }
-            
-            let fetchedPages = pagesQuerySnapshot.documents.compactMap { document -> Page? in
-                do {
-                    return try document.data(as: Page.self)
-                } catch {
-                    print("Error decoding page: \(error.localizedDescription)")
-                    return nil
+                    .collection("Pages").order(by: "pageNumber").getDocuments()
+                
+                if pagesQuerySnapshot.isEmpty {
+                    pagesQuerySnapshot = try await db.collection("Subjects").document(subjectId)
+                        .collection("Lessons").document(lessonDocument.documentID)
+                        .collection("pages").order(by: "pageNumber").getDocuments()
+                }
+                
+                fetchedPages = pagesQuerySnapshot.documents.compactMap { document -> Page? in
+                    return try? document.data(as: Page.self)
                 }
             }
             
@@ -161,31 +169,35 @@ class LessonViewModel {
                 var lessonsWithPages = [Lesson]()
                 
                 for document in lessonSnapshot.documents {
-                    let lessonID = document.documentID
-                    let lessonName = document.data()["name"] as? String ?? ""
-                    let lessonNumber = document.data()["lessonNumber"] as? Int ?? Int.max
+                    guard var lesson = try? document.data(as: Lesson.self) else { continue }
+                    lesson.id = document.documentID
                     
-                    var pageSnapshot = try? await db.collection("Subjects").document(subjectId).collection("Lessons").document(lessonID).collection("Pages").order(by: "pageNumber").getDocuments()
-                    
-                    if pageSnapshot?.isEmpty == true {
-                        pageSnapshot = try? await db.collection("Subjects").document(subjectId).collection("Lessons").document(lessonID).collection("pages").order(by: "pageNumber").getDocuments()
+                    // NEW ARCHITECTURE: Read from embedded array
+                    if let embeddedPages = lesson.pages, !embeddedPages.isEmpty {
+                        lesson.pages = embeddedPages.map { page in
+                            var p = page
+                            if p.id == nil { p.id = "page_\(p.pageNumber)" }
+                            return p
+                        }
+                    } else {
+                        // LEGACY ARCHITECTURE: Fallback to subcollection
+                        var pageSnapshot = try? await db.collection("Subjects").document(subjectId)
+                            .collection("Lessons").document(lesson.id!)
+                            .collection("Pages").order(by: "pageNumber").getDocuments()
+                        
+                        if pageSnapshot?.isEmpty == true {
+                            pageSnapshot = try? await db.collection("Subjects").document(subjectId)
+                                .collection("Lessons").document(lesson.id!)
+                                .collection("pages").order(by: "pageNumber").getDocuments()
+                        }
+                        
+                        let legacyPages = pageSnapshot?.documents.compactMap { doc -> Page? in
+                            return try? doc.data(as: Page.self)
+                        } ?? []
+                        
+                        lesson.pages = legacyPages
                     }
                     
-                    let pages = pageSnapshot?.documents.compactMap { doc -> Page? in
-                        guard let content = doc.data()["content"] as? String,
-                              let pageNumber = doc.data()["pageNumber"] as? Int,
-                              let readyButtonDisplayed = doc.data()["readyButtonDisplayed"] as? Bool else {
-                            return nil
-                        }
-                        return Page(id: doc.documentID, content: content, pageNumber: pageNumber, readyButtonDisplayed: readyButtonDisplayed)
-                    } ?? []
-                    
-                    let lesson = Lesson(id: lessonID,
-                                        name: lessonName,
-                                        description: document.data()["description"] as? String ?? "",
-                                        completed: document.data()["completed"] as? Bool ?? false,
-                                        lessonNumber: lessonNumber,
-                                        pages: pages)
                     lessonsWithPages.append(lesson)
                 }
                 

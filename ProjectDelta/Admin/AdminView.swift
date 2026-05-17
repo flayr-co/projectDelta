@@ -7,12 +7,7 @@ import SwiftUI
 
 struct AdminView: View {
     @State private var viewModel = AdminViewModel()
-    @State private var adminTab: AdminTab = .content
-
-    enum AdminTab {
-        case content, tools
-    }
-
+    
     let backgroundColor = Color(red: 0.96, green: 0.94, blue: 0.90)
     let primaryAccent = Color.teal
 
@@ -21,22 +16,62 @@ struct AdminView: View {
             ZStack {
                 backgroundColor.ignoresSafeArea()
                 
-                VStack(spacing: 0) {
-                    Picker("Admin Section", selection: $adminTab) {
-                        Text("Curriculum").tag(AdminTab.content)
-                        Text("Database").tag(AdminTab.tools)
+                List {
+                    Section {
+                        if viewModel.subjects.isEmpty {
+                            Text("No subjects found. Add one to begin.")
+                                .foregroundColor(.secondary)
+                        } else {
+                            ForEach(viewModel.subjects) { subject in
+                                NavigationLink(destination: SubjectDetailAdminView(viewModel: viewModel, subject: subject)) {
+                                    HStack {
+                                        Image(systemName: subject.imageName)
+                                            .foregroundColor(primaryAccent)
+                                            .font(.title3)
+                                        Text(subject.name)
+                                            .font(.headline)
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                            }
+                            .onDelete { indexSet in
+                                for index in indexSet {
+                                    let subject = viewModel.subjects[index]
+                                    if let id = subject.id {
+                                        Task { await viewModel.deleteSubject(id: id) }
+                                    }
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("Curriculum Management")
+                            .font(.subheadline)
+                            .fontWeight(.bold)
                     }
-                    .pickerStyle(.segmented)
-                    .padding()
-                    .background(Color(uiColor: .systemBackground).opacity(0.8))
                     
-                    switch adminTab {
-                    case .content:
-                        SubjectManagerDashboard(viewModel: viewModel)
-                    case .tools:
-                        DatabaseToolsDashboard(viewModel: viewModel)
+                    Section {
+                        AddSubjectButton(viewModel: viewModel)
+                    }
+                    
+                    Section {
+                        Button(role: .destructive) {
+                            Task {
+                                await viewModel.rescueLegacyAlgebraLessons()
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                Text("Migrate Legacy Algebra Data")
+                            }
+                        }
+                        .disabled(viewModel.isProcessing)
+                    } header: {
+                        Text("Database Tools")
+                    } footer: {
+                        Text("Use this tool only if you have older database entries that need formatting.")
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Teacher Dashboard")
             .navigationBarTitleDisplayMode(.large)
@@ -52,48 +87,37 @@ struct AdminView: View {
     }
 }
 
-struct SubjectManagerDashboard: View {
+struct AddSubjectButton: View {
     @Bindable var viewModel: AdminViewModel
     @State private var showingAddSubject = false
     @State private var newSubjectName = ""
-
+    
     var body: some View {
-        List {
-            ForEach(viewModel.subjects) { subject in
-                NavigationLink(destination: SubjectDetailAdminView(viewModel: viewModel, subject: subject)) {
-                    HStack {
-                        Image(systemName: subject.imageName)
-                            .foregroundColor(.teal)
-                        Text(subject.name)
-                            .font(.headline)
-                    }
-                }
+        Button {
+            showingAddSubject = true
+        } label: {
+            HStack {
+                Image(systemName: "plus.app.fill")
+                Text("Create New Subject")
+                    .fontWeight(.bold)
             }
-            .onDelete { indexSet in
-                for index in indexSet {
-                    let subject = viewModel.subjects[index]
-                    if let id = subject.id {
-                        Task { await viewModel.deleteSubject(id: id) }
-                    }
-                }
-            }
+            .foregroundColor(.teal)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 8)
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: { showingAddSubject = true }) {
-                    Image(systemName: "plus")
-                }
-            }
-        }
-        .alert("Add Subject", isPresented: $showingAddSubject) {
+        .alert("New Subject", isPresented: $showingAddSubject) {
             TextField("Subject Name", text: $newSubjectName)
-            Button("Add") {
+            Button("Create") {
                 Task {
                     await viewModel.addSubject(name: newSubjectName)
                     newSubjectName = ""
                 }
             }
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {
+                newSubjectName = ""
+            }
+        } message: {
+            Text("Enter the name of the new subject (e.g., Calculus, Physics).")
         }
     }
 }
@@ -104,57 +128,107 @@ struct SubjectDetailAdminView: View {
     
     var body: some View {
         List {
-            Section("Lessons") {
+            Section {
+                if viewModel.lessons.isEmpty {
+                    Text("No lessons currently in this subject.")
+                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                }
+                
                 ForEach(viewModel.lessons) { lesson in
                     NavigationLink(destination: LessonEditorView(viewModel: viewModel, subject: subject, lesson: lesson)) {
-                        Text("Lesson \(lesson.lessonNumber): \(lesson.name)")
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Lesson \(lesson.lessonNumber): \(lesson.name)")
+                                .font(.headline)
+                            Text(lesson.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
                     }
                 }
-                NavigationLink("Add New Lesson", destination: LessonEditorView(viewModel: viewModel, subject: subject, lesson: nil))
+                .onDelete(perform: deleteLesson)
+                
+                NavigationLink(destination: LessonEditorView(viewModel: viewModel, subject: subject, lesson: nil)) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Build New Lesson")
+                            .fontWeight(.semibold)
+                    }
                     .foregroundColor(.blue)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+                }
+            } header: {
+                Text("Lessons")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
             }
-            Section("Tests") {
-                Text("Tests Management Active")
+            
+            Section {
+                if viewModel.tests.isEmpty {
+                    Text("No tests currently in this subject.")
+                        .foregroundColor(.secondary)
+                        .font(.subheadline)
+                }
+                
+                ForEach(viewModel.tests) { test in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Test #\(test.testIdentifier)")
+                            .font(.headline)
+                        Text("\(test.questionAmount) Qs | \(test.timeLimit) mins | Lesson: \(test.subtopic ?? "General")")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .onDelete(perform: deleteTest)
+                
+                NavigationLink(destination: AddTestView(viewModel: viewModel, subject: subject)) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Create New Test")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.purple)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 8)
+                }
+            } header: {
+                Text("Tests")
+                    .font(.subheadline)
+                    .fontWeight(.bold)
             }
         }
         .navigationTitle(subject.name)
         .task {
-            // Safely extracts the ID as a String to pass to the ViewModel
             let subjectId = subject.id ?? subject.name
             await viewModel.fetchLessons(for: subjectId)
             await viewModel.fetchTests(for: subjectId)
         }
     }
-}
-
-struct DatabaseToolsDashboard: View {
-    @Bindable var viewModel: AdminViewModel
     
-    var body: some View {
-        List {
-            Section {
-                Button {
-                    Task {
-                        // Triggers the migration script added to your AdminViewModel
-                        await viewModel.rescueLegacyAlgebraLessons()
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                        Text("Migrate Legacy Algebra Lessons")
-                            .fontWeight(.semibold)
-                    }
+    private func deleteLesson(at offsets: IndexSet) {
+        guard let subjectId = subject.id ?? subject.name as String? else { return }
+        for index in offsets {
+            let lesson = viewModel.lessons[index]
+            if let lessonId = lesson.id {
+                Task {
+                    await viewModel.deleteLesson(subjectId: subjectId, lessonId: lessonId)
                 }
-                .disabled(viewModel.isProcessing)
-            } header: {
-                Text("Data Migrations")
-            } footer: {
-                Text("Executes a one-time database patch to inject the 'Linear Equations' subtopic into legacy Algebra lessons, ensuring compatibility with the new flat database architecture.")
             }
         }
     }
-}
-
-#Preview {
-    AdminView()
+    
+    private func deleteTest(at offsets: IndexSet) {
+        guard let subjectId = subject.id ?? subject.name as String? else { return }
+        for index in offsets {
+            let test = viewModel.tests[index]
+            if let testId = test.id {
+                Task {
+                    await viewModel.deleteTest(subjectId: subjectId, testId: testId)
+                }
+            }
+        }
+    }
 }

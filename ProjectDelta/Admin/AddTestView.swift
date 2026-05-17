@@ -15,9 +15,9 @@ struct AddTestView: View {
     @Environment(\.dismiss) var dismiss
     
     @State private var selectedSubjectArea: SubjectArea = .algebra
-    @State private var selectedSubtopic: String = ""
+    @State private var selectedLesson: String = ""
     
-    let mathSubtopics: [String: [String]] = [
+    let mathLessons: [String: [String]] = [
         "Algebra": ["Linear Equations", "Systems of Equations", "Inequalities", "Functions"],
         "Advanced Math": ["Polynomials", "Rational Expressions", "Exponents", "Radicals"],
         "Problem Solving and Data Analysis": ["Ratios", "Percentages", "Probability", "Statistics"],
@@ -26,20 +26,19 @@ struct AddTestView: View {
     
     var body: some View {
         Form {
-            Section("Subject & Subtopic") {
+            Section("Subject & Lesson") {
                 Picker("Subject", selection: $selectedSubjectArea) {
-                    // Requires id: \.self since SubjectArea is not natively Identifiable
                     ForEach(SubjectArea.allCases, id: \.self) { area in
                         Text(area.rawValue).tag(area)
                     }
                 }
                 .onChange(of: selectedSubjectArea) { _, newValue in
-                    selectedSubtopic = mathSubtopics[newValue.rawValue]?.first ?? ""
+                    selectedLesson = mathLessons[newValue.rawValue]?.first ?? ""
                 }
                 
-                Picker("Subtopic", selection: $selectedSubtopic) {
-                    ForEach(mathSubtopics[selectedSubjectArea.rawValue] ?? [], id: \.self) { subtopic in
-                        Text(subtopic).tag(subtopic)
+                Picker("Lesson", selection: $selectedLesson) {
+                    ForEach(mathLessons[selectedSubjectArea.rawValue] ?? [], id: \.self) { lesson in
+                        Text(lesson).tag(lesson)
                     }
                 }
             }
@@ -59,7 +58,7 @@ struct AddTestView: View {
                     subject: selectedSubjectArea.rawValue,
                     testIdentifier: testIdentifier,
                     timeLimit: timeLimit,
-                    subtopic: selectedSubtopic
+                    subtopic: selectedLesson
                 )
                 Task {
                     let idToSave = subject.id ?? selectedSubjectArea.rawValue
@@ -67,13 +66,15 @@ struct AddTestView: View {
                     dismiss()
                 }
             }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
         }
         .navigationTitle("New Test")
         .onAppear {
             if let initialArea = SubjectArea(rawValue: subject.name) ?? SubjectArea(rawValue: subject.subjectArea.rawValue) {
                 selectedSubjectArea = initialArea
             }
-            selectedSubtopic = mathSubtopics[selectedSubjectArea.rawValue]?.first ?? ""
+            selectedLesson = mathLessons[selectedSubjectArea.rawValue]?.first ?? ""
         }
     }
 }

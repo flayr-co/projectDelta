@@ -37,7 +37,6 @@ class AdminViewModel {
             let snapshot = try await db.collection("Subjects").getDocuments()
             let fetched = snapshot.documents.compactMap { doc -> Subject? in
                 var subject = try? doc.data(as: Subject.self)
-                // Explicitly bind the documentID to bypass the custom decoder's @DocumentID failure
                 subject?.id = doc.documentID
                 return subject
             }
@@ -64,19 +63,12 @@ class AdminViewModel {
                 subtopics: []
             )
             do {
-                try db.collection("Subjects").document(area.rawValue).setData(from: newSubject)
+                try await db.collection("Subjects").document(area.rawValue).setData(from: newSubject)
             } catch {
                 print("Error seeding subject \(area.rawValue): \(error.localizedDescription)")
             }
         }
-        
-        do {
-            let snapshot = try await db.collection("Subjects").getDocuments()
-            self.subjects = snapshot.documents.compactMap { try? $0.data(as: Subject.self) }
-                .sorted { $0.name < $1.name }
-        } catch {
-            print("Error fetching after seed: \(error.localizedDescription)")
-        }
+        await fetchSubjects()
     }
     
     func addSubject(name: String) async {
@@ -96,7 +88,7 @@ class AdminViewModel {
             subtopics: []
         )
         do {
-            try db.collection("Subjects").document(id).setData(from: newSubject)
+            try await db.collection("Subjects").document(id).setData(from: newSubject)
             await fetchSubjects()
         } catch {
             print("Error adding subject: \(error.localizedDescription)")
@@ -138,49 +130,26 @@ class AdminViewModel {
     
     func addLesson(to subject: Subject, lesson: Lesson) async throws {
         guard let subjectId = subject.id else { return }
-        self.isProcessing = true
-        defer { self.isProcessing = false }
+        isProcessing = true
+        defer { isProcessing = false }
         
         if let id = lesson.id, !id.isEmpty {
-            try db.collection("Subjects").document(subjectId).collection("Lessons").document(id).setData(from: lesson)
+            try await db.collection("Subjects").document(subjectId).collection("Lessons").document(id).setData(from: lesson)
         } else {
-            _ = try db.collection("Subjects").document(subjectId).collection("Lessons").addDocument(from: lesson)
+            let _ = try await db.collection("Subjects").document(subjectId).collection("Lessons").addDocument(from: lesson)
         }
         await fetchLessons(for: subjectId)
     }
-    
-    // MARK: - Migrations
-    
-    func rescueLegacyAlgebraLessons(defaultSubtopic: String = "Linear Equations") async {
-        self.isProcessing = true
-        defer { self.isProcessing = false }
+
+    func deleteLesson(subjectId: String, lessonId: String) async {
+        isProcessing = true
+        defer { isProcessing = false }
         
         do {
-            // 1. Dynamically query for your legacy Algebra subject by name to get its true auto-generated UUID
-            let subjectSnap = try await db.collection("Subjects").whereField("name", isEqualTo: SubjectArea.algebra.rawValue).getDocuments()
-            
-            guard let subjectDoc = subjectSnap.documents.first else {
-                print("Legacy Algebra subject not found.")
-                return
-            }
-            
-            let realSubjectId = subjectDoc.documentID
-            
-            // 2. Target the exact auto-generated document path holding your actual hard work
-            let lessonsRef = db.collection("Subjects").document(realSubjectId).collection("Lessons")
-            let snapshot = try await lessonsRef.getDocuments()
-            
-            for document in snapshot.documents {
-                try await lessonsRef.document(document.documentID).setData([
-                    "subtopic": defaultSubtopic
-                ], merge: true)
-            }
-            
-            print("Successfully rescued and migrated \(snapshot.documents.count) Algebra lessons.")
-            await fetchLessons(for: realSubjectId)
-            
+            try await db.collection("Subjects").document(subjectId).collection("Lessons").document(lessonId).delete()
+            await fetchLessons(for: subjectId)
         } catch {
-            print("Failed to execute migration script: \(error.localizedDescription)")
+            print("Error deleting lesson: \(error.localizedDescription)")
         }
     }
     
@@ -207,10 +176,22 @@ class AdminViewModel {
         defer { isProcessing = false }
         
         do {
-            try db.collection("Subjects").document(subjectId).collection("Tests").addDocument(from: test)
+            let _ = try await db.collection("Subjects").document(subjectId).collection("Tests").addDocument(from: test)
             await fetchTests(for: subjectId)
         } catch {
             print("Error adding test: \(error.localizedDescription)")
+        }
+    }
+
+    func deleteTest(subjectId: String, testId: String) async {
+        isProcessing = true
+        defer { isProcessing = false }
+        
+        do {
+            try await db.collection("Subjects").document(subjectId).collection("Tests").document(testId).delete()
+            await fetchTests(for: subjectId)
+        } catch {
+            print("Error deleting test: \(error.localizedDescription)")
         }
     }
     
@@ -228,11 +209,43 @@ class AdminViewModel {
         defer { isProcessing = false }
         
         do {
-            try db.collection("questions").addDocument(from: question)
+            let _ = try await db.collection("questions").addDocument(from: question)
             showSubmissionSuccessAlert = true
             await fetchAllQuestions()
         } catch {
             print("Error saving question: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Migrations
+    
+    func rescueLegacyAlgebraLessons(defaultSubtopic: String = "Linear Equations") async {
+        isProcessing = true
+        defer { isProcessing = false }
+        
+        do {
+            let subjectSnap = try await db.collection("Subjects").whereField("name", isEqualTo: SubjectArea.algebra.rawValue).getDocuments()
+            
+            guard let subjectDoc = subjectSnap.documents.first else {
+                print("Legacy Algebra subject not found.")
+                return
+            }
+            
+            let realSubjectId = subjectDoc.documentID
+            let lessonsRef = db.collection("Subjects").document(realSubjectId).collection("Lessons")
+            let snapshot = try await lessonsRef.getDocuments()
+            
+            for document in snapshot.documents {
+                try await lessonsRef.document(document.documentID).setData([
+                    "subtopic": defaultSubtopic
+                ], merge: true)
+            }
+            
+            print("Successfully rescued and migrated \(snapshot.documents.count) Algebra lessons.")
+            await fetchLessons(for: realSubjectId)
+            
+        } catch {
+            print("Failed to execute migration script: \(error.localizedDescription)")
         }
     }
 }
