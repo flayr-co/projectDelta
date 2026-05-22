@@ -93,7 +93,13 @@ struct TableOfContentsView: View {
     
     private func isCurrentPage(lesson: Lesson, page: Page) -> Bool {
         guard let current = lessonVM.currentLesson else { return false }
-        return current.id == lesson.id && lessonVM.currentPageIndex == (page.pageNumber - 1)
+        if current.id != lesson.id && current.name != lesson.name { return false }
+        
+        if let currentPages = current.pages, lessonVM.currentPageIndex < currentPages.count {
+            return currentPages[lessonVM.currentPageIndex].pageNumber == page.pageNumber
+        }
+        
+        return lessonVM.currentPageIndex == (page.pageNumber - 1)
     }
 }
 

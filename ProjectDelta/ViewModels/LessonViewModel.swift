@@ -202,7 +202,12 @@ class LessonViewModel {
                 }
                 
                 self.currentSubjectLessons = lessonsWithPages.sorted { $0.lessonNumber < $1.lessonNumber }
-                if let firstIncomplete = lessonsWithPages.first(where: { !$0.completed }) {
+                
+                // FIXED: Synchronize active lesson state with current view state instead of resetting it
+                if let activeLesson = lessonsWithPages.first(where: { $0.name == self.currentLessonName || $0.id == self.currentLessonId }) {
+                    self.currentLesson = activeLesson
+                    self.currentLessonId = activeLesson.id ?? ""
+                } else if let firstIncomplete = lessonsWithPages.first(where: { !$0.completed }) {
                     self.currentLesson = firstIncomplete
                     self.currentLessonId = firstIncomplete.id ?? "default_id"
                     self.currentLessonName = firstIncomplete.name
@@ -274,14 +279,26 @@ class LessonViewModel {
             }
         } else {
             Task {
-                await fetchLessonContent(for: self.subjectName, lessonName: lessonName)
                 if let newLesson = self.currentSubjectLessons.first(where: { $0.name == lessonName }) {
                     self.currentLesson = newLesson
-                    if let pageIndex = newLesson.pages?.firstIndex(where: { $0.pageNumber == pageNumber }) {
-                        self.currentPageIndex = pageIndex
-                        self.currentPageDocumentId = newLesson.pages?[pageIndex].id
-                        self.updateBookmarkStatus(authVM: authVM)
-                    }
+                    self.currentLessonName = newLesson.name
+                    self.currentLessonId = newLesson.id ?? ""
+                } else {
+                    self.currentLessonName = lessonName
+                }
+                
+                await fetchLessonContent(for: self.subjectName, lessonName: lessonName)
+                
+                if let newLesson = self.currentSubjectLessons.first(where: { $0.name == lessonName }) {
+                    self.currentLesson = newLesson
+                    self.currentLessonName = newLesson.name
+                    self.currentLessonId = newLesson.id ?? ""
+                }
+                
+                if let pageIndex = self.lessonPages.firstIndex(where: { $0.pageNumber == pageNumber }) {
+                    self.currentPageIndex = pageIndex
+                    self.currentPageDocumentId = self.lessonPages[pageIndex].id
+                    self.updateBookmarkStatus(authVM: authVM)
                 }
             }
         }
