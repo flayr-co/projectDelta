@@ -18,7 +18,7 @@ struct HomeView: View {
     @State private var refreshKey = UUID()
     @Environment(\.colorScheme) var colorScheme
     
-    let columns = [GridItem(.flexible()), GridItem(.flexible())]
+    let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
     
     var body: some View {
         NavigationStack {
@@ -60,15 +60,17 @@ struct HomeView: View {
                             .font(.headline)
                             .foregroundColor(.secondary)
                             .padding(.horizontal)
-                            .padding(.top, 10)
+                            .padding(.top, 16)
+                        
+                        // Integrated modern metrics presentation ledger
+                        UserProgressPieChart()
+                            .padding(.horizontal)
 
-                        LazyVGrid(columns: columns, spacing: 20) {
+                        LazyVGrid(columns: columns, spacing: 16) {
                             NavigationLink(destination: SubjectGridView(navigationSource: .homeView).navigationBarBackButtonHidden(true)) {
                                 DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
                             }
                             
-                            // FIXED: Removed the irrelevant PracticeView() boilerplate.
-                            // This now routes directly to the SubjectGrid so the user can select a subject to take a test on.
                             NavigationLink(destination: SubjectGridView(navigationSource: .testView).navigationBarBackButtonHidden(true)) {
                                 DisplayCards(imageName: "eyeglasses", title: "Practice", tintColor: .purple)
                             }
@@ -84,8 +86,19 @@ struct HomeView: View {
                 }
                 .background(colorScheme == .dark ? Color.customDarkGray : Color.gray.opacity(0.05))
             }
+            .id(refreshKey)
             .onChange(of: viewModel.currentUser) { oldValue, newValue in
                 refreshKey = UUID()
+            }
+            .task {
+                guard let userId = viewModel.userSession?.uid else { return }
+                do {
+                    if let fetchedProgress = try await viewModel.fetchUserProgress(forUserID: userId) {
+                        quizViewModel.userProgress = fetchedProgress
+                    }
+                } catch {
+                    print("Error running background progress load sync on HomeView: \(error.localizedDescription)")
+                }
             }
         }
     }
