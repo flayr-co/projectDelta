@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct TestView: View {
     @State private var buttonTapped = false
@@ -104,7 +105,7 @@ struct TestView: View {
 
             if quizViewModel.isGeneratingQuiz {
                 Spacer()
-                ProgressView("Building your test...")
+                ProgressView("Fetching test data...")
                 Spacer()
             } else if quizEnded {
                 quizEndView
@@ -118,6 +119,17 @@ struct TestView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                .onChange(of: currentQuestionIndex) { _, newValue in
+                    if selectedQuestionIndex != newValue {
+                        selectedQuestionIndex = newValue
+                    }
+                }
+            } else {
+                Spacer()
+                Text("No questions available for \(subject).")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                Spacer()
             }
         }
         .overlay(alignment: .bottom) {
@@ -165,7 +177,6 @@ struct TestView: View {
                         .font(.title3)
                         .fontWeight(.semibold)
                     
-                    // Standard Hint Dropdown
                     if let hint = question.hint, !hint.isEmpty {
                         DisclosureGroup("Hint", isExpanded: $isHintExpanded) {
                             Text(hint)
@@ -177,7 +188,6 @@ struct TestView: View {
                     }
                     
                     VStack(spacing: 12) {
-                        // Iterating the physical text string of each option rather than mapping A/B/C/D
                         ForEach(Array(question.options.enumerated()), id: \.offset) { optionIndex, optionText in
                             let isSelected = quizViewModel.userAnswers[qId] == optionIndex
                             
@@ -234,7 +244,8 @@ struct TestView: View {
                 Button("Submit") {
                     isSubmitting = true
                     Task {
-                        await quizViewModel.finishQuiz(subjectId: subject, subtopic: subtopic ?? "")
+                        let dynamicSubtopic = subtopic ?? "All"
+                        await quizViewModel.finishQuiz(subjectId: subject, subtopic: dynamicSubtopic)
                         quizEnded = true
                         isSubmitting = false
                     }
@@ -289,6 +300,18 @@ struct TestView: View {
     }
     
     private func fetchUserProgress() async {
-        // Implementation hook
+        guard let userId = viewModel.currentUser?.id, !userId.isEmpty else { return }
+        let db = Firestore.firestore()
+        
+        do {
+            let document = try await db.collection("UserProgress").document(userId).getDocument()
+            if let progress = try? document.data(as: UserProgress.self) {
+                quizViewModel.userProgress = progress
+            } else {
+                print("User progress document exists but could not be decoded.")
+            }
+        } catch {
+            print("Failed to fetch user progress: \(error.localizedDescription)")
+        }
     }
 }

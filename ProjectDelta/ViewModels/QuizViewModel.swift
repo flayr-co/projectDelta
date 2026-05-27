@@ -41,34 +41,24 @@ class QuizViewModel {
     }
     
     func fetchSubjectsFromFirestore() async throws -> [String] {
-        let db = Firestore.firestore()
         let snapshot = try await db.collection("Subjects").getDocuments()
         
         let fetchedNames = snapshot.documents.compactMap { doc -> String? in
-            // 1. Check if the document has a dedicated "name" field (New Architecture)
             if let name = doc.data()["name"] as? String, !name.isEmpty {
                 return name
             }
-            
-            // 2. If it's a 20-character auto-generated Firestore ID with no name, ignore it (Ghost Doc)
-            if doc.documentID.count == 20 {
-                return nil
-            }
-            
-            // 3. Fallback: Use the Document ID itself (Legacy Architecture like your "Algebra" doc)
+            if doc.documentID.count == 20 { return nil }
             return doc.documentID
         }
-        
-        // Remove any accidental duplicates and sort alphabetically
         return Array(Set(fetchedNames)).sorted()
     }
     
-    /// Records the user's selected option index for a specific question.
     func selectAnswer(for questionId: String, optionIndex: Int) {
         userAnswers[questionId] = optionIndex
     }
     
-    /// Fetches questions in segmented chunks of 10 and rotates through batches based on user attempts.
+    /// Comprehensively searches both hierarchical "Tests" structures and flat "questions" structures
+    /// while strictly ignoring generic parameter filters like "All" to guarantee query execution.
     func fetchSubtopicTest(for subjectName: String, subtopic: String? = nil) {
         Task {
             self.isGeneratingQuiz = true
@@ -78,30 +68,43 @@ class QuizViewModel {
             self.currentSnapshot = nil
             
             do {
-                var query: Query = db.collection("questions").whereField("subject", isEqualTo: subjectName)
+                var fetchedQuestions: [Question] = []
+                let activeSubtopic = (subtopic != nil && subtopic != "All" && subtopic?.isEmpty == false) ? subtopic : nil
                 
-                if let subtopic = subtopic, !subtopic.isEmpty {
-                    query = query.whereField("subtopic", isEqualTo: subtopic)
+                // 1. Primary Architecture Check: Hierarchical Tests
+                var testQuery: Query = db.collection("Tests").whereField("subject", isEqualTo: subjectName)
+                if let lessonFilter = activeSubtopic {
+                    testQuery = testQuery.whereField("lesson", isEqualTo: lessonFilter)
                 }
                 
-                let snapshot = try await query.getDocuments()
-                var fetchedQuestions = snapshot.documents.compactMap { document -> Question? in
-                    try? document.data(as: Question.self)
+                let testSnapshot = try? await testQuery.getDocuments()
+                if let firstTestDoc = testSnapshot?.documents.first {
+                    // Fetch nested questions from this test specifically
+                    let nestedQuestionsSnapshot = try await firstTestDoc.reference.collection("Questions").getDocuments()
+                    fetchedQuestions = nestedQuestionsSnapshot.documents.compactMap { try? $0.data(as: Question.self) }
                 }
                 
-                // Sort questions strictly by ID to ensure consistency in batch layout
+                // 2. Secondary Architecture Check: Flat Collection Fallback
+                if fetchedQuestions.isEmpty {
+                    var query: Query = db.collection("questions").whereField("subject", isEqualTo: subjectName)
+                    if let subFilter = activeSubtopic {
+                        query = query.whereField("subtopic", isEqualTo: subFilter)
+                    }
+                    
+                    let flatSnapshot = try await query.getDocuments()
+                    fetchedQuestions = flatSnapshot.documents.compactMap { try? $0.data(as: Question.self) }
+                }
+                
                 fetchedQuestions.sort { ($0.id ?? "") < ($1.id ?? "") }
                 
                 if fetchedQuestions.isEmpty {
-                    print("No questions found for \(subjectName) - \(subtopic ?? "All").")
+                    print("No questions found for \(subjectName) - \(subtopic ?? "All"). Checked both hierarchical and flat structures.")
                     self.questions = []
                 } else {
-                    let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: subtopic)
-                    
+                    let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: activeSubtopic)
                     let batchSize = 10
                     var batches: [[Question]] = []
                     
-                    // Slice the fetched array into sub-arrays of size 10
                     for i in stride(from: 0, to: fetchedQuestions.count, by: batchSize) {
                         let end = min(i + batchSize, fetchedQuestions.count)
                         batches.append(Array(fetchedQuestions[i..<end]))
@@ -110,20 +113,17 @@ class QuizViewModel {
                     if batches.isEmpty {
                         self.questions = []
                     } else {
-                        // Modulo operator continuously loops the user through available batches
                         let batchIndex = attemptCount % batches.count
                         self.questions = batches[batchIndex]
                     }
                 }
             } catch {
-                print("Firestore Error: \(error.localizedDescription)")
+                print("Firestore Data Error: \(error.localizedDescription)")
             }
-            
             self.isGeneratingQuiz = false
         }
     }
     
-    /// Evaluates the user's progression specifically for finding rotating batch intervals
     private func fetchAttemptCount(for subject: String, subtopic: String?) async -> Int {
         guard let userId = authViewModel.currentUser?.id else { return 0 }
         do {
@@ -136,13 +136,12 @@ class QuizViewModel {
             }
             
             let aggregation = try await query.count.getAggregation(source: .server)
-            return Int(truncating: aggregation.count)
+            return aggregation.count.intValue
         } catch {
             return 0
         }
     }
     
-    /// Evaluates all recorded answers, builds the immutable snapshot, and persists progress.
     func finishQuiz(subjectId: String, subtopic: String) async {
         guard let userId = authViewModel.currentUser?.id else { return }
         
@@ -154,14 +153,12 @@ class QuizViewModel {
             let selectedIndex = userAnswers[questionId]
             let isCorrect = (selectedIndex == question.correctOptionIndex)
             
-            if isCorrect {
-                correctCount += 1
-            }
+            if isCorrect { correctCount += 1 }
             
             let result = QuestionResult(
                 id: UUID().uuidString,
                 questionId: questionId,
-                questionText: question.questionText ?? "",
+                questionText: question.questionText,
                 options: question.options,
                 correctOptionIndex: question.correctOptionIndex,
                 userSelectedOptionIndex: selectedIndex,
@@ -190,6 +187,46 @@ class QuizViewModel {
             print("Failed to save snapshot: \(error.localizedDescription)")
         }
         
+        let area: SubjectArea
+        let lower = subjectId.lowercased()
+        if lower.contains("algebra") { area = .algebra }
+        else if lower.contains("advanced") { area = .advancedMath }
+        else if lower.contains("problem") || lower.contains("data") { area = .problemSolvingDataAnalysis }
+        else { area = .geometryTrigonometry }
+        
+        if var progressObj = self.userProgress {
+            progressObj.questionsAttempted += questions.count
+            var subjectProgress = progressObj.progress[area] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
+            subjectProgress.questionsAttempted += questions.count
+            subjectProgress.questionsCorrect += correctCount
+            
+            if progressObj.answeredQuestions == nil {
+                progressObj.answeredQuestions = [:]
+            }
+            for res in results {
+                progressObj.answeredQuestions?[res.questionId] = res.isCorrect
+            }
+            
+            progressObj.progress[area] = subjectProgress
+            self.userProgress = progressObj
+            
+            let userProgressRef = db.collection("UserProgress").document(userId)
+            let progressMapData = progressObj.progress.reduce(into: [String: Any]()) { result, entry in
+                result[entry.key.rawValue] = [
+                    "questionsAttempted": entry.value.questionsAttempted,
+                    "questionsCorrect": entry.value.questionsCorrect
+                ]
+            }
+            
+            let firestoreData: [String: Any] = [
+                "userId": userId,
+                "questionsAttempted": progressObj.questionsAttempted,
+                "answeredQuestions": progressObj.answeredQuestions ?? [:],
+                "progress": progressMapData
+            ]
+            
+            try? await userProgressRef.setData(firestoreData, merge: true)
+        }
         self.isQuizComplete = true
     }
 }

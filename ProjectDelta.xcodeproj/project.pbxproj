@@ -35,6 +35,7 @@
 		5258BD5C2AE344C200F21A50 /* SettingsRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5258BD5B2AE344C200F21A50 /* SettingsRowView.swift */; };
 		5258BD5E2AE4753F00F21A50 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5258BD5D2AE4753F00F21A50 /* User.swift */; };
 		5258BD612AE4858300F21A50 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5258BD602AE4858300F21A50 /* AuthViewModel.swift */; };
+		526284052FC6C93500EED886 /* AdminTestManagerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526284042FC6C93500EED886 /* AdminTestManagerViewModel.swift */; };
 		5263B8732BFBB5CB00CE0DD0 /* ProfileViewDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */; };
 		52668ED12BFD06FA0019965F /* LatexView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52668ED02BFD06FA0019965F /* LatexView.swift */; };
 		527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98712AEB22990031F9E6 /* GreetingText.swift */; };
@@ -102,6 +103,7 @@
 		5258BD5B2AE344C200F21A50 /* SettingsRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRowView.swift; sourceTree = "<group>"; };
 		5258BD5D2AE4753F00F21A50 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		5258BD602AE4858300F21A50 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		526284042FC6C93500EED886 /* AdminTestManagerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminTestManagerViewModel.swift; sourceTree = "<group>"; };
 		5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewDetail.swift; sourceTree = "<group>"; };
 		52668ED02BFD06FA0019965F /* LatexView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatexView.swift; sourceTree = "<group>"; };
 		527F98712AEB22990031F9E6 /* GreetingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingText.swift; sourceTree = "<group>"; };
@@ -155,6 +157,7 @@
 		520B96822BA5372600332AF3 /* Admin */ = {
 			isa = PBXGroup;
 			children = (
+				526284042FC6C93500EED886 /* AdminTestManagerViewModel.swift */,
 				52920AE82B15662900B60A14 /* AddQuestionView.swift */,
 				52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */,
 				520B96832BA5375600332AF3 /* AdminView.swift */,
@@ -418,6 +421,7 @@
 				527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */,
 				5254A5CF2AF1ABAC00AAAA72 /* HomeView.swift in Sources */,
 				5254A5D12AF1C19300AAAA72 /* DisplayCards.swift in Sources */,
+				526284052FC6C93500EED886 /* AdminTestManagerViewModel.swift in Sources */,
 				5229BB0A2AD0CC8A0094395D /* ContentView.swift in Sources */,
 				527F98762AEC4E080031F9E6 /* QuizViewModel.swift in Sources */,
 				5254A5D72AF1D43100AAAA72 /* LeaderboardView.swift in Sources */,

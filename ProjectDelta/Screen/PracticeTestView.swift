@@ -16,7 +16,7 @@ struct PracticeTestView: View {
     @Environment(\.colorScheme) var colorScheme
     
     @State private var currentQuestionIndex = 0
-    @State private var userAnswers = [Int?](repeating: nil, count: 10)
+    @State private var userAnswers: [Int?] = []
     @State private var userAnswer: Int?
     @State private var score: Int = 0
     @State private var practiceTestEnded: Bool = false
@@ -73,7 +73,7 @@ struct PracticeTestView: View {
             }
             .task {
                 await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID)
-                // Resize userAnswers array dynamically based on fetched questions
+                // Resize userAnswers array dynamically based on fetched questions to prevent out of bounds
                 userAnswers = [Int?](repeating: nil, count: practiceTestViewModel.questions.count)
             }
             .navigationBarBackButtonHidden(true)
@@ -154,9 +154,11 @@ struct PracticeTestView: View {
                 VStack(spacing: 16) {
                     ForEach(Array(practiceTestViewModel.questions[index].options.enumerated()), id: \.offset) { optionIndex, option in
                         Button(action: {
-                            userAnswers[index] = optionIndex
+                            if index < userAnswers.count {
+                                userAnswers[index] = optionIndex
+                            }
                         }) {
-                            optionView(option: option, isSelected: userAnswers[index] == optionIndex)
+                            optionView(option: option, isSelected: index < userAnswers.count ? userAnswers[index] == optionIndex : false)
                         }
                         .buttonStyle(.plain)
                     }
@@ -208,18 +210,17 @@ struct PracticeTestView: View {
                     withAnimation { currentQuestionIndex += 1 }
                 } else {
                     if !practiceTestEnded {
-                        practiceTestViewModel.setCurrentQuestionDocId(for: currentQuestionIndex)
                         postPracticeTestUpdate()
                     }
                 }
             }) {
                 Image(systemName: currentQuestionIndex < practiceTestViewModel.questions.count - 1 ? "chevron.right.circle.fill" : "checkmark.circle.fill")
                     .font(.system(size: 36))
-                    .foregroundStyle(userAnswers[currentQuestionIndex] == nil ? .gray : (colorScheme == .dark ? .cyan : .blue))
+                    .foregroundStyle(currentQuestionIndex < userAnswers.count && userAnswers[currentQuestionIndex] == nil ? .gray : (colorScheme == .dark ? .cyan : .blue))
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .disabled(userAnswers[currentQuestionIndex] == nil)
+            .disabled(currentQuestionIndex < userAnswers.count ? userAnswers[currentQuestionIndex] == nil : true)
         }
         .padding(.horizontal, 25)
         .padding(.bottom, 30)
@@ -301,14 +302,21 @@ struct PracticeTestView: View {
         )
     }
 
+    private var currentQuestionDocId: String? {
+        guard currentQuestionIndex < practiceTestViewModel.questions.count else { return nil }
+        return practiceTestViewModel.questions[currentQuestionIndex].id
+    }
+
     private func postPracticeTestUpdate() {
         practiceTestEnded = true
         print("Practice test has ended. Points and progress will now be updated....\n")
 
         score = 0
         for (index, answer) in userAnswers.enumerated() {
-            if let answer = answer, answer == practiceTestViewModel.questions[index].correctOptionIndex {
-                score += 1
+            if index < practiceTestViewModel.questions.count {
+                if let answer = answer, answer == practiceTestViewModel.questions[index].correctOptionIndex {
+                    score += 1
+                }
             }
         }
         
@@ -320,18 +328,25 @@ struct PracticeTestView: View {
             await viewModel.updateUserPointsInFirestore(newPoints: (viewModel.currentUser?.points ?? 0) + totalPointsChange)
             await viewModel.storeTodaysPoints(pointsGainedToday: totalPointsChange)
             
-            // Fixed: currentSubjectArea is already a SubjectArea type from our model update
-            if let currentSubjectArea = practiceTestViewModel.currentSubject?.subjectArea,
-               let currentQuestionDocId = practiceTestViewModel.currentQuestionDocId {
-                do {
-                    try await practiceTestViewModel.updateUserProgressForSubject(
-                        userID: userId,
-                        subjectArea: currentSubjectArea,
-                        answeredCorrectly: score == practiceTestViewModel.questions.count,
-                        questionDocumentID: currentQuestionDocId
-                    )
-                } catch {
-                    print("Failed to update user progress in Firestore: \(error.localizedDescription)")
+            if let currentSubjectArea = practiceTestViewModel.currentSubject?.subjectArea {
+                for (index, answer) in userAnswers.enumerated() {
+                    if index < practiceTestViewModel.questions.count {
+                        let questionDocId = practiceTestViewModel.questions[index].id ?? ""
+                        let isCorrect = (answer == practiceTestViewModel.questions[index].correctOptionIndex)
+                        
+                        if !questionDocId.isEmpty {
+                            do {
+                                try await practiceTestViewModel.updateUserProgressForSubject(
+                                    userID: userId,
+                                    subjectArea: currentSubjectArea,
+                                    answeredCorrectly: isCorrect,
+                                    questionDocumentID: questionDocId
+                                )
+                            } catch {
+                                print("Failed to update user progress for question \(questionDocId): \(error.localizedDescription)")
+                            }
+                        }
+                    }
                 }
             }
         }

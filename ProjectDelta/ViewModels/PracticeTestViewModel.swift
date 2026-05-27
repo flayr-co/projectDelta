@@ -7,12 +7,20 @@
 
 import Foundation
 import FirebaseFirestore
+import Observation
 
 @MainActor
-class PracticeTestViewModel: ObservableObject {
-    @Published var questions: [Question] = []
-    @Published var currentSubject: Subject?
-    @Published var currentQuestionDocId: String?
+@Observable
+class PracticeTestViewModel {
+    var questions: [Question] = []
+    var currentSubject: Subject?
+    var currentQuestionDocId: String?
+    var isGeneratingQuiz: Bool = false
+    
+    // Core Session Tracking State
+    var userAnswers: [String: Int] = [:] // Maps Question ID to chosen selection option index
+    var isQuizComplete: Bool = false
+    var currentSnapshot: QuizSnapshot?
     
     private var db = Firestore.firestore()
     private var authViewModel: AuthViewModel
@@ -21,21 +29,118 @@ class PracticeTestViewModel: ObservableObject {
         self.authViewModel = authViewModel
     }
     
+    /// Fetches a dynamic lesson practice test, automatically calculating the active 10-quiz rotation sequence.
     func fetchPracticeTest(for lessonID: String, practiceTestID: String) async {
+        self.isGeneratingQuiz = true
+        self.questions = []
+        self.userAnswers = [:]
+        self.isQuizComplete = false
+        self.currentSnapshot = nil
+        
         do {
-            let snapshot = try await db.collection("Lessons")
+            var lessonName = ""
+            var subjectName = ""
+            
+            // Query subject structure configuration map to parse lesson location parameters
+            let lessonDoc = try await db.collection("Lessons").document(lessonID).getDocument()
+            if lessonDoc.exists, let data = lessonDoc.data() {
+                lessonName = data["name"] as? String ?? ""
+                subjectName = data["subjectName"] as? String ?? ""
+            } else {
+                let subjectsSnap = try await db.collection("Subjects").getDocuments()
+                for subDoc in subjectsSnap.documents {
+                    let lDoc = try? await db.collection("Subjects").document(subDoc.documentID).collection("Lessons").document(lessonID).getDocument()
+                    if let lData = lDoc?.data(), lDoc?.exists == true {
+                        lessonName = lData["name"] as? String ?? ""
+                        subjectName = subDoc.data()["name"] as? String ?? subDoc.documentID
+                        break
+                    }
+                }
+            }
+            
+            await fetchPracticeTestCore(for: lessonID, practiceTestID: practiceTestID, subjectName: subjectName, lessonName: lessonName)
+        } catch {
+            print("Error mapping lesson contextual fields for practice tests: \(error.localizedDescription)")
+            self.isGeneratingQuiz = false
+        }
+    }
+    
+    private func fetchPracticeTestCore(for lessonID: String, practiceTestID: String, subjectName: String, lessonName: String) async {
+        guard let userId = authViewModel.currentUser?.id else { return }
+        
+        do {
+            // Determine total historic completions to step loop forward sequentially
+            let snapshotQuery = db.collection("quizSnapshots")
+                .whereField("userId", isEqualTo: userId)
+                .whereField("subjectId", isEqualTo: subjectName)
+                .whereField("subtopic", isEqualTo: lessonName)
+            
+            let countSnap = try await snapshotQuery.count.getAggregation(source: .server)
+            let attemptCount = countSnap.count.intValue
+            
+            // Strategy A: Evaluate specific discrete Lesson Subcollections if generated
+            let practiceTestsSnap = try await db.collection("Lessons")
                 .document(lessonID)
                 .collection("PracticeTests")
-                .document(practiceTestID)
-                .collection("Questions")
                 .getDocuments()
+            
+            if !practiceTestsSnap.documents.isEmpty {
+                let sortedTests = practiceTestsSnap.documents.sorted { $0.documentID < $1.documentID }
+                let testIndex = attemptCount % sortedTests.count
+                let selectedTestDoc = sortedTests[testIndex]
                 
-            self.questions = snapshot.documents.compactMap { queryDocumentSnapshot -> Question? in
-                return try? queryDocumentSnapshot.data(as: Question.self)
+                let questionsSnap = try await selectedTestDoc.reference.collection("Questions").getDocuments()
+                var fetched = questionsSnap.documents.compactMap { try? $0.data(as: Question.self) }
+                
+                if fetched.isEmpty {
+                    if let questionIDs = selectedTestDoc.data()["questions"] as? [String], !questionIDs.isEmpty {
+                        for qID in questionIDs {
+                            if let qDoc = try? await db.collection("questions").document(qID).getDocument(),
+                               let question = try? qDoc.data(as: Question.self) {
+                                fetched.append(question)
+                            }
+                        }
+                    }
+                }
+                self.questions = fetched
+            } else {
+                // Strategy B: General Subject Question-Pool slicing fallback (Guarantees 10 unique iterations)
+                let questionsQuery = db.collection("questions")
+                    .whereField("subject", isEqualTo: subjectName)
+                
+                let qSnapshot = try await questionsQuery.getDocuments()
+                let allQuestions = qSnapshot.documents.compactMap { try? $0.data(as: Question.self) }
+                
+                let filtered = allQuestions.filter {
+                    $0.subtopic?.lowercased() == lessonName.lowercased() ||
+                    $0.feedback?.lowercased().contains(lessonName.lowercased()) == true
+                }
+                
+                let sourcePool = filtered.isEmpty ? allQuestions : filtered
+                let sortedPool = sourcePool.sorted { ($0.id ?? "") < ($1.id ?? "") }
+                
+                if !sortedPool.isEmpty {
+                    let rotationOffset = attemptCount % 10
+                    var uniqueBatch: [Question] = []
+                    
+                    for i in 0..<min(10, sortedPool.count) {
+                        let targetIndex = (rotationOffset * 3 + i) % sortedPool.count
+                        let selectedQ = sortedPool[targetIndex]
+                        if !uniqueBatch.contains(where: { $0.id == selectedQ.id }) {
+                            uniqueBatch.append(selectedQ)
+                        }
+                    }
+                    
+                    if uniqueBatch.isEmpty {
+                        uniqueBatch = Array(sortedPool.prefix(10))
+                    }
+                    self.questions = uniqueBatch
+                }
             }
         } catch {
-            print("Error fetching practice test: \(error.localizedDescription)")
+            print("Error iterating unique lesson test sequence: \(error.localizedDescription)")
         }
+        self.isGeneratingQuiz = false
     }
     
     func setCurrentQuestionDocId(for index: Int) {
@@ -44,7 +149,108 @@ class PracticeTestViewModel: ObservableObject {
         }
     }
     
+    /// Commits exam metrics to historic ledger archives and securely updates overall UserProgress.
+    func finishPracticeTest(subjectName: String, lessonName: String) async {
+        guard let userId = authViewModel.currentUser?.id, !questions.isEmpty else { return }
+        
+        var correctCount = 0
+        var results: [QuestionResult] = []
+        
+        for question in questions {
+            let questionId = question.id ?? UUID().uuidString
+            let selectedIndex = userAnswers[questionId]
+            let isCorrect = (selectedIndex == question.correctOptionIndex)
+            
+            if isCorrect {
+                correctCount += 1
+            }
+            
+            let result = QuestionResult(
+                id: UUID().uuidString,
+                questionId: questionId,
+                questionText: question.questionText,
+                options: question.options,
+                correctOptionIndex: question.correctOptionIndex,
+                userSelectedOptionIndex: selectedIndex,
+                isCorrect: isCorrect,
+                feedback: question.feedback ?? ""
+            )
+            results.append(result)
+        }
+        
+        let snapshot = QuizSnapshot(
+            id: UUID().uuidString,
+            userId: userId,
+            subjectId: subjectName,
+            subtopic: lessonName,
+            score: correctCount,
+            totalQuestions: questions.count,
+            dateTaken: Date(),
+            questionResults: results
+        )
+        
+        self.currentSnapshot = snapshot
+        
+        do {
+            try db.collection("quizSnapshots").document(snapshot.id ?? UUID().uuidString).setData(from: snapshot)
+        } catch {
+            print("Failed to store snapshot: \(error.localizedDescription)")
+        }
+        
+        // Transactional Progress Commitment Execution Block
+        let area: SubjectArea
+        let lower = subjectName.lowercased()
+        if lower.contains("algebra") { area = .algebra }
+        else if lower.contains("advanced") { area = .advancedMath }
+        else if lower.contains("problem") || lower.contains("data") { area = .problemSolvingDataAnalysis }
+        else { area = .geometryTrigonometry }
+        
+        let userProgressRef = db.collection("UserProgress").document(userId)
+        
+        do {
+            try await db.runTransaction { (transaction, errorPointer) -> Any? in
+                let docSnapshot: DocumentSnapshot
+                do {
+                    docSnapshot = try transaction.getDocument(userProgressRef)
+                } catch {
+                    return nil
+                }
+                
+                var totalAttempted = docSnapshot.data()?["questionsAttempted"] as? Int ?? 0
+                totalAttempted += self.questions.count
+                
+                var progressDict = docSnapshot.data()?["progress"] as? [String: [String: Any]] ?? [:]
+                var subjectData = progressDict[area.rawValue] ?? ["questionsAttempted": 0, "questionsCorrect": 0]
+                
+                let subAttempted = (subjectData["questionsAttempted"] as? Int ?? 0) + self.questions.count
+                let subCorrect = (subjectData["questionsCorrect"] as? Int ?? 0) + correctCount
+                
+                subjectData["questionsAttempted"] = subAttempted
+                subjectData["questionsCorrect"] = subCorrect
+                progressDict[area.rawValue] = subjectData
+                
+                var answeredMap = docSnapshot.data()?["answeredQuestions"] as? [String: Bool] ?? [:]
+                for res in results {
+                    answeredMap[res.questionId] = res.isCorrect
+                }
+                
+                transaction.updateData([
+                    "questionsAttempted": totalAttempted,
+                    "answeredQuestions": answeredMap,
+                    "progress": progressDict
+                ], forDocument: userProgressRef)
+                
+                return nil
+            }
+        } catch {
+            print("Transaction error processing progress values: \(error.localizedDescription)")
+        }
+        
+        self.isQuizComplete = true
+    }
+    
+    // Kept to satisfy legacy signatures during incremental workspace refactoring
     func updateUserProgressForSubject(userID: String, subjectArea: SubjectArea, answeredCorrectly: Bool, questionDocumentID: String) async throws {
-        // Your implementation for updating user progress
+        // Handled dynamically within the unified transactional atomic block in finishPracticeTest
     }
 }
