@@ -41,13 +41,16 @@ class AdminTestManagerViewModel {
         for i in 1...10 {
             let question = Question(
                 id: UUID().uuidString,
-                questionText: "Recommended Question \(i) covering \(lessonName)",
-                options: ["Option A", "Option B", "Option C", "Option D"],
                 correctOptionIndex: 0,
+                options: ["Option A", "Option B", "Option C", "Option D"],
+                points: 10,
+                questionText: "Recommended Question \(i) covering \(lessonName)",
+                type: "multipleChoice",
+                subject: subjectName,
+                subtopic: lessonName,
                 hint: "Review the standard properties of \(lessonName).",
                 feedback: "Option A is correct based on foundational logic.",
-                subject: subjectName,
-                subtopic: lessonName
+                testId: ""
             )
             newQuestions.append(question)
         }
@@ -79,13 +82,16 @@ class AdminTestManagerViewModel {
             for question in generatedQuestions {
                 let docData: [String: Any] = [
                     "id": question.id ?? UUID().uuidString,
+                    "correctOptionIndex": question.correctOptionIndex,
+                    "options": question.options,
+                    "points": question.points,
+                    "questionText": question.questionText,
+                    "type": question.type,
                     "subject": subjectName,
                     "subtopic": lessonName,
-                    "questionText": question.questionText,
-                    "options": question.options,
-                    "correctOptionIndex": question.correctOptionIndex,
                     "hint": question.hint ?? "",
-                    "feedback": question.feedback ?? ""
+                    "feedback": question.feedback ?? "",
+                    "testId": testId
                 ]
                 
                 // Write to hierarchical subcollection
