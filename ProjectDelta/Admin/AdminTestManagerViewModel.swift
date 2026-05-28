@@ -19,8 +19,8 @@ import FirebaseFirestore
 @MainActor
 @Observable
 class AdminTestManagerViewModel {
-    var subjectName: String = "Algebra"
-    var lessonName: String = "Linear Equations"
+    var subjectName: String = ""
+    var lessonName: String = ""
     var generatedQuestions: [Question] = []
     
     var isGenerating: Bool = false
@@ -33,8 +33,7 @@ class AdminTestManagerViewModel {
     func generateRecommendedTest() async {
         isGenerating = true
         
-        // Simulating the LLM/Network delay for test generation. 
-        // Replace this block with your actual server-side API call if needed.
+        // Simulating the LLM/Network delay for test generation.
         try? await Task.sleep(for: .seconds(1.5))
         
         var newQuestions: [Question] = []
@@ -78,7 +77,7 @@ class AdminTestManagerViewModel {
             ]
             batch.setData(testData, forDocument: testRef)
             
-            // 2. Batch write questions to both hierarchical and flat collections to guarantee seamless fetching across legacy logic
+            // 2. Batch write questions to both hierarchical and flat collections
             for question in generatedQuestions {
                 let docData: [String: Any] = [
                     "id": question.id ?? UUID().uuidString,
@@ -114,9 +113,16 @@ class AdminTestManagerViewModel {
 }
 
 struct AdminTestManagerView: View {
-    @State private var viewModel = AdminTestManagerViewModel()
+    @State private var viewModel: AdminTestManagerViewModel
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
+
+    init(subjectName: String, lessonName: String) {
+        let vm = AdminTestManagerViewModel()
+        vm.subjectName = subjectName
+        vm.lessonName = lessonName
+        _viewModel = State(initialValue: vm)
+    }
 
     var body: some View {
         NavigationStack {
@@ -228,7 +234,10 @@ struct AdminTestManagerView: View {
             .scrollDismissesKeyboard(.interactively)
             
             Button(action: {
-                Task { await viewModel.saveTestToDatabase() }
+                Task {
+                    await viewModel.saveTestToDatabase()
+                    dismiss()
+                }
             }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
@@ -249,8 +258,4 @@ struct AdminTestManagerView: View {
             .padding()
         }
     }
-}
-
-#Preview {
-    AdminTestManagerView()
 }
