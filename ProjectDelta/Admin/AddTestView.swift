@@ -2,11 +2,10 @@
 //  AddTestView.swift
 //  ProjectDelta
 //
-//  Created for Seamless Test Generation & Editing Flow
-//
 
 import SwiftUI
 import FirebaseFirestore
+import Observation
 
 @MainActor
 @Observable
@@ -14,7 +13,7 @@ class TestBuilderViewModel {
     var subjectName: String = ""
     var lessonName: String = ""
     var testTitle: String = ""
-    var generatedQuestions: [Question] = []
+    var generatedQuestions: [QuestionWrapper] = []
     
     var isGenerating: Bool = false
     var isSaving: Bool = false
@@ -37,7 +36,8 @@ class TestBuilderViewModel {
         isGenerating = true
         do {
             let snapshot = try await db.collection("Tests").document(testId).collection("Questions").getDocuments()
-            self.generatedQuestions = snapshot.documents.compactMap { try? $0.data(as: Question.self) }
+            let rawQuestions = snapshot.documents.compactMap { try? $0.data(as: Question.self) }
+            self.generatedQuestions = rawQuestions.map { QuestionWrapper(question: $0) }
             self.showEditor = true
         } catch {
             print("Failed to load test questions: \(error.localizedDescription)")
@@ -48,8 +48,23 @@ class TestBuilderViewModel {
     func generateRecommendedTest() async {
         isGenerating = true
         
-        // Simulating the LLM generation delay. Hook this up to your actual API if needed.
         try? await Task.sleep(nanoseconds: 2_000_000_000)
+        
+        self.generatedQuestions = (1...10).map { _ in
+            QuestionWrapper(question: Question(
+                id: UUID().uuidString,
+                correctOptionIndex: 0,
+                options: ["", "", "", ""],
+                points: 10,
+                questionText: "",
+                type: "multiple_choice",
+                subject: subjectName,
+                subtopic: lessonName,
+                hint: "",
+                feedback: "",
+                testId: ""
+            ))
+        }
         
         showEditor = true
         isGenerating = false
@@ -58,6 +73,7 @@ class TestBuilderViewModel {
     func saveTestToDatabase() async {
         isSaving = true
         
+        // let finalDataToSave = generatedQuestions.map { $0.question }
         // Save logic to Firebase would go here
         try? await Task.sleep(nanoseconds: 1_000_000_000)
         
@@ -66,7 +82,6 @@ class TestBuilderViewModel {
 }
 
 struct AddTestView: View {
-    // Added to satisfy initialization from AdminView
     let subjectName: String
     let lessonName: String
     var existingTest: Test? = nil
@@ -86,7 +101,6 @@ struct AddTestView: View {
         .navigationTitle(existingTest != nil ? "Edit Test" : "New Test")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            // Passes existing test ID to trigger the Firebase fetch logic dynamically
             await viewModel.initialize(subject: subjectName, lesson: lessonName, testId: existingTest?.id)
             if existingTest != nil {
                 viewModel.testTitle = existingTest?.subject ?? "Untitled Test"
@@ -142,45 +156,38 @@ struct AddTestView: View {
                         .font(.headline)
                 }
                 
-                Section(header: Text("Questions")) {
-                    ForEach(viewModel.generatedQuestions.indices, id: \.self) { index in
-                        VStack(alignment: .leading, spacing: 12) {
-                            TextField("Question Text", text: Binding(
-                                get: { viewModel.generatedQuestions[index].questionText },
-                                set: { viewModel.generatedQuestions[index].questionText = $0 }
-                            ), axis: .vertical)
-                            .font(.body)
-                            .fontWeight(.bold)
-                            
-                            // 4 Options per question
-                            ForEach(0..<4, id: \.self) { optIndex in
-                                HStack {
-                                    Image(systemName: viewModel.generatedQuestions[index].correctOptionIndex == optIndex ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(viewModel.generatedQuestions[index].correctOptionIndex == optIndex ? .green : .gray)
-                                        .onTapGesture {
-                                            viewModel.generatedQuestions[index].correctOptionIndex = optIndex
-                                        }
-                                    
-                                    TextField("Option \(optIndex + 1)", text: Binding(
-                                        get: {
-                                            guard optIndex < viewModel.generatedQuestions[index].options.count else { return "" }
-                                            return viewModel.generatedQuestions[index].options[optIndex]
-                                        },
-                                        set: { newValue in
-                                            // Pad the array if needed to prevent index out of bounds
-                                            while viewModel.generatedQuestions[index].options.count <= optIndex {
-                                                viewModel.generatedQuestions[index].options.append("")
-                                            }
-                                            viewModel.generatedQuestions[index].options[optIndex] = newValue
-                                        }
-                                    ))
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                }
+                ForEach($viewModel.generatedQuestions) { $wrapper in
+                    AdminQuestionEditorCell(
+                        question: $wrapper.question,
+                        index: viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) ?? 0,
+                        onDelete: {
+                            withAnimation {
+                                viewModel.generatedQuestions.removeAll(where: { $0.id == wrapper.id })
                             }
                         }
-                        .padding(.vertical, 8)
+                    )
+                }
+                
+                Button(action: {
+                    withAnimation {
+                        viewModel.generatedQuestions.append(QuestionWrapper(question: Question(
+                            id: UUID().uuidString,
+                            correctOptionIndex: 0,
+                            options: ["", "", "", ""],
+                            points: 10,
+                            questionText: "",
+                            type: "multiple_choice",
+                            subject: viewModel.subjectName,
+                            subtopic: viewModel.lessonName,
+                            hint: "",
+                            feedback: "",
+                            testId: viewModel.existingTestId
+                        )))
                     }
+                }) {
+                    Label("Add Another Question", systemImage: "plus.circle.fill")
+                        .font(.headline)
+                        .foregroundColor(.blue)
                 }
             }
             .listStyle(.insetGrouped)

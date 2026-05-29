@@ -21,7 +21,7 @@ struct Question: Identifiable, Codable {
     var subtopic: String?
     var hint: String?
     var feedback: String?
-    var testId: String? // Added to link to specific tests
+    var testId: String?
 
     var dictionary: [String: Any] {
         var dict: [String: Any] = [
@@ -51,4 +51,54 @@ struct Question: Identifiable, Codable {
         
         return dict
     }
+}
+
+// MARK: - Block Editor Models & Extensions
+// Centralized to prevent module-wide redeclaration errors.
+
+enum QuestionBlockType: String, CaseIterable {
+    case text = "Text"
+    case math = "Equation"
+    case graph = "Graph"
+}
+
+enum QuestionGraphType: String, CaseIterable {
+    case equation = "Function (y = f(x))"
+    case points = "Points Data"
+}
+
+struct QuestionBlockModel: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var type: String
+    var content: String
+    var graphType: String?
+}
+
+extension Question {
+    var parsedBlocks: [QuestionBlockModel] {
+        if let data = questionText.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([QuestionBlockModel].self, from: data) {
+            return decoded
+        }
+        if questionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return []
+        }
+        return [QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: questionText)]
+    }
+    
+    mutating func updateWith(blocks: [QuestionBlockModel]) {
+        if let data = try? JSONEncoder().encode(blocks),
+           let jsonString = String(data: data, encoding: .utf8) {
+            self.questionText = jsonString
+        } else {
+            self.questionText = blocks.map { $0.content }.joined(separator: "\n")
+        }
+    }
+}
+
+// MARK: - Wrapper to Prevent SwiftUI Index Crashes
+/// Wraps a Question with a strict local UUID to allow perfectly safe deletions and ForEach iterations.
+struct QuestionWrapper: Identifiable {
+    let id = UUID()
+    var question: Question
 }

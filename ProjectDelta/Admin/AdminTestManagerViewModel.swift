@@ -7,6 +7,9 @@
 
 import SwiftUI
 import FirebaseFirestore
+import Observation
+
+// MARK: - ViewModel
 
 @MainActor
 @Observable
@@ -14,13 +17,11 @@ class AdminTestManagerViewModel {
     var subjectName: String = ""
     var lessonName: String = ""
     
-    // Separate state variables so the TextField doesn't break the Picker binding
     var customSubjectName: String = ""
     var customLessonName: String = ""
     
-    var generatedQuestions: [Question] = []
+    var generatedQuestions: [QuestionWrapper] = []
     
-    // Dropdown Data
     var availableSubjects: [String] = []
     var availableLessons: [String] = []
     
@@ -39,7 +40,6 @@ class AdminTestManagerViewModel {
         let subjectsSnap = try? await db.collection("Subjects").getDocuments()
         self.availableSubjects = (subjectsSnap?.documents.compactMap { $0.data()["name"] as? String } ?? []) + ["+ Add New Subject"]
         
-        // Safety check to prevent SwiftUI Picker invalid tag error
         if !self.availableSubjects.contains(self.subjectName) {
             self.subjectName = self.availableSubjects.first ?? "+ Add New Subject"
         }
@@ -71,7 +71,6 @@ class AdminTestManagerViewModel {
             
             self.availableLessons = lessonsSnap.documents.compactMap { $0.data()["name"] as? String } + ["+ Add New Lesson"]
             
-            // Critical Fix: Force the lesson name to a valid tag so the Picker doesn't visually break
             if !self.availableLessons.contains(self.lessonName) {
                 self.lessonName = self.availableLessons.first ?? "+ Add New Lesson"
             }
@@ -83,7 +82,6 @@ class AdminTestManagerViewModel {
         }
     }
     
-    // Computed properties to evaluate what actually gets saved to the database
     var finalSubject: String {
         return subjectName == "+ Add New Subject" ? customSubjectName : subjectName
     }
@@ -96,20 +94,20 @@ class AdminTestManagerViewModel {
         isGenerating = true
         try? await Task.sleep(for: .seconds(1.5))
         
-        self.generatedQuestions = (1...10).map { i in
-            Question(
+        self.generatedQuestions = (1...10).map { _ in
+            QuestionWrapper(question: Question(
                 id: UUID().uuidString,
                 correctOptionIndex: 0,
                 options: ["", "", "", ""],
                 points: 10,
-                questionText: "Question \(i)",
-                type: "multipleChoice",
+                questionText: "",
+                type: "multiple_choice",
                 subject: finalSubject,
                 subtopic: finalLesson,
                 hint: "",
                 feedback: "",
                 testId: ""
-            )
+            ))
         }
         
         isGenerating = false
@@ -135,7 +133,8 @@ class AdminTestManagerViewModel {
             ]
             batch.setData(testData, forDocument: testRef)
             
-            for question in generatedQuestions {
+            for wrapper in generatedQuestions {
+                let question = wrapper.question
                 let docData: [String: Any] = [
                     "id": question.id ?? UUID().uuidString,
                     "correctOptionIndex": question.correctOptionIndex,
@@ -167,102 +166,272 @@ class AdminTestManagerViewModel {
     }
 }
 
-// MARK: - View
+// MARK: - Main View
 
 struct AdminTestManagerView: View {
     @State private var viewModel: AdminTestManagerViewModel
     @Environment(\.dismiss) var dismiss
 
     init(subjectName: String, lessonName: String) {
-        _viewModel = State(initialValue: AdminTestManagerViewModel(subject: subjectName, lesson: lessonName))
+        _viewModel = State(wrappedValue: AdminTestManagerViewModel(subject: subjectName, lesson: lessonName))
     }
 
     var body: some View {
         NavigationStack {
             List {
                 if !viewModel.showEditor {
-                    Section("Selection") {
-                        Picker("Subject", selection: $viewModel.subjectName) {
-                            ForEach(viewModel.availableSubjects, id: \.self) { Text($0) }
-                        }
-                        .onChange(of: viewModel.subjectName) { _, newSubject in
-                            Task { await viewModel.updateLessons(for: newSubject) }
-                        }
-                        
-                        if viewModel.subjectName == "+ Add New Subject" {
-                            TextField("New Subject Name", text: $viewModel.customSubjectName)
-                        }
-                        
-                        Picker("Lesson", selection: $viewModel.lessonName) {
-                            ForEach(viewModel.availableLessons, id: \.self) { Text($0) }
-                        }
-                        
-                        if viewModel.lessonName == "+ Add New Lesson" {
-                            TextField("New Lesson Name", text: $viewModel.customLessonName)
-                        }
-                    }
-                    
-                    Button("Generate Questions") {
-                        Task { await viewModel.generateRecommendedTest() }
-                    }
-                    .disabled(
-                        (viewModel.subjectName == "+ Add New Subject" && viewModel.customSubjectName.isEmpty) ||
-                        (viewModel.lessonName == "+ Add New Lesson" && viewModel.customLessonName.isEmpty) ||
-                        viewModel.isGenerating
-                    )
+                    generatorConfigurationSection
                 } else {
-                    ForEach($viewModel.generatedQuestions) { $question in
-                        Section(header: Text("Question").font(.headline)) {
-                            TextField("Question Text", text: $question.questionText, axis: .vertical)
-                                .font(.body)
-                                .lineLimit(2...5)
-                            
-                            ForEach(0..<question.options.count, id: \.self) { index in
-                                HStack {
-                                    Button(action: { question.correctOptionIndex = index }) {
-                                        Image(systemName: question.correctOptionIndex == index ? "checkmark.circle.fill" : "circle")
-                                            .foregroundColor(question.correctOptionIndex == index ? .green : .secondary)
-                                    }
-                                    .buttonStyle(.plain)
-                                    
-                                    TextField("Option \(index + 1)", text: Binding(
-                                        get: { question.options[index] },
-                                        set: { question.options[index] = $0 }
-                                    ))
-                                }
-                            }
-                            
-                            TextField("Hint", text: Binding(
-                                get: { question.hint ?? "" },
-                                set: { question.hint = $0 }
-                            ))
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    Button(action: {
-                        Task {
-                            await viewModel.saveTestToDatabase()
-                            dismiss()
-                        }
-                    }) {
-                        HStack {
-                            Spacer()
-                            if viewModel.isSaving {
-                                ProgressView().tint(.green)
-                            } else {
-                                Text("Save Test to Database")
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.green)
-                            }
-                            Spacer()
-                        }
-                    }
-                    .disabled(viewModel.isSaving)
+                    editorSection
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .task { await viewModel.fetchDropdownData() }
         }
+    }
+    
+    @ViewBuilder
+    private var generatorConfigurationSection: some View {
+        Section("Selection") {
+            Picker("Subject", selection: $viewModel.subjectName) {
+                ForEach(viewModel.availableSubjects, id: \.self) { subject in
+                    Text(subject).tag(subject)
+                }
+            }
+            .onChange(of: viewModel.subjectName) { _, newSubject in
+                Task { await viewModel.updateLessons(for: newSubject) }
+            }
+            
+            if viewModel.subjectName == "+ Add New Subject" {
+                TextField("New Subject Name", text: $viewModel.customSubjectName)
+            }
+            
+            Picker("Lesson", selection: $viewModel.lessonName) {
+                ForEach(viewModel.availableLessons, id: \.self) { lesson in
+                    Text(lesson).tag(lesson)
+                }
+            }
+            
+            if viewModel.lessonName == "+ Add New Lesson" {
+                TextField("New Lesson Name", text: $viewModel.customLessonName)
+            }
+        }
+        
+        Button("Generate Questions") {
+            Task { await viewModel.generateRecommendedTest() }
+        }
+        .disabled(
+            (viewModel.subjectName == "+ Add New Subject" && viewModel.customSubjectName.isEmpty) ||
+            (viewModel.lessonName == "+ Add New Lesson" && viewModel.customLessonName.isEmpty) ||
+            viewModel.isGenerating
+        )
+    }
+    
+    @ViewBuilder
+    private var editorSection: some View {
+        ForEach($viewModel.generatedQuestions) { $wrapper in
+            AdminQuestionEditorCell(
+                question: $wrapper.question,
+                index: viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) ?? 0,
+                onDelete: {
+                    withAnimation {
+                        viewModel.generatedQuestions.removeAll(where: { $0.id == wrapper.id })
+                    }
+                }
+            )
+        }
+        
+        Button(action: {
+            withAnimation {
+                viewModel.generatedQuestions.append(QuestionWrapper(question: Question(
+                    id: UUID().uuidString,
+                    correctOptionIndex: 0,
+                    options: ["", "", "", ""],
+                    points: 10,
+                    questionText: "",
+                    type: "multiple_choice",
+                    subject: viewModel.finalSubject,
+                    subtopic: viewModel.finalLesson,
+                    hint: "",
+                    feedback: "",
+                    testId: ""
+                )))
+            }
+        }) {
+            Label("Add Another Question", systemImage: "plus.circle.fill")
+                .font(.headline)
+                .foregroundColor(.blue)
+        }
+        
+        Button(action: {
+            Task {
+                await viewModel.saveTestToDatabase()
+                dismiss()
+            }
+        }) {
+            HStack {
+                Spacer()
+                if viewModel.isSaving {
+                    ProgressView().tint(.green)
+                } else {
+                    Text("Save Test to Database")
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                }
+                Spacer()
+            }
+        }
+        .disabled(viewModel.isSaving)
+    }
+}
+
+// MARK: - Reusable Editor Subcomponents (Shared with AddTestView)
+
+struct AdminQuestionEditorCell: View {
+    @Binding var question: Question
+    let index: Int
+    let onDelete: () -> Void
+    
+    @State private var blocks: [QuestionBlockModel] = []
+    
+    var body: some View {
+        Section {
+            HStack {
+                Text("Problem \(index + 1)")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Spacer()
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
+            }
+            .padding(.bottom, 4)
+            
+            ForEach($blocks) { $block in
+                AdminBlockEditorRow(block: $block) {
+                    withAnimation {
+                        blocks.removeAll { $0.id == block.id }
+                    }
+                }
+            }
+            
+            HStack {
+                Button(action: { addBlock(type: .text) }) {
+                    Label("Text", systemImage: "text.alignleft")
+                        .font(.caption).fontWeight(.bold)
+                }
+                .buttonStyle(.bordered)
+                .tint(.blue)
+                
+                Button(action: { addBlock(type: .math) }) {
+                    Label("Equation", systemImage: "function")
+                        .font(.caption).fontWeight(.bold)
+                }
+                .buttonStyle(.bordered)
+                .tint(.purple)
+                
+                Button(action: { addBlock(type: .graph) }) {
+                    Label("Graph", systemImage: "chart.xyaxis.line")
+                        .font(.caption).fontWeight(.bold)
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+            }
+            .padding(.vertical, 6)
+            
+            ForEach(0..<question.options.count, id: \.self) { optIndex in
+                HStack {
+                    Button(action: { question.correctOptionIndex = optIndex }) {
+                        Image(systemName: question.correctOptionIndex == optIndex ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(question.correctOptionIndex == optIndex ? .green : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    TextField("Option \(optIndex + 1)", text: Binding(
+                        get: { question.options[optIndex] },
+                        set: { question.options[optIndex] = $0 }
+                    ))
+                }
+            }
+            
+            TextField("Hint (Optional)", text: Binding(
+                get: { question.hint ?? "" },
+                set: { question.hint = $0 }
+            ))
+            .font(.footnote)
+            .foregroundColor(.secondary)
+            
+        }
+        .onAppear {
+            var initialBlocks = question.parsedBlocks
+            if initialBlocks.isEmpty {
+                initialBlocks.append(QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: ""))
+            }
+            blocks = initialBlocks
+        }
+        .onChange(of: blocks) { _, newValue in
+            question.updateWith(blocks: newValue)
+        }
+    }
+    
+    private func addBlock(type: QuestionBlockType) {
+        withAnimation {
+            let newBlock = QuestionBlockModel(
+                type: type.rawValue,
+                content: "",
+                graphType: type == .graph ? QuestionGraphType.equation.rawValue : nil
+            )
+            blocks.append(newBlock)
+        }
+    }
+}
+
+struct AdminBlockEditorRow: View {
+    @Binding var block: QuestionBlockModel
+    var onRemove: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(block.type.uppercased())
+                    .font(.caption2)
+                    .fontWeight(.black)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+            }
+            
+            if block.type == QuestionBlockType.graph.rawValue {
+                Picker("Graph Type", selection: Binding(
+                    get: { block.graphType ?? QuestionGraphType.equation.rawValue },
+                    set: { block.graphType = $0 }
+                )) {
+                    ForEach(QuestionGraphType.allCases, id: \.rawValue) { type in
+                        Text(type.rawValue).tag(type.rawValue)
+                    }
+                }
+                .pickerStyle(SegmentedPickerStyle())
+            }
+            
+            if block.type == QuestionBlockType.text.rawValue {
+                TextField("Enter text...", text: $block.content, axis: .vertical)
+                    .lineLimit(2...8)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            } else if block.type == QuestionBlockType.math.rawValue {
+                TextField("Enter LaTeX...", text: $block.content, axis: .vertical)
+                    .font(.system(.body, design: .monospaced))
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            } else {
+                TextField(block.graphType == QuestionGraphType.equation.rawValue ? "Enter function (e.g. y = 2x)" : "Enter points data", text: $block.content, axis: .vertical)
+                    .font(.system(.body, design: .monospaced))
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
