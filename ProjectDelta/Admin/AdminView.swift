@@ -34,7 +34,7 @@ struct AdminView: View {
                 await viewModel.fetchAllQuestions()
             }
         }
-        .tint(.red) // Applies the red styling to all default navigation back arrows
+        .tint(.red)
     }
     
     // MARK: - Sub-Expressions
@@ -81,7 +81,6 @@ struct AdminSubjectDetailView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(subject.name)
         .task {
-            // Fetch the specific data for the chosen subject
             if let id = subject.id {
                 await viewModel.fetchLessons(for: id)
                 await viewModel.fetchTests(for: id)
@@ -120,15 +119,15 @@ struct AdminSubjectDetailView: View {
                     .font(.headline)
             }
             
-            // Re-wired to pass the required variables + the existing test for editing
+            // FIXED: Now accurately displays the Subtopic and statistics from the Test object
             ForEach(viewModel.tests) { test in
-                NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: test.subject ?? "Unknown Lesson", existingTest: test)) {
+                NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(test.id ?? "Unknown ID")
+                        Text("\(test.subtopic ?? "Untitled") Test")
                             .font(.body)
                             .fontWeight(.semibold)
                         
-                        Text(test.subject ?? "Uncategorized")
+                        Text("\(test.questionAmount) Questions • \(test.timeLimit) Mins")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

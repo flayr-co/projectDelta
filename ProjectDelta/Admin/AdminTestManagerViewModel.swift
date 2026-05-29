@@ -20,6 +20,8 @@ class AdminTestManagerViewModel {
     var customSubjectName: String = ""
     var customLessonName: String = ""
     
+    var questionCount: Int = 10
+    
     var generatedQuestions: [QuestionWrapper] = []
     
     var availableSubjects: [String] = []
@@ -94,7 +96,7 @@ class AdminTestManagerViewModel {
         isGenerating = true
         try? await Task.sleep(for: .seconds(1.5))
         
-        self.generatedQuestions = (1...10).map { _ in
+        self.generatedQuestions = (0..<questionCount).map { _ in
             QuestionWrapper(question: Question(
                 id: UUID().uuidString,
                 correctOptionIndex: 0,
@@ -120,14 +122,22 @@ class AdminTestManagerViewModel {
         let targetLesson = finalLesson
         
         do {
+            let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: targetSubject).getDocuments()
+            let subjectId = subjectQuery.documents.first?.documentID ?? targetSubject
+            
             let batch = db.batch()
             
             let testId = UUID().uuidString
-            let testRef = db.collection("Tests").document(testId)
+            let testRef = db.collection("Subjects").document(subjectId).collection("Tests").document(testId)
+            
+            // FIXED: Included required Codable fields (questionAmount, testIdentifier, timeLimit) to prevent silent decoding failures.
+            // FIXED: Removed "id" field to prevent @DocumentID Firestore collisions.
             let testData: [String: Any] = [
-                "id": testId,
+                "questionAmount": generatedQuestions.count,
                 "subject": targetSubject,
-                "lesson": targetLesson,
+                "subtopic": targetLesson,
+                "testIdentifier": Int.random(in: 1000...9999),
+                "timeLimit": 60,
                 "title": "\(targetLesson) Test",
                 "createdAt": FieldValue.serverTimestamp()
             ]
@@ -135,8 +145,10 @@ class AdminTestManagerViewModel {
             
             for wrapper in generatedQuestions {
                 let question = wrapper.question
+                let qId = question.id ?? UUID().uuidString
+                
+                // FIXED: Removed "id" injection
                 let docData: [String: Any] = [
-                    "id": question.id ?? UUID().uuidString,
                     "correctOptionIndex": question.correctOptionIndex,
                     "options": question.options,
                     "points": question.points,
@@ -149,10 +161,10 @@ class AdminTestManagerViewModel {
                     "testId": testId
                 ]
                 
-                let subRef = testRef.collection("Questions").document(question.id ?? UUID().uuidString)
+                let subRef = testRef.collection("Questions").document(qId)
                 batch.setData(docData, forDocument: subRef)
                 
-                let flatRef = db.collection("questions").document(question.id ?? UUID().uuidString)
+                let flatRef = db.collection("questions").document(qId)
                 batch.setData(docData, forDocument: flatRef)
             }
             
@@ -215,6 +227,10 @@ struct AdminTestManagerView: View {
             if viewModel.lessonName == "+ Add New Lesson" {
                 TextField("New Lesson Name", text: $viewModel.customLessonName)
             }
+            
+            Stepper(value: $viewModel.questionCount, in: 1...50) {
+                Text("Number of Questions: \(viewModel.questionCount)")
+            }
         }
         
         Button("Generate Questions") {
@@ -229,10 +245,23 @@ struct AdminTestManagerView: View {
     
     @ViewBuilder
     private var editorSection: some View {
-        ForEach($viewModel.generatedQuestions) { $wrapper in
+        ForEach(viewModel.generatedQuestions) { wrapper in
+            let safeBinding = Binding<Question>(
+                get: {
+                    guard let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) else { return wrapper.question }
+                    return viewModel.generatedQuestions[index].question
+                },
+                set: { newValue in
+                    guard let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) else { return }
+                    viewModel.generatedQuestions[index].question = newValue
+                }
+            )
+            
+            let displayIndex = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) ?? 0
+            
             AdminQuestionEditorCell(
-                question: $wrapper.question,
-                index: viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) ?? 0,
+                question: safeBinding,
+                index: displayIndex,
                 onDelete: {
                     withAnimation {
                         viewModel.generatedQuestions.removeAll(where: { $0.id == wrapper.id })
@@ -285,7 +314,7 @@ struct AdminTestManagerView: View {
     }
 }
 
-// MARK: - Reusable Editor Subcomponents (Shared with AddTestView)
+// MARK: - Reusable Editor Subcomponents
 
 struct AdminQuestionEditorCell: View {
     @Binding var question: Question

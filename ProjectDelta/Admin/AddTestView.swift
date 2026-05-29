@@ -13,6 +13,8 @@ class TestBuilderViewModel {
     var subjectName: String = ""
     var lessonName: String = ""
     var testTitle: String = ""
+    
+    var questionCount: Int = 10
     var generatedQuestions: [QuestionWrapper] = []
     
     var isGenerating: Bool = false
@@ -35,7 +37,10 @@ class TestBuilderViewModel {
     private func loadExistingTest(testId: String) async {
         isGenerating = true
         do {
-            let snapshot = try await db.collection("Tests").document(testId).collection("Questions").getDocuments()
+            let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
+            let subjectId = subjectQuery.documents.first?.documentID ?? subjectName
+            
+            let snapshot = try await db.collection("Subjects").document(subjectId).collection("Tests").document(testId).collection("Questions").getDocuments()
             let rawQuestions = snapshot.documents.compactMap { try? $0.data(as: Question.self) }
             self.generatedQuestions = rawQuestions.map { QuestionWrapper(question: $0) }
             self.showEditor = true
@@ -48,9 +53,9 @@ class TestBuilderViewModel {
     func generateRecommendedTest() async {
         isGenerating = true
         
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        try? await Task.sleep(for: .seconds(1.5))
         
-        self.generatedQuestions = (1...10).map { _ in
+        self.generatedQuestions = (0..<questionCount).map { _ in
             QuestionWrapper(question: Question(
                 id: UUID().uuidString,
                 correctOptionIndex: 0,
@@ -73,9 +78,56 @@ class TestBuilderViewModel {
     func saveTestToDatabase() async {
         isSaving = true
         
-        // let finalDataToSave = generatedQuestions.map { $0.question }
-        // Save logic to Firebase would go here
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        do {
+            let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
+            let subjectId = subjectQuery.documents.first?.documentID ?? subjectName
+            
+            let batch = db.batch()
+            
+            let testId = existingTestId ?? UUID().uuidString
+            let testRef = db.collection("Subjects").document(subjectId).collection("Tests").document(testId)
+            
+            // FIXED: Included required Codable fields and removed explicit "id" mapping
+            let testData: [String: Any] = [
+                "questionAmount": generatedQuestions.count,
+                "subject": subjectName,
+                "subtopic": lessonName,
+                "testIdentifier": Int.random(in: 1000...9999),
+                "timeLimit": 60,
+                "title": testTitle.isEmpty ? "\(lessonName) Test" : testTitle,
+                "createdAt": FieldValue.serverTimestamp()
+            ]
+            batch.setData(testData, forDocument: testRef)
+            
+            for wrapper in generatedQuestions {
+                let question = wrapper.question
+                let qId = question.id ?? UUID().uuidString
+                
+                // FIXED: Removed "id" injection
+                let docData: [String: Any] = [
+                    "correctOptionIndex": question.correctOptionIndex,
+                    "options": question.options,
+                    "points": question.points,
+                    "questionText": question.questionText,
+                    "type": question.type,
+                    "subject": subjectName,
+                    "subtopic": lessonName,
+                    "hint": question.hint ?? "",
+                    "feedback": question.feedback ?? "",
+                    "testId": testId
+                ]
+                
+                let subRef = testRef.collection("Questions").document(qId)
+                batch.setData(docData, forDocument: subRef)
+                
+                let flatRef = db.collection("questions").document(qId)
+                batch.setData(docData, forDocument: flatRef)
+            }
+            
+            try await batch.commit()
+        } catch {
+            print("Failed to save test: \(error.localizedDescription)")
+        }
         
         isSaving = false
     }
@@ -119,6 +171,13 @@ struct AddTestView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             
+            Stepper(value: $viewModel.questionCount, in: 1...50) {
+                Text("Number of Questions: \(viewModel.questionCount)")
+                    .font(.headline)
+            }
+            .padding(.horizontal)
+            .padding(.top, 10)
+            
             Button(action: {
                 Task {
                     await viewModel.generateRecommendedTest()
@@ -156,10 +215,23 @@ struct AddTestView: View {
                         .font(.headline)
                 }
                 
-                ForEach($viewModel.generatedQuestions) { $wrapper in
+                ForEach(viewModel.generatedQuestions) { wrapper in
+                    let safeBinding = Binding<Question>(
+                        get: {
+                            guard let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) else { return wrapper.question }
+                            return viewModel.generatedQuestions[index].question
+                        },
+                        set: { newValue in
+                            guard let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) else { return }
+                            viewModel.generatedQuestions[index].question = newValue
+                        }
+                    )
+                    
+                    let displayIndex = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) ?? 0
+                    
                     AdminQuestionEditorCell(
-                        question: $wrapper.question,
-                        index: viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) ?? 0,
+                        question: safeBinding,
+                        index: displayIndex,
                         onDelete: {
                             withAnimation {
                                 viewModel.generatedQuestions.removeAll(where: { $0.id == wrapper.id })
