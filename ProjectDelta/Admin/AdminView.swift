@@ -21,7 +21,6 @@ struct AdminView: View {
             ZStack {
                 backgroundColor.ignoresSafeArea()
                 
-                // Show progress view only if processing and no subjects exist yet
                 if viewModel.isProcessing && viewModel.subjects.isEmpty {
                     ProgressView("Loading Admin Data...")
                 } else {
@@ -30,17 +29,12 @@ struct AdminView: View {
             }
             .navigationTitle("Admin Dashboard")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") { dismiss() }
-                        .tint(.red)
-                }
-            }
             .task {
                 await viewModel.fetchSubjects()
                 await viewModel.fetchAllQuestions()
             }
         }
+        .tint(.red) // Applies the red styling to all default navigation back arrows
     }
     
     // MARK: - Sub-Expressions
@@ -120,22 +114,24 @@ struct AdminSubjectDetailView: View {
     
     private var testsSection: some View {
         Section(header: Text("Test Generator").font(.headline)) {
-            // Passed in the dynamic subject name instead of hardcoded "Algebra"
             NavigationLink(destination: AdminTestManagerView(subjectName: subject.name, lessonName: "New Lesson")) {
                 Label("Generate Recommended Test", systemImage: "wand.and.stars")
                     .foregroundColor(.cyan)
                     .font(.headline)
             }
             
+            // Re-wired to pass the required variables + the existing test for editing
             ForEach(viewModel.tests) { test in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(test.id ?? "Unknown ID")
-                        .font(.body)
-                        .fontWeight(.semibold)
-                    
-                    Text(test.subject ?? "Uncategorized")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: test.subject ?? "Unknown Lesson", existingTest: test)) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(test.id ?? "Unknown ID")
+                            .font(.body)
+                            .fontWeight(.semibold)
+                        
+                        Text(test.subject ?? "Uncategorized")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
         }
