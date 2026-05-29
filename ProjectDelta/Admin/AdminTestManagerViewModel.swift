@@ -5,14 +5,6 @@
 //  Created by Jake Meissner on 5/27/26.
 //
 
-
-//
-//  AdminTestManagerView.swift
-//  ProjectDelta
-//
-//  Created for Admin Test Generation & Editing Flow
-//
-
 import SwiftUI
 import FirebaseFirestore
 
@@ -21,7 +13,16 @@ import FirebaseFirestore
 class AdminTestManagerViewModel {
     var subjectName: String = ""
     var lessonName: String = ""
+    
+    // Separate state variables so the TextField doesn't break the Picker binding
+    var customSubjectName: String = ""
+    var customLessonName: String = ""
+    
     var generatedQuestions: [Question] = []
+    
+    // Dropdown Data
+    var availableSubjects: [String] = []
+    var availableLessons: [String] = []
     
     var isGenerating: Bool = false
     var isSaving: Bool = false
@@ -29,55 +30,111 @@ class AdminTestManagerViewModel {
     
     private let db = Firestore.firestore()
     
-    /// Auto-generates a 10-question template for the selected lesson/subject framework
-    func generateRecommendedTest() async {
-        isGenerating = true
+    init(subject: String, lesson: String) {
+        self.subjectName = subject
+        self.lessonName = lesson
+    }
+    
+    func fetchDropdownData() async {
+        let subjectsSnap = try? await db.collection("Subjects").getDocuments()
+        self.availableSubjects = (subjectsSnap?.documents.compactMap { $0.data()["name"] as? String } ?? []) + ["+ Add New Subject"]
         
-        // Simulating the LLM/Network delay for test generation.
-        try? await Task.sleep(for: .seconds(1.5))
-        
-        var newQuestions: [Question] = []
-        for i in 1...10 {
-            let question = Question(
-                id: UUID().uuidString,
-                correctOptionIndex: 0,
-                options: ["Option A", "Option B", "Option C", "Option D"],
-                points: 10,
-                questionText: "Recommended Question \(i) covering \(lessonName)",
-                type: "multipleChoice",
-                subject: subjectName,
-                subtopic: lessonName,
-                hint: "Review the standard properties of \(lessonName).",
-                feedback: "Option A is correct based on foundational logic.",
-                testId: ""
-            )
-            newQuestions.append(question)
+        // Safety check to prevent SwiftUI Picker invalid tag error
+        if !self.availableSubjects.contains(self.subjectName) {
+            self.subjectName = self.availableSubjects.first ?? "+ Add New Subject"
         }
         
-        generatedQuestions = newQuestions
+        await updateLessons(for: self.subjectName)
+    }
+    
+    func updateLessons(for subjectName: String) async {
+        guard !subjectName.isEmpty && subjectName != "+ Add New Subject" else {
+            self.availableLessons = ["+ Add New Lesson"]
+            self.lessonName = "+ Add New Lesson"
+            return
+        }
+        
+        do {
+            let snapshot = try await db.collection("Subjects")
+                .whereField("name", isEqualTo: subjectName)
+                .getDocuments()
+            
+            guard let subjectDoc = snapshot.documents.first else {
+                self.availableLessons = ["+ Add New Lesson"]
+                self.lessonName = "+ Add New Lesson"
+                return
+            }
+            let subjectId = subjectDoc.documentID
+            
+            let lessonsSnap = try await db.collection("Subjects")
+                .document(subjectId).collection("Lessons").getDocuments()
+            
+            self.availableLessons = lessonsSnap.documents.compactMap { $0.data()["name"] as? String } + ["+ Add New Lesson"]
+            
+            // Critical Fix: Force the lesson name to a valid tag so the Picker doesn't visually break
+            if !self.availableLessons.contains(self.lessonName) {
+                self.lessonName = self.availableLessons.first ?? "+ Add New Lesson"
+            }
+            
+        } catch {
+            print("Error updating lessons: \(error.localizedDescription)")
+            self.availableLessons = ["+ Add New Lesson"]
+            self.lessonName = "+ Add New Lesson"
+        }
+    }
+    
+    // Computed properties to evaluate what actually gets saved to the database
+    var finalSubject: String {
+        return subjectName == "+ Add New Subject" ? customSubjectName : subjectName
+    }
+    
+    var finalLesson: String {
+        return lessonName == "+ Add New Lesson" ? customLessonName : lessonName
+    }
+    
+    func generateRecommendedTest() async {
+        isGenerating = true
+        try? await Task.sleep(for: .seconds(1.5))
+        
+        self.generatedQuestions = (1...10).map { i in
+            Question(
+                id: UUID().uuidString,
+                correctOptionIndex: 0,
+                options: ["", "", "", ""],
+                points: 10,
+                questionText: "Question \(i)",
+                type: "multipleChoice",
+                subject: finalSubject,
+                subtopic: finalLesson,
+                hint: "",
+                feedback: "",
+                testId: ""
+            )
+        }
+        
         isGenerating = false
         showEditor = true
     }
     
-    /// Commits the newly generated and edited test securely to Firestore
     func saveTestToDatabase() async {
         isSaving = true
+        let targetSubject = finalSubject
+        let targetLesson = finalLesson
+        
         do {
             let batch = db.batch()
             
-            // 1. Create the hierarchical Test Document
             let testId = UUID().uuidString
             let testRef = db.collection("Tests").document(testId)
             let testData: [String: Any] = [
                 "id": testId,
-                "subject": subjectName,
-                "lesson": lessonName,
-                "title": "\(lessonName) Test",
+                "subject": targetSubject,
+                "lesson": targetLesson,
+                "title": "\(targetLesson) Test",
                 "createdAt": FieldValue.serverTimestamp()
             ]
             batch.setData(testData, forDocument: testRef)
             
-            // 2. Batch write questions to both hierarchical and flat collections
             for question in generatedQuestions {
                 let docData: [String: Any] = [
                     "id": question.id ?? UUID().uuidString,
@@ -86,18 +143,16 @@ class AdminTestManagerViewModel {
                     "points": question.points,
                     "questionText": question.questionText,
                     "type": question.type,
-                    "subject": subjectName,
-                    "subtopic": lessonName,
+                    "subject": targetSubject,
+                    "subtopic": targetLesson,
                     "hint": question.hint ?? "",
                     "feedback": question.feedback ?? "",
                     "testId": testId
                 ]
                 
-                // Write to hierarchical subcollection
                 let subRef = testRef.collection("Questions").document(question.id ?? UUID().uuidString)
                 batch.setData(docData, forDocument: subRef)
                 
-                // Write to flat fallback collection
                 let flatRef = db.collection("questions").document(question.id ?? UUID().uuidString)
                 batch.setData(docData, forDocument: flatRef)
             }
@@ -106,156 +161,108 @@ class AdminTestManagerViewModel {
             generatedQuestions.removeAll()
             showEditor = false
         } catch {
-            print("Failed to save test to database: \(error.localizedDescription)")
+            print("Failed to save test: \(error.localizedDescription)")
         }
         isSaving = false
     }
 }
 
+// MARK: - View
+
 struct AdminTestManagerView: View {
     @State private var viewModel: AdminTestManagerViewModel
-    @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
 
     init(subjectName: String, lessonName: String) {
-        let vm = AdminTestManagerViewModel()
-        vm.subjectName = subjectName
-        vm.lessonName = lessonName
-        _viewModel = State(initialValue: vm)
+        _viewModel = State(initialValue: AdminTestManagerViewModel(subject: subjectName, lesson: lessonName))
     }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                (colorScheme == .dark ? Color.customDarkGray : Color.white).ignoresSafeArea()
-                
-                VStack(spacing: 20) {
-                    if !viewModel.showEditor {
-                        setupView
-                    } else {
-                        editorView
-                    }
-                }
-            }
-            .navigationTitle(viewModel.showEditor ? "Edit Test" : "Generate Test")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") { dismiss() }
-                        .tint(.red)
-                }
-            }
-        }
-    }
-    
-    private var setupView: some View {
-        VStack(spacing: 24) {
-            Text("Test Generator")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .padding(.top, 40)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Subject")
-                    .font(.headline)
-                TextField("e.g. Algebra", text: $viewModel.subjectName)
-                    .textFieldStyle(.roundedBorder)
-            }
-            .padding(.horizontal)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Designated Lesson")
-                    .font(.headline)
-                TextField("e.g. Linear Equations", text: $viewModel.lessonName)
-                    .textFieldStyle(.roundedBorder)
-            }
-            .padding(.horizontal)
-            
-            Spacer()
-            
-            Button(action: {
-                Task { await viewModel.generateRecommendedTest() }
-            }) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(viewModel.subjectName.isEmpty || viewModel.lessonName.isEmpty ? Color.gray : Color.cyan)
-                        .frame(height: 55)
-                    
-                    if viewModel.isGenerating {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text("Generate 10 Questions")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                    }
-                }
-            }
-            .disabled(viewModel.subjectName.isEmpty || viewModel.lessonName.isEmpty || viewModel.isGenerating)
-            .padding(.horizontal)
-            .padding(.bottom, 40)
-        }
-    }
-    
-    private var editorView: some View {
-        VStack {
             List {
-                ForEach($viewModel.generatedQuestions) { $question in
-                    Section(header: Text("Question").font(.headline)) {
-                        TextField("Question Text", text: $question.questionText, axis: .vertical)
-                            .font(.body)
-                            .lineLimit(2...5)
-                        
-                        ForEach(0..<question.options.count, id: \.self) { index in
-                            HStack {
-                                Button(action: { question.correctOptionIndex = index }) {
-                                    Image(systemName: question.correctOptionIndex == index ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(question.correctOptionIndex == index ? .green : .secondary)
-                                }
-                                .buttonStyle(.plain)
-                                
-                                TextField("Option \(index + 1)", text: Binding(
-                                    get: { question.options[index] },
-                                    set: { question.options[index] = $0 }
-                                ))
-                            }
+                if !viewModel.showEditor {
+                    Section("Selection") {
+                        Picker("Subject", selection: $viewModel.subjectName) {
+                            ForEach(viewModel.availableSubjects, id: \.self) { Text($0) }
+                        }
+                        .onChange(of: viewModel.subjectName) { _, newSubject in
+                            Task { await viewModel.updateLessons(for: newSubject) }
                         }
                         
-                        TextField("Hint", text: Binding(
-                            get: { question.hint ?? "" },
-                            set: { question.hint = $0 }
-                        ))
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
+                        if viewModel.subjectName == "+ Add New Subject" {
+                            TextField("New Subject Name", text: $viewModel.customSubjectName)
+                        }
+                        
+                        Picker("Lesson", selection: $viewModel.lessonName) {
+                            ForEach(viewModel.availableLessons, id: \.self) { Text($0) }
+                        }
+                        
+                        if viewModel.lessonName == "+ Add New Lesson" {
+                            TextField("New Lesson Name", text: $viewModel.customLessonName)
+                        }
                     }
-                }
-            }
-            .listStyle(.insetGrouped)
-            .scrollDismissesKeyboard(.interactively)
-            
-            Button(action: {
-                Task {
-                    await viewModel.saveTestToDatabase()
-                    dismiss()
-                }
-            }) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.green)
-                        .frame(height: 55)
                     
-                    if viewModel.isSaving {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text("Save Test to Database")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
+                    Button("Generate Questions") {
+                        Task { await viewModel.generateRecommendedTest() }
                     }
+                    .disabled(
+                        (viewModel.subjectName == "+ Add New Subject" && viewModel.customSubjectName.isEmpty) ||
+                        (viewModel.lessonName == "+ Add New Lesson" && viewModel.customLessonName.isEmpty) ||
+                        viewModel.isGenerating
+                    )
+                } else {
+                    ForEach($viewModel.generatedQuestions) { $question in
+                        Section(header: Text("Question").font(.headline)) {
+                            TextField("Question Text", text: $question.questionText, axis: .vertical)
+                                .font(.body)
+                                .lineLimit(2...5)
+                            
+                            ForEach(0..<question.options.count, id: \.self) { index in
+                                HStack {
+                                    Button(action: { question.correctOptionIndex = index }) {
+                                        Image(systemName: question.correctOptionIndex == index ? "checkmark.circle.fill" : "circle")
+                                            .foregroundColor(question.correctOptionIndex == index ? .green : .secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    TextField("Option \(index + 1)", text: Binding(
+                                        get: { question.options[index] },
+                                        set: { question.options[index] = $0 }
+                                    ))
+                                }
+                            }
+                            
+                            TextField("Hint", text: Binding(
+                                get: { question.hint ?? "" },
+                                set: { question.hint = $0 }
+                            ))
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Button(action: {
+                        Task {
+                            await viewModel.saveTestToDatabase()
+                            dismiss()
+                        }
+                    }) {
+                        HStack {
+                            Spacer()
+                            if viewModel.isSaving {
+                                ProgressView().tint(.green)
+                            } else {
+                                Text("Save Test to Database")
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.green)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(viewModel.isSaving)
                 }
             }
-            .disabled(viewModel.isSaving)
-            .padding()
+            .task { await viewModel.fetchDropdownData() }
         }
     }
 }
