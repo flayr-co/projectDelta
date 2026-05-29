@@ -130,8 +130,6 @@ class AdminTestManagerViewModel {
             let testId = UUID().uuidString
             let testRef = db.collection("Subjects").document(subjectId).collection("Tests").document(testId)
             
-            // FIXED: Included required Codable fields (questionAmount, testIdentifier, timeLimit) to prevent silent decoding failures.
-            // FIXED: Removed "id" field to prevent @DocumentID Firestore collisions.
             let testData: [String: Any] = [
                 "questionAmount": generatedQuestions.count,
                 "subject": targetSubject,
@@ -147,7 +145,6 @@ class AdminTestManagerViewModel {
                 let question = wrapper.question
                 let qId = question.id ?? UUID().uuidString
                 
-                // FIXED: Removed "id" injection
                 let docData: [String: Any] = [
                     "correctOptionIndex": question.correctOptionIndex,
                     "options": question.options,
@@ -420,6 +417,9 @@ struct AdminBlockEditorRow: View {
     @Binding var block: QuestionBlockModel
     var onRemove: () -> Void
     
+    // Focus state safely triggers the specialized keyboard interface
+    @FocusState private var isMathFocused: Bool
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -451,16 +451,85 @@ struct AdminBlockEditorRow: View {
                 TextField("Enter text...", text: $block.content, axis: .vertical)
                     .lineLimit(2...8)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                
             } else if block.type == QuestionBlockType.math.rawValue {
-                TextField("Enter LaTeX...", text: $block.content, axis: .vertical)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Enter math (e.g. 5 + 2 = ? or 1/2)", text: $block.content, axis: .vertical)
+                        .font(.system(.body, design: .monospaced))
+                        .keyboardType(.numbersAndPunctuation) // Immediately brings up the math-friendly layout
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .focused($isMathFocused)
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                if isMathFocused {
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 8) {
+                                            mathTool(title: "÷", insert: " \\div ")
+                                            mathTool(title: "×", insert: " \\times ")
+                                            mathTool(title: "π", insert: " \\pi ")
+                                            mathTool(title: "√", insert: " \\sqrt{} ")
+                                            mathTool(title: "x²", insert: "^{2} ")
+                                            mathTool(title: "a/b", insert: " \\frac{}{} ")
+                                            mathTool(title: "≤", insert: " \\leq ")
+                                            mathTool(title: "≥", insert: " \\geq ")
+                                            mathTool(title: "≠", insert: " \\neq ")
+                                            Spacer(minLength: 16)
+                                            Button("Done") {
+                                                isMathFocused = false
+                                            }
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.blue)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    
+                    // Provides the real-time visual guarantee to the instructor
+                    if !block.content.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Live LaTeX Preview:")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.teal)
+                            
+                            LatexView(latex: block.content.parsedMathToLatex)
+                                .frame(minHeight: 45)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(8)
+                                .background(Color(UIColor.secondarySystemBackground))
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+                
             } else {
                 TextField(block.graphType == QuestionGraphType.equation.rawValue ? "Enter function (e.g. y = 2x)" : "Enter points data", text: $block.content, axis: .vertical)
                     .font(.system(.body, design: .monospaced))
+                    .keyboardType(.numbersAndPunctuation)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
             }
         }
         .padding(.vertical, 4)
+    }
+    
+    @ViewBuilder
+    private func mathTool(title: String, insert: String) -> some View {
+        Button(action: {
+            block.content.append(insert)
+        }) {
+            Text(title)
+                .font(.callout)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(UIColor.systemGray4))
+                .cornerRadius(6)
+                .foregroundColor(.primary)
+        }
     }
 }

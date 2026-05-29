@@ -87,7 +87,6 @@ class TestBuilderViewModel {
             let testId = existingTestId ?? UUID().uuidString
             let testRef = db.collection("Subjects").document(subjectId).collection("Tests").document(testId)
             
-            // FIXED: Included required Codable fields and removed explicit "id" mapping
             let testData: [String: Any] = [
                 "questionAmount": generatedQuestions.count,
                 "subject": subjectName,
@@ -103,7 +102,6 @@ class TestBuilderViewModel {
                 let question = wrapper.question
                 let qId = question.id ?? UUID().uuidString
                 
-                // FIXED: Removed "id" injection
                 let docData: [String: Any] = [
                     "correctOptionIndex": question.correctOptionIndex,
                     "options": question.options,

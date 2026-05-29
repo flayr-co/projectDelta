@@ -53,8 +53,26 @@ struct Question: Identifiable, Codable {
     }
 }
 
+// MARK: - Plain Text Math to LaTeX Converter
+extension String {
+    var parsedMathToLatex: String {
+        var str = self
+        // Standard arithmetic conversions
+        str = str.replacingOccurrences(of: "*", with: " \\times ")
+        str = str.replacingOccurrences(of: "==", with: " = ")
+        str = str.replacingOccurrences(of: "!=", with: " \\neq ")
+        str = str.replacingOccurrences(of: "<=", with: " \\leq ")
+        str = str.replacingOccurrences(of: ">=", with: " \\geq ")
+        
+        // Smart Fraction Parser: converts "1/2" or "x / y" into "\frac{1}{2}"
+        if let regex = try? NSRegularExpression(pattern: "([a-zA-Z0-9]+)\\s*/\\s*([a-zA-Z0-9]+)") {
+            str = regex.stringByReplacingMatches(in: str, range: NSRange(str.startIndex..., in: str), withTemplate: "\\\\frac{$1}{$2}")
+        }
+        return str
+    }
+}
+
 // MARK: - Block Editor Models & Extensions
-// Centralized to prevent module-wide redeclaration errors.
 
 enum QuestionBlockType: String, CaseIterable {
     case text = "Text"
@@ -87,17 +105,25 @@ extension Question {
     }
     
     mutating func updateWith(blocks: [QuestionBlockModel]) {
-        if let data = try? JSONEncoder().encode(blocks),
+        // Intercept equation blocks and securely transform their raw math input into flawless LaTeX before hitting the database
+        let processedBlocks = blocks.map { block -> QuestionBlockModel in
+            var b = block
+            if b.type == QuestionBlockType.math.rawValue {
+                b.content = b.content.parsedMathToLatex
+            }
+            return b
+        }
+        
+        if let data = try? JSONEncoder().encode(processedBlocks),
            let jsonString = String(data: data, encoding: .utf8) {
             self.questionText = jsonString
         } else {
-            self.questionText = blocks.map { $0.content }.joined(separator: "\n")
+            self.questionText = processedBlocks.map { $0.content }.joined(separator: "\n")
         }
     }
 }
 
 // MARK: - Wrapper to Prevent SwiftUI Index Crashes
-/// Wraps a Question with a strict local UUID to allow perfectly safe deletions and ForEach iterations.
 struct QuestionWrapper: Identifiable {
     let id = UUID()
     var question: Question
