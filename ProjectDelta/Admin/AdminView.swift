@@ -21,7 +21,8 @@ struct AdminView: View {
             ZStack {
                 backgroundColor.ignoresSafeArea()
                 
-                if viewModel.isProcessing {
+                // Show progress view only if processing and no subjects exist yet
+                if viewModel.isProcessing && viewModel.subjects.isEmpty {
                     ProgressView("Loading Admin Data...")
                 } else {
                     mainListContent
@@ -47,17 +48,58 @@ struct AdminView: View {
     @ViewBuilder
     private var mainListContent: some View {
         List {
+            Section(header: Text("Subjects").font(.headline)) {
+                ForEach(viewModel.subjects) { subject in
+                    NavigationLink(destination: AdminSubjectDetailView(subject: subject, viewModel: viewModel)) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "folder.fill")
+                                .foregroundColor(primaryAccent)
+                                .font(.title3)
+                            
+                            VStack(alignment: .leading) {
+                                Text(subject.name)
+                                    .font(.body)
+                                    .fontWeight(.semibold)
+                                Text(subject.description)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+}
+
+// MARK: - Detail View
+
+struct AdminSubjectDetailView: View {
+    let subject: Subject
+    @Bindable var viewModel: AdminViewModel
+    
+    var body: some View {
+        List {
             lessonsSection
             testsSection
         }
         .listStyle(.insetGrouped)
+        .navigationTitle(subject.name)
+        .task {
+            // Fetch the specific data for the chosen subject
+            if let id = subject.id {
+                await viewModel.fetchLessons(for: id)
+                await viewModel.fetchTests(for: id)
+            }
+        }
     }
     
     private var lessonsSection: some View {
         Section(header: Text("Lessons").font(.headline)) {
             NavigationLink(destination: LessonEditorView()) {
                 Label("Create New Lesson", systemImage: "plus.circle.fill")
-                    .foregroundColor(primaryAccent)
+                    .foregroundColor(.teal)
                     .font(.headline)
             }
             
@@ -78,7 +120,8 @@ struct AdminView: View {
     
     private var testsSection: some View {
         Section(header: Text("Test Generator").font(.headline)) {
-            NavigationLink(destination: AdminTestManagerView(subjectName: "Algebra", lessonName: "New Lesson")) {
+            // Passed in the dynamic subject name instead of hardcoded "Algebra"
+            NavigationLink(destination: AdminTestManagerView(subjectName: subject.name, lessonName: "New Lesson")) {
                 Label("Generate Recommended Test", systemImage: "wand.and.stars")
                     .foregroundColor(.cyan)
                     .font(.headline)
@@ -86,12 +129,10 @@ struct AdminView: View {
             
             ForEach(viewModel.tests) { test in
                 VStack(alignment: .leading, spacing: 4) {
-                    // FIXED: Unwrapped ID with default value
                     Text(test.id ?? "Unknown ID")
                         .font(.body)
                         .fontWeight(.semibold)
                     
-                    // FIXED: Unwrapped Subject with default value
                     Text(test.subject ?? "Uncategorized")
                         .font(.caption)
                         .foregroundColor(.secondary)
