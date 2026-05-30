@@ -32,7 +32,7 @@ struct HomeView: View {
                     
                     Spacer()
                     
-                    VStack(alignment: .trailing, spacing: 4) {
+                    VStack(alignment: .trailing, spacing: 6) {
                         HStack(spacing: 8) {
                             Text("\(viewModel.currentUser?.points ?? 0) pts")
                                 .font(.subheadline)
@@ -47,48 +47,58 @@ struct HomeView: View {
                         
                         ProgressBar(points: viewModel.currentUser?.points ?? 0)
                             .frame(width: 120, height: 8)
+                            .clipShape(Capsule())
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 16)
-                .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 20)
+                .background(
+                    (colorScheme == .dark ? Color.customDarkGray : Color.white)
+                        .shadow(color: .black.opacity(0.03), radius: 10, x: 0, y: 5)
+                )
+                .zIndex(1)
                 
                 // MARK: - MAIN CONTENT
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 28) {
                         Text("Your learning progress...")
                             .font(.headline)
                             .foregroundColor(.secondary)
-                            .padding(.horizontal)
-                            .padding(.top, 16)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 24)
                         
                         // Integrated modern metrics presentation ledger
                         UserProgressPieChart()
-                            .padding(.horizontal)
+                            .padding(.horizontal, 24)
 
                         LazyVGrid(columns: columns, spacing: 16) {
                             NavigationLink(destination: SubjectGridView(navigationSource: .homeView).navigationBarBackButtonHidden(true)) {
                                 DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
                             }
+                            .buttonStyle(.plain) // CRITICAL: Eradicates the gray NavigationLink boxes
                             
                             NavigationLink(destination: SubjectGridView(navigationSource: .testView).navigationBarBackButtonHidden(true)) {
                                 DisplayCards(imageName: "eyeglasses", title: "Practice", tintColor: .purple)
                             }
+                            .buttonStyle(.plain)
                             
                             NavigationLink(destination: LeaderboardView().navigationBarBackButtonHidden(true)) {
                                 DisplayCards(imageName: "trophy", title: "Leaderboard", tintColor: .yellow)
                             }
+                            .buttonStyle(.plain)
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 24)
                         
-                        Spacer(minLength: 40)
+                        Spacer(minLength: 120)
                     }
                 }
                 .background(colorScheme == .dark ? Color.customDarkGray : Color.gray.opacity(0.05))
             }
             .id(refreshKey)
             .onChange(of: viewModel.currentUser) { oldValue, newValue in
-                refreshKey = UUID()
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    refreshKey = UUID()
+                }
             }
             .task {
                 guard let userId = viewModel.userSession?.uid else { return }
@@ -103,7 +113,6 @@ struct HomeView: View {
         }
     }
     
-    // Computed property to return dashboard text based on user role
     private var dashboardText: String {
         guard let role = viewModel.currentUser?.role else {
             return "Dashboard"

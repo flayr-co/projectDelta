@@ -5,20 +5,20 @@
 //  Created by Jake Meissner on 10/31/23.
 //
 
-// MainTabView.swift
 import SwiftUI
 
 struct MainTabView: View {
     @Environment(AuthViewModel.self) var viewModel
     @Environment(QuizViewModel.self) var quizViewModel
     @Environment(LessonViewModel.self) var lessonVM
+    
     @State private var selectedTab = 0
     @State private var homeRefreshKey = UUID()
     @State private var cardRefreshKey = UUID()
     @State private var profileRefreshKey = UUID()
     
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottom) {
             // Content views for the tabs
             Group {
                 switch selectedTab {
@@ -34,39 +34,45 @@ struct MainTabView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            Divider()
-
-            // Custom tab bar
-            HStack {
+            // Custom Floating Tab Bar
+            HStack(spacing: 0) {
                 TabBarButton(icon: "house.fill", label: "Home", isSelected: selectedTab == 0) {
-                    if selectedTab == 0 {
-                        homeRefreshKey = UUID()
-                    } else {
-                        selectedTab = 0
-                    }
+                    handleTabSelection(index: 0, refreshKey: &homeRefreshKey)
                 }
                 
                 TabBarButton(icon: "pencil.line", label: "Practice", isSelected: selectedTab == 1) {
-                    if selectedTab == 1 {
-                        cardRefreshKey = UUID()
-                    } else {
-                        selectedTab = 1
-                    }
+                    handleTabSelection(index: 1, refreshKey: &cardRefreshKey)
                 }
                 
-                TabBarButton(icon: "person", label: "Profile", isSelected: selectedTab == 2) {
-                    if selectedTab == 2 {
-                        profileRefreshKey = UUID()
-                    } else {
-                        selectedTab = 2
-                    }
+                TabBarButton(icon: "person.fill", label: "Profile", isSelected: selectedTab == 2) {
+                    handleTabSelection(index: 2, refreshKey: &profileRefreshKey)
                 }
             }
-            .padding(.top, 8)
-            .padding(.bottom, 30)
-            .background(Color(UIColor.systemBackground).shadow(radius: 2))
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: 10)
+            )
+            .padding(.horizontal, 24)
+            .padding(.bottom, 8)
         }
-        .edgesIgnoringSafeArea(.bottom)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+    }
+    
+    private func handleTabSelection(index: Int, refreshKey: inout UUID) {
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        
+        if selectedTab == index {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                refreshKey = UUID()
+            }
+        } else {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                selectedTab = index
+            }
+        }
     }
 }
 
@@ -78,18 +84,23 @@ struct TabBarButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack {
+            VStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 24))
+                    .font(.system(size: 24, weight: isSelected ? .semibold : .regular))
                     .foregroundColor(isSelected ? .accentColor : .gray)
+                    .frame(height: 26) // Consistent height prevents shifting
+                
+                // Text is now ALWAYS rendered, not just when selected
                 Text(label)
-                    .font(.caption)
+                    .font(.system(size: 10, weight: isSelected ? .bold : .medium))
                     .foregroundColor(isSelected ? .accentColor : .gray)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
+        .buttonStyle(.plain) // Destroys any default gray button highlights
     }
 }
 
