@@ -24,9 +24,9 @@ struct HomeView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 // MARK: - HEADER
-                HStack {
+                HStack(alignment: .bottom) {
                     Text(dashboardText)
-                        .font(.title2)
+                        .font(.system(.title2, design: .rounded))
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
                     
@@ -46,23 +46,24 @@ struct HomeView: View {
                         }
                         
                         ProgressBar(points: viewModel.currentUser?.points ?? 0)
-                            .frame(width: 120, height: 8)
-                            .clipShape(Capsule())
+                            .frame(width: 140, height: 10) // Slightly larger, better proportions
                     }
                 }
                 .padding(.horizontal, 24)
-                .padding(.vertical, 20)
+                .padding(.top, 20) // Spacing from status bar
+                .padding(.bottom, 20)
                 .background(
                     (colorScheme == .dark ? Color.customDarkGray : Color.white)
-                        .shadow(color: .black.opacity(0.03), radius: 10, x: 0, y: 5)
+                        .ignoresSafeArea(edges: .top) // Blends into the top of the iPhone
+                        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
                 )
                 .zIndex(1)
                 
                 // MARK: - MAIN CONTENT
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 28) {
-                        Text("Your learning progress...")
-                            .font(.headline)
+                        Text("Your learning progress")
+                            .font(.system(.headline, design: .rounded))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 24)
                             .padding(.top, 24)
@@ -75,7 +76,7 @@ struct HomeView: View {
                             NavigationLink(destination: SubjectGridView(navigationSource: .homeView).navigationBarBackButtonHidden(true)) {
                                 DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
                             }
-                            .buttonStyle(.plain) // CRITICAL: Eradicates the gray NavigationLink boxes
+                            .buttonStyle(.plain)
                             
                             NavigationLink(destination: SubjectGridView(navigationSource: .testView).navigationBarBackButtonHidden(true)) {
                                 DisplayCards(imageName: "eyeglasses", title: "Practice", tintColor: .purple)
@@ -119,19 +120,9 @@ struct HomeView: View {
         }
         
         switch role {
-        case .student:
-            return "Student Dashboard"
-        case .teacher:
-            return "Teacher Dashboard"
-        case .parent:
-            return "Parent Dashboard"
+        case .student: return "Student Dashboard"
+        case .teacher: return "Teacher Dashboard"
+        case .parent: return "Parent Dashboard"
         }
     }
-}
-
-#Preview {
-    HomeView()
-        .environment(AuthViewModel())
-        .environment(QuizViewModel(authViewModel: AuthViewModel()))
-        .environment(LessonViewModel())
 }

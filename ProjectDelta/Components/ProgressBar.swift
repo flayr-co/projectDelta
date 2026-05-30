@@ -2,51 +2,45 @@
 //  ProgressBar.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 4/4/24.
+//  Created by Jake Meissner on 10/31/23.
 //
 
-// Custom ProgressBar View
 import SwiftUI
 
 struct ProgressBar: View {
-    var points: Int
+    let points: Int
     
+    // Calculate progress as a fraction (assuming level-up every 100 points)
     private var progress: CGFloat {
-        CGFloat(points % 100) / 100.0
+        let p = CGFloat(points % 100) / 100.0
+        return max(0, min(1, p))
     }
-    private var nextMilestone: Int {
-        ((points / 100) + 1) * 100
-    }
-    
-    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                // Background of the progress bar
-                RoundedRectangle(cornerRadius: 20.0)
-                    .frame(width: geometry.size.width, height: 20)
-                    .foregroundColor(.gray.opacity(0.3))
-
-                // Filled portion of the progress bar
-                RoundedRectangle(cornerRadius: 20.0)
-                    .frame(width: geometry.size.width * progress, height: 20)
-                    .foregroundColor(.blue)
-                    .animation(.linear, value: progress)
-
-                // Default text color, will be visible on the unfilled portion of the bar
-                Text("\(points)/\(nextMilestone) points")
-                    .frame(width: geometry.size.width, height: 20, alignment: .center)
-                    .clipShape(Rectangle().offset(x: geometry.size.width * progress, y: 0))
+                // Background Track
+                Capsule()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: 10)
                 
-                // White text color, visible only on the filled portion of the bar
-                Text("\(points)/\(nextMilestone) points")
-                    .foregroundColor(.white)
-                    .frame(width: geometry.size.width, height: 20, alignment: .center)
-                    .clipShape(Rectangle().offset(x: -geometry.size.width * (1 - progress), y: 0))
+                // Active Progress
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [.blue.opacity(0.8), .cyan],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: geometry.size.width * progress, height: 10)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.7), value: progress)
             }
         }
-        .frame(height: 20) // Specify the fixed height for the progress bar
     }
 }
 
+#Preview {
+    ProgressBar(points: 45)
+        .padding()
+}
