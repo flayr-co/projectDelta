@@ -67,7 +67,6 @@ struct ProfileView: View {
                                 .font(.callout)
                                 .foregroundColor(colorScheme == .dark ? .gray : .secondary)
                             
-                            // Role Badge for visual confirmation
                             Text(user.role.rawValue.uppercased())
                                 .font(.caption2)
                                 .fontWeight(.black)
@@ -81,7 +80,6 @@ struct ProfileView: View {
                     }
                     .listRowBackground(Color.clear)
                     
-                    // MARK: - Administrative Access
                     if user.role == .teacher {
                         Section("Administrative") {
                             NavigationLink {
@@ -142,14 +140,9 @@ struct ProfileView: View {
                         }
                     }
                 }
+                .padding(.bottom, 100) // Added padding to clear floating tab bar
             }
         }
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
     }
-}
-
-#Preview {
-    let authViewModel = AuthViewModel()
-    authViewModel.currentUser = User(fullname: "Mock User", email: "mock@example.com", role: .student)
-    return ProfileView().environment(authViewModel)
 }

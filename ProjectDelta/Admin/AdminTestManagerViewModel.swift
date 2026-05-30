@@ -31,11 +31,36 @@ class AdminTestManagerViewModel {
     var isSaving: Bool = false
     var showEditor: Bool = false
     
+    var existingTest: Test? = nil
+    
     private let db = Firestore.firestore()
     
-    init(subject: String, lesson: String) {
+    init(subject: String, lesson: String, test: Test? = nil) {
         self.subjectName = subject
         self.lessonName = lesson
+        self.existingTest = test
+        
+        if let test = test {
+            self.showEditor = true
+            Task { await loadExistingTest(test: test) }
+        }
+    }
+    
+    private func loadExistingTest(test: Test) async {
+        isGenerating = true
+        do {
+            let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: test.subject).getDocuments()
+            let subjectId = subjectQuery.documents.first?.documentID ?? test.subject
+            
+            let snapshot = try await db.collection("Subjects").document(subjectId)
+                .collection("Tests").document(test.id!).collection("Questions").getDocuments()
+            
+            let rawQuestions = snapshot.documents.compactMap { try? $0.data(as: Question.self) }
+            self.generatedQuestions = rawQuestions.map { QuestionWrapper(question: $0) }
+        } catch {
+            print("Failed to load existing test: \(error.localizedDescription)")
+        }
+        isGenerating = false
     }
     
     func fetchDropdownData() async {
@@ -127,17 +152,17 @@ class AdminTestManagerViewModel {
             
             let batch = db.batch()
             
-            let testId = UUID().uuidString
+            let testId = existingTest?.id ?? UUID().uuidString
             let testRef = db.collection("Subjects").document(subjectId).collection("Tests").document(testId)
             
             let testData: [String: Any] = [
                 "questionAmount": generatedQuestions.count,
                 "subject": targetSubject,
                 "subtopic": targetLesson,
-                "testIdentifier": Int.random(in: 1000...9999),
+                "testIdentifier": existingTest?.testIdentifier ?? Int.random(in: 1000...9999),
                 "timeLimit": 60,
-                "title": "\(targetLesson) Test",
-                "createdAt": FieldValue.serverTimestamp()
+                "title": existingTest?.title.isEmpty == false ? existingTest!.title : "\(targetLesson) Test",
+                "createdAt": existingTest == nil ? FieldValue.serverTimestamp() : (existingTest!.createdAt ?? FieldValue.serverTimestamp())
             ]
             batch.setData(testData, forDocument: testRef)
             
@@ -181,8 +206,8 @@ struct AdminTestManagerView: View {
     @State private var viewModel: AdminTestManagerViewModel
     @Environment(\.dismiss) var dismiss
 
-    init(subjectName: String, lessonName: String) {
-        _viewModel = State(wrappedValue: AdminTestManagerViewModel(subject: subjectName, lesson: lessonName))
+    init(subjectName: String, lessonName: String, existingTest: Test? = nil) {
+        _viewModel = State(wrappedValue: AdminTestManagerViewModel(subject: subjectName, lesson: lessonName, test: existingTest))
     }
 
     var body: some View {
@@ -194,6 +219,8 @@ struct AdminTestManagerView: View {
                     editorSection
                 }
             }
+            .navigationTitle(viewModel.existingTest != nil ? "Edit Test" : "Generate Test")
+            .navigationBarTitleDisplayMode(.inline)
             .scrollDismissesKeyboard(.interactively)
             .task { await viewModel.fetchDropdownData() }
         }
@@ -417,7 +444,6 @@ struct AdminBlockEditorRow: View {
     @Binding var block: QuestionBlockModel
     var onRemove: () -> Void
     
-    // Focus state safely triggers the specialized keyboard interface
     @FocusState private var isMathFocused: Bool
     
     var body: some View {
@@ -456,7 +482,7 @@ struct AdminBlockEditorRow: View {
                 VStack(alignment: .leading, spacing: 12) {
                     TextField("Enter math (e.g. 5 + 2 = ? or 1/2)", text: $block.content, axis: .vertical)
                         .font(.system(.body, design: .monospaced))
-                        .keyboardType(.numbersAndPunctuation) // Immediately brings up the math-friendly layout
+                        .keyboardType(.numbersAndPunctuation)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -487,7 +513,6 @@ struct AdminBlockEditorRow: View {
                             }
                         }
                     
-                    // Provides the real-time visual guarantee to the instructor
                     if !block.content.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Live LaTeX Preview:")

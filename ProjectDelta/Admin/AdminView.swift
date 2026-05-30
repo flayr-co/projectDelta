@@ -2,6 +2,8 @@
 //  AdminView.swift
 //  ProjectDelta
 //
+//  Created by Jake Meissner on 10/20/23.
+//
 
 import SwiftUI
 
@@ -37,8 +39,6 @@ struct AdminView: View {
         .tint(.red)
     }
     
-    // MARK: - Sub-Expressions
-    
     @ViewBuilder
     private var mainListContent: some View {
         List {
@@ -64,6 +64,7 @@ struct AdminView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .padding(.bottom, 100) // Added padding to clear floating tab bar
     }
 }
 
@@ -80,6 +81,7 @@ struct AdminSubjectDetailView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(subject.name)
+        .padding(.bottom, 100) // Added padding to clear floating tab bar
         .task {
             if let id = subject.id {
                 await viewModel.fetchLessons(for: id)
@@ -119,9 +121,8 @@ struct AdminSubjectDetailView: View {
                     .font(.headline)
             }
             
-            // FIXED: Now accurately displays the Subtopic and statistics from the Test object
             ForEach(viewModel.tests) { test in
-                NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
+                NavigationLink(destination: AdminTestManagerView(subjectName: subject.name, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(test.subtopic ?? "Untitled") Test")
                             .font(.body)
