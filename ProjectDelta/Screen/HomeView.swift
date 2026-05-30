@@ -26,8 +26,7 @@ struct HomeView: View {
                 // MARK: - HEADER
                 HStack(alignment: .bottom) {
                     Text(dashboardText)
-                        .font(.system(.title2, design: .rounded))
-                        .fontWeight(.bold)
+                        .font(.system(.title2, design: .rounded, weight: .bold))
                         .foregroundColor(.primary)
                     
                     Spacer()
@@ -35,26 +34,26 @@ struct HomeView: View {
                     VStack(alignment: .trailing, spacing: 6) {
                         HStack(spacing: 8) {
                             Text("\(viewModel.currentUser?.points ?? 0) pts")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
+                                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                .monospacedDigit() // Precision styling
                                 .foregroundColor(.secondary)
                             
                             Text("Level \((viewModel.currentUser?.points ?? 0) / 100 + 1)")
-                                .font(.subheadline)
-                                .fontWeight(.bold)
+                                .font(.system(.subheadline, design: .rounded, weight: .bold))
+                                .monospacedDigit()
                                 .foregroundColor(colorScheme == .dark ? .cyan : .blue)
                         }
                         
                         ProgressBar(points: viewModel.currentUser?.points ?? 0)
-                            .frame(width: 140, height: 10) // Slightly larger, better proportions
+                            .frame(width: 140, height: 10)
                     }
                 }
                 .padding(.horizontal, 24)
-                .padding(.top, 20) // Spacing from status bar
+                .padding(.top, 20)
                 .padding(.bottom, 20)
                 .background(
                     (colorScheme == .dark ? Color.customDarkGray : Color.white)
-                        .ignoresSafeArea(edges: .top) // Blends into the top of the iPhone
+                        .ignoresSafeArea(edges: .top)
                         .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
                 )
                 .zIndex(1)
@@ -63,12 +62,11 @@ struct HomeView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 28) {
                         Text("Your learning progress")
-                            .font(.system(.headline, design: .rounded))
+                            .font(.system(.headline, design: .rounded, weight: .semibold))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 24)
                             .padding(.top, 24)
                         
-                        // Integrated modern metrics presentation ledger
                         UserProgressPieChart()
                             .padding(.horizontal, 24)
 
@@ -115,10 +113,7 @@ struct HomeView: View {
     }
     
     private var dashboardText: String {
-        guard let role = viewModel.currentUser?.role else {
-            return "Dashboard"
-        }
-        
+        guard let role = viewModel.currentUser?.role else { return "Dashboard" }
         switch role {
         case .student: return "Student Dashboard"
         case .teacher: return "Teacher Dashboard"

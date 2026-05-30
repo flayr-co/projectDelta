@@ -19,22 +19,16 @@ struct MainTabView: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Content views for the tabs
             Group {
                 switch selectedTab {
-                case 0:
-                    HomeView().id(homeRefreshKey)
-                case 1:
-                    CardView().id(cardRefreshKey)
-                case 2:
-                    ProfileView().id(profileRefreshKey)
-                default:
-                    Text("Selection does not exist")
+                case 0: HomeView().id(homeRefreshKey)
+                case 1: CardView().id(cardRefreshKey)
+                case 2: ProfileView().id(profileRefreshKey)
+                default: Text("Selection does not exist")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Custom Floating Tab Bar
             HStack(spacing: 0) {
                 TabBarButton(icon: "house.fill", label: "Home", isSelected: selectedTab == 0) {
                     handleTabSelection(index: 0, refreshKey: &homeRefreshKey)
@@ -88,11 +82,10 @@ struct TabBarButton: View {
                 Image(systemName: icon)
                     .font(.system(size: 24, weight: isSelected ? .semibold : .regular))
                     .foregroundColor(isSelected ? .accentColor : .gray)
-                    .frame(height: 26) // Consistent height prevents shifting
+                    .frame(height: 26)
                 
-                // Text is now ALWAYS rendered, not just when selected
                 Text(label)
-                    .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                    .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
                     .foregroundColor(isSelected ? .accentColor : .gray)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
@@ -100,13 +93,6 @@ struct TabBarButton: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain) // Destroys any default gray button highlights
+        .buttonStyle(.plain)
     }
-}
-
-#Preview {
-    MainTabView()
-        .environment(AuthViewModel())
-        .environment(QuizViewModel(authViewModel: AuthViewModel()))
-        .environment(LessonViewModel())
 }
