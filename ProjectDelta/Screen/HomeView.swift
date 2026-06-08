@@ -13,8 +13,6 @@ struct HomeView: View {
     @Environment(QuizViewModel.self) var quizViewModel
     @Environment(LessonViewModel.self) var lessonVM
     
-    @State private var selectedSubject: String?
-    @State private var isShowingSubjectGrid = false
     @State private var refreshKey = UUID()
     @Environment(\.colorScheme) var colorScheme
     
@@ -35,7 +33,7 @@ struct HomeView: View {
                         HStack(spacing: 8) {
                             Text("\(viewModel.currentUser?.points ?? 0) pts")
                                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                                .monospacedDigit() // Precision styling
+                                .monospacedDigit()
                                 .foregroundColor(.secondary)
                             
                             Text("Level \((viewModel.currentUser?.points ?? 0) / 100 + 1)")
@@ -60,14 +58,16 @@ struct HomeView: View {
                 
                 // MARK: - MAIN CONTENT
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 28) {
-                        Text("Your learning progress")
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("Your Learning Analytics")
                             .font(.system(.headline, design: .rounded, weight: .semibold))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 24)
                             .padding(.top, 24)
                         
-                        UserProgressPieChart()
+                        // Expanded Metrics Carousel Slider
+                        MetricsCarouselView(progress: quizViewModel.userProgress)
+                            .frame(height: 240) // Increased vertical footprint for better presence
                             .padding(.horizontal, 24)
 
                         LazyVGrid(columns: columns, spacing: 16) {

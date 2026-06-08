@@ -14,7 +14,7 @@ struct UserProgressPieChart: View {
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) { // Removed outer spacing to let container dictate constraints
             if let userProgress = quizViewModel.userProgress {
                 let totalCorrect = SubjectArea.allCases.reduce(0) { $0 + (userProgress.progress[$1]?.questionsCorrect ?? 0) }
                 let totalAttempted = SubjectArea.allCases.reduce(0) { $0 + (userProgress.progress[$1]?.questionsAttempted ?? 0) }
@@ -22,13 +22,14 @@ struct UserProgressPieChart: View {
                 if totalAttempted == 0 {
                     // Empty state layout handler if no statistics are recorded yet
                     VStack(spacing: 12) {
+                        Spacer()
                         ZStack {
                             Circle()
                                 .stroke(Color.secondary.opacity(0.15), lineWidth: 12)
-                                .frame(width: 120, height: 120)
+                                .frame(width: 100, height: 100)
                             
                             Image(systemName: "chart.bar.doc.horizontal")
-                                .font(.system(size: 30, weight: .semibold))
+                                .font(.system(size: 28, weight: .semibold))
                                 .foregroundColor(.secondary)
                         }
                         
@@ -36,9 +37,9 @@ struct UserProgressPieChart: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(.secondary)
+                        Spacer()
                     }
-                    .padding(.vertical, 16)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     // Comprehensive multi-subject analytics rendering
                     HStack(spacing: 24) {
@@ -62,11 +63,12 @@ struct UserProgressPieChart: View {
                             SubjectArea.problemSolvingDataAnalysis.displayName: Color.orange,
                             SubjectArea.geometryTrigonometry.displayName: Color.green
                         ])
-                        .frame(width: 130, height: 130)
+                        // Increased chart size slightly to fill space better
+                        .frame(width: 140, height: 140)
                         .overlay {
                             VStack(spacing: 1) {
                                 Text("\(totalCorrect)")
-                                    .font(.system(size: 26, weight: .black, design: .rounded))
+                                    .font(.system(size: 28, weight: .black, design: .rounded))
                                     .foregroundColor(.primary)
                                 Text("Correct")
                                     .font(.system(size: 10, weight: .bold))
@@ -76,22 +78,22 @@ struct UserProgressPieChart: View {
                         }
                         
                         // Structured interactive color legend block
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) { // Increased spacing between legend items
                             ForEach(SubjectArea.allCases) { area in
                                 let progressData = userProgress.progress[area] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
                                 HStack(spacing: 8) {
                                     Circle()
                                         .fill(colorForSubjectArea(area))
-                                        .frame(width: 8, height: 8)
+                                        .frame(width: 10, height: 10)
                                     
-                                    VStack(alignment: .leading, spacing: 1) {
+                                    VStack(alignment: .leading, spacing: 2) {
                                         Text(area.displayName)
-                                            .font(.caption)
-                                            .fontWeight(.bold)
+                                            .font(.system(size: 11, weight: .bold, design: .rounded))
                                             .foregroundColor(.primary)
                                             .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
                                         Text("\(progressData.questionsCorrect)/\(progressData.questionsAttempted) correct")
-                                            .font(.system(size: 11))
+                                            .font(.system(size: 10))
                                             .foregroundColor(.secondary)
                                     }
                                 }
@@ -100,32 +102,25 @@ struct UserProgressPieChart: View {
                         
                         Spacer(minLength: 0)
                     }
-                    .padding(.vertical, 4)
+                    .frame(maxHeight: .infinity)
                 }
             } else {
-                HStack {
+                VStack {
                     Spacer()
                     ProgressView()
                         .tint(.blue)
-                    Text("Loading progress metrics...")
-                        .font(.subheadline)
+                        .scaleEffect(1.2)
+                    Text("Loading metrics...")
+                        .font(.system(.subheadline, design: .rounded))
                         .foregroundColor(.secondary)
-                        .padding(.leading, 8)
+                        .padding(.top, 8)
                     Spacer()
                 }
-                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(colorScheme == .dark ? Color(red: 0.16, green: 0.16, blue: 0.19) : .white)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.05), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.15 : 0.02), radius: 6, x: 0, y: 3)
+        // Removed the hardcoded padding, background, overlay, and shadow.
+        // It now inherits its bounds and styling strictly from the parent MetricsCarouselView card.
         .task {
             await loadOrCreateProgress()
         }
@@ -161,7 +156,6 @@ struct UserProgressPieChart: View {
     }
 }
 
-// Extend SubjectArea to have a displayName for use in the chart
 extension SubjectArea {
     var displayName: String {
         switch self {
