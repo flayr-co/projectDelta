@@ -39,6 +39,7 @@
 		5263B8732BFBB5CB00CE0DD0 /* ProfileViewDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */; };
 		52643E012FCACAEB00859741 /* MetricsCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52643E002FCACAEB00859741 /* MetricsCarouselView.swift */; };
 		52668ED12BFD06FA0019965F /* LatexView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52668ED02BFD06FA0019965F /* LatexView.swift */; };
+		526CF3002FD75619001DA9D2 /* UniversalBlockEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */; };
 		527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98712AEB22990031F9E6 /* GreetingText.swift */; };
 		527F98742AEB33590031F9E6 /* TestViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98732AEB33590031F9E6 /* TestViewModel.swift */; };
 		527F98762AEC4E080031F9E6 /* QuizViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98752AEC4E080031F9E6 /* QuizViewModel.swift */; };
@@ -108,6 +109,7 @@
 		5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewDetail.swift; sourceTree = "<group>"; };
 		52643E002FCACAEB00859741 /* MetricsCarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricsCarouselView.swift; sourceTree = "<group>"; };
 		52668ED02BFD06FA0019965F /* LatexView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatexView.swift; sourceTree = "<group>"; };
+		526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalBlockEditorView.swift; sourceTree = "<group>"; };
 		527F98712AEB22990031F9E6 /* GreetingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingText.swift; sourceTree = "<group>"; };
 		527F98732AEB33590031F9E6 /* TestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestViewModel.swift; sourceTree = "<group>"; };
 		527F98752AEC4E080031F9E6 /* QuizViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizViewModel.swift; sourceTree = "<group>"; };
@@ -265,6 +267,7 @@
 				527F987B2AEC5D410031F9E6 /* SubjectGridView.swift */,
 				52FA58222BBC993D0063091C /* TableOfContentsView.swift */,
 				5297E43D2AD64F4F00220FC6 /* TestContent.swift */,
+				526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */,
 				529376582B3F6ADC001CC66A /* UserProgressDonut.swift */,
 			);
 			path = Components;
@@ -421,6 +424,7 @@
 				5258BD452ADF403B00F21A50 /* Question.swift in Sources */,
 				5263B8732BFBB5CB00CE0DD0 /* ProfileViewDetail.swift in Sources */,
 				527F987C2AEC5D410031F9E6 /* SubjectGridView.swift in Sources */,
+				526CF3002FD75619001DA9D2 /* UniversalBlockEditorView.swift in Sources */,
 				527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */,
 				5254A5CF2AF1ABAC00AAAA72 /* HomeView.swift in Sources */,
 				52643E012FCACAEB00859741 /* MetricsCarouselView.swift in Sources */,

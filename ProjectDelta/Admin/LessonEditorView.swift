@@ -7,24 +7,14 @@ import SwiftUI
 import FirebaseFirestore
 import Observation
 
-enum ContentBlockType: String, CaseIterable {
-    case text = "Text"
-    case math = "Equation"
-    case graph = "Graph"
-}
-
-enum GraphInputType: String, CaseIterable {
-    case equation = "Function (y = f(x))"
-    case points = "Points Data"
-}
-
 struct LessonEditorView: View {
     @Environment(\.dismiss) var dismiss
     @State private var lessonTitle: String
     @State private var subjectName: String
     @State private var showTestBuilder: Bool = false
     
-    // Assumes you pass in an existing lesson to edit, or a blank one to create
+    @State private var lessonBlocks: [QuestionBlockModel] = []
+    
     var lesson: Lesson
     
     init(lesson: Lesson = Lesson(id: nil, name: "", description: "", completed: false, lessonNumber: 1, pages: nil), subjectName: String = "") {
@@ -39,6 +29,13 @@ struct LessonEditorView: View {
                 Section(header: Text("Lesson Details")) {
                     TextField("Lesson Title", text: $lessonTitle)
                     TextField("Subject (e.g. Algebra)", text: $subjectName)
+                }
+                
+                Section(header: Text("Lesson Content")) {
+                    UniversalBlockEditorView(blocks: $lessonBlocks)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                        .padding(.vertical, 8)
                 }
                 
                 Section {
@@ -69,9 +66,21 @@ struct LessonEditorView: View {
                         .disabled(lessonTitle.isEmpty || subjectName.isEmpty)
                 }
             }
+            .onAppear {
+                loadLessonBlocks()
+            }
             .sheet(isPresented: $showTestBuilder) {
                 AdminTestManagerView(subjectName: subjectName, lessonName: lessonTitle)
             }
+        }
+    }
+    
+    private func loadLessonBlocks() {
+        if let data = lesson.description.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([QuestionBlockModel].self, from: data) {
+            lessonBlocks = decoded
+        } else if !lesson.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lessonBlocks = [QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: lesson.description)]
         }
     }
     
@@ -79,10 +88,19 @@ struct LessonEditorView: View {
         Task {
             let db = Firestore.firestore()
             
+            // Encode blocks to JSON string to store in description
+            let finalDescription: String
+            if let data = try? JSONEncoder().encode(lessonBlocks),
+               let jsonString = String(data: data, encoding: .utf8) {
+                finalDescription = jsonString
+            } else {
+                finalDescription = lessonBlocks.map { $0.content }.joined(separator: "\n")
+            }
+            
             var lessonData: [String: Any] = [
                 "name": lessonTitle,
                 "subject": subjectName,
-                "description": lesson.description,
+                "description": finalDescription,
                 "completed": lesson.completed,
                 "lessonNumber": lesson.lessonNumber,
                 "updatedAt": FieldValue.serverTimestamp()
@@ -90,15 +108,11 @@ struct LessonEditorView: View {
             
             do {
                 if let existingId = lesson.id, !existingId.isEmpty {
-                    // Merges the updated data into the existing designated lesson
                     try await db.collection("Lessons").document(existingId).setData(lessonData, merge: true)
-                    print("Lesson successfully edited and updated!")
                 } else {
-                    // Generates a new lesson if one doesn't exist
                     let newDocRef = db.collection("Lessons").document()
                     lessonData["id"] = newDocRef.documentID
                     try await newDocRef.setData(lessonData)
-                    print("New lesson successfully created!")
                 }
                 dismiss()
             } catch {

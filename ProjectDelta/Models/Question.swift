@@ -57,17 +57,55 @@ struct Question: Identifiable, Codable {
 extension String {
     var parsedMathToLatex: String {
         var str = self
-        // Standard arithmetic conversions
-        str = str.replacingOccurrences(of: "*", with: " \\times ")
-        str = str.replacingOccurrences(of: "==", with: " = ")
-        str = str.replacingOccurrences(of: "!=", with: " \\neq ")
-        str = str.replacingOccurrences(of: "<=", with: " \\leq ")
-        str = str.replacingOccurrences(of: ">=", with: " \\geq ")
         
-        // Smart Fraction Parser: converts "1/2" or "x / y" into "\frac{1}{2}"
+        // 1. Standard formatting & Symbol replacement
+        let replacements: [String: String] = [
+            "*": " \\times ",
+            "==": " = ",
+            "!=": " \\neq ",
+            "<=": " \\leq ",
+            ">=": " \\geq ",
+            "≤": " \\leq ",
+            "≥": " \\geq ",
+            "≠": " \\neq ",
+            "≈": " \\approx ",
+            "π": " \\pi ",
+            "θ": " \\theta ",
+            "α": " \\alpha ",
+            "β": " \\beta ",
+            "∫": " \\int ",
+            "∑": " \\sum ",
+            "∞": " \\infty ",
+            "°": "^{\\circ}"
+        ]
+        
+        for (key, value) in replacements {
+            str = str.replacingOccurrences(of: key, with: value)
+        }
+        
+        // 2. Trig & Log Functions (converts "ln(" to "\ln(")
+        // Note: Using a space before the slash prevents replacing already formatted LaTeX if re-parsed
+        let functions = ["sin", "cos", "tan", "csc", "sec", "cot", "ln", "log"]
+        for fn in functions {
+            // Only replace if it doesn't already have a backslash
+            str = str.replacingOccurrences(of: "(?<!\\\\)\(fn)\\(", with: "\\\\\(fn)(", options: .regularExpression)
+        }
+        
+        // 3. Square Root Parser: converts "√(x+2)" into "\sqrt{x+2}"
+        if let regex = try? NSRegularExpression(pattern: "√\\((.*?)\\)") {
+            str = regex.stringByReplacingMatches(in: str, range: NSRange(str.startIndex..., in: str), withTemplate: "\\\\sqrt{$1}")
+        }
+        
+        // 4. Exponent Parser with parentheses: converts "x^(2y)" into "x^{2y}"
+        if let regex = try? NSRegularExpression(pattern: "\\^\\((.*?)\\)") {
+            str = regex.stringByReplacingMatches(in: str, range: NSRange(str.startIndex..., in: str), withTemplate: "^{$1}")
+        }
+        
+        // 5. Smart Fraction Parser: converts "1/2" or "x / y" into "\frac{1}{2}"
         if let regex = try? NSRegularExpression(pattern: "([a-zA-Z0-9]+)\\s*/\\s*([a-zA-Z0-9]+)") {
             str = regex.stringByReplacingMatches(in: str, range: NSRange(str.startIndex..., in: str), withTemplate: "\\\\frac{$1}{$2}")
         }
+        
         return str
     }
 }
@@ -105,7 +143,6 @@ extension Question {
     }
     
     mutating func updateWith(blocks: [QuestionBlockModel]) {
-        // Intercept equation blocks and securely transform their raw math input into flawless LaTeX before hitting the database
         let processedBlocks = blocks.map { block -> QuestionBlockModel in
             var b = block
             if b.type == QuestionBlockType.math.rawValue {

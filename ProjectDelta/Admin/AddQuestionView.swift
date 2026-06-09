@@ -10,7 +10,7 @@ struct AddQuestionView: View {
     var subject: Subject
     var test: Test
     
-    @State private var questionText: String = ""
+    @State private var questionBlocks: [QuestionBlockModel] = []
     @State private var options: [String] = ["", "", "", ""]
     @State private var correctIndex: Int = 0
     @State private var hint: String = ""
@@ -18,7 +18,6 @@ struct AddQuestionView: View {
     @State private var selectedSubjectArea: SubjectArea = .algebra
     @State private var selectedSubtopic: String = ""
     
-    // Aligned the dictionary keys to exact string literals to prevent compilation scope errors
     let mathSubtopics: [String: [String]] = [
         "Algebra": ["Linear Equations", "Systems of Equations", "Inequalities", "Functions"],
         "Advanced Math": ["Polynomials", "Rational Expressions", "Exponents", "Radicals"],
@@ -30,7 +29,6 @@ struct AddQuestionView: View {
         Form {
             Section("Subject & Subtopic") {
                 Picker("Subject", selection: $selectedSubjectArea) {
-                    // Requires id: \.self since SubjectArea is not natively Identifiable
                     ForEach(SubjectArea.allCases, id: \.self) { area in
                         Text(area.rawValue).tag(area)
                     }
@@ -46,9 +44,11 @@ struct AddQuestionView: View {
                 }
             }
             
-            Section("Question Text") {
-                TextEditor(text: $questionText)
-                    .frame(height: 100)
+            Section("Question Content") {
+                UniversalBlockEditorView(blocks: $questionBlocks)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                    .padding(.vertical, 8)
             }
             
             Section("Options") {
@@ -57,6 +57,8 @@ struct AddQuestionView: View {
                         TextField("Option \(index + 1)", text: $options[index])
                         if correctIndex == index {
                             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        } else {
+                            Image(systemName: "circle").foregroundStyle(.gray.opacity(0.5))
                         }
                     }
                     .contentShape(Rectangle())
@@ -65,32 +67,15 @@ struct AddQuestionView: View {
             }
             
             Section("Assistance") {
-                TextField("Hint", text: $hint)
+                TextField("Hint (Optional)", text: $hint)
             }
             
-            Button("Save Question") {
-                let newQuestion = Question(
-                    correctOptionIndex: correctIndex,
-                    options: options,
-                    points: 10,
-                    questionText: questionText,
-                    type: "multiple_choice",
-                    subject: selectedSubjectArea.rawValue,
-                    subtopic: selectedSubtopic,
-                    hint: hint.isEmpty ? nil : hint,
-                    feedback: nil,
-                    testId: test.id ?? ""
-                )
-                
-                Task {
-                    await viewModel.saveQuestion(question: newQuestion)
-                    questionText = ""
-                    options = ["", "", "", ""]
-                    hint = ""
-                    correctIndex = 0
-                }
+            Button(action: saveQuestion) {
+                Text("Save Question")
+                    .fontWeight(.bold)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
-            .disabled(questionText.isEmpty || options.contains(where: \.isEmpty))
+            .disabled(questionBlocks.isEmpty || options.contains(where: \.isEmpty))
         }
         .navigationTitle("Add Question")
         .onAppear {
@@ -98,7 +83,6 @@ struct AddQuestionView: View {
                 selectedSubjectArea = initialArea
             }
             
-            // Safe extraction ensuring compilation whether Test.subtopic is Optional or non-Optional
             let safeSubtopic: String
             if let s = test.subtopic as Any as? String {
                 safeSubtopic = s
@@ -110,6 +94,31 @@ struct AddQuestionView: View {
         }
         .alert("Saved", isPresented: $viewModel.showSubmissionSuccessAlert) {
             Button("OK") { }
+        }
+    }
+    
+    private func saveQuestion() {
+        var newQuestion = Question(
+            correctOptionIndex: correctIndex,
+            options: options,
+            points: 10,
+            questionText: "",
+            type: "multiple_choice",
+            subject: selectedSubjectArea.rawValue,
+            subtopic: selectedSubtopic,
+            hint: hint.isEmpty ? nil : hint,
+            feedback: nil,
+            testId: test.id ?? ""
+        )
+        
+        newQuestion.updateWith(blocks: questionBlocks)
+        
+        Task {
+            await viewModel.saveQuestion(question: newQuestion)
+            questionBlocks = []
+            options = ["", "", "", ""]
+            hint = ""
+            correctIndex = 0
         }
     }
 }

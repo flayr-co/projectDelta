@@ -290,3 +290,73 @@ struct AddTestView: View {
         }
     }
 }
+
+// MARK: - Admin Question Editor Cell
+struct AdminQuestionEditorCell: View {
+    @Binding var question: Question
+    var index: Int
+    var onDelete: () -> Void
+    
+    @State private var blocks: [QuestionBlockModel] = []
+    
+    var body: some View {
+        Section(header: HStack {
+            Text("Question \(index + 1)")
+                .font(.headline)
+            Spacer()
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+                    .foregroundColor(.red)
+            }
+        }) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Question Builder")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                UniversalBlockEditorView(blocks: $blocks)
+                    .onChange(of: blocks) { _, newBlocks in
+                        question.updateWith(blocks: newBlocks)
+                    }
+            }
+            .padding(.vertical, 8)
+            
+            Text("Multiple Choice Options")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .padding(.top, 8)
+            
+            ForEach(0..<4, id: \.self) { i in
+                HStack {
+                    Button(action: { question.correctOptionIndex = i }) {
+                        Image(systemName: question.correctOptionIndex == i ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(question.correctOptionIndex == i ? .green : .gray)
+                            .imageScale(.large)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    TextField("Option \(i + 1)", text: Binding(
+                        get: { question.options.indices.contains(i) ? question.options[i] : "" },
+                        set: { if question.options.indices.contains(i) { question.options[i] = $0 } }
+                    ))
+                    .padding(8)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(8)
+                }
+            }
+            
+            TextField("Hint (Optional)", text: Binding(
+                get: { question.hint ?? "" },
+                set: { question.hint = $0.isEmpty ? nil : $0 }
+            ))
+            .padding(8)
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(8)
+            .padding(.top, 8)
+        }
+        .onAppear {
+            // Load blocks efficiently from the struct
+            blocks = question.parsedBlocks
+        }
+    }
+}

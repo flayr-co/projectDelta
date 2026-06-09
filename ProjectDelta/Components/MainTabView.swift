@@ -19,6 +19,10 @@ struct MainTabView: View {
     
     var body: some View {
         ZStack(alignment: .bottom) {
+            // Establishes a concrete background to prevent system-drawn white safe area rectangles
+            Color(UIColor.systemBackground)
+                .ignoresSafeArea()
+            
             Group {
                 switch selectedTab {
                 case 0: HomeView().id(homeRefreshKey)
@@ -28,6 +32,8 @@ struct MainTabView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Natively pads the bottom of child scroll views, allowing them to underlap the tab bar smoothly
+            .safeAreaPadding(.bottom, 100)
 
             HStack(spacing: 0) {
                 TabBarButton(icon: "house.fill", label: "Home", isSelected: selectedTab == 0) {
