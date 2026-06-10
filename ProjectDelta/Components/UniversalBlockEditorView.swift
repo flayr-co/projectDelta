@@ -11,9 +11,11 @@ struct UniversalBlockEditorView: View {
     var body: some View {
         VStack(spacing: 20) {
             ForEach($blocks) { $block in
+                let blockId = block.id // Safely evaluate and cache the ID
+                
                 BlockEditCell(block: $block) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        blocks.removeAll { $0.id == block.id }
+                        blocks.removeAll { $0.id == blockId }
                     }
                 }
                 .transition(.asymmetric(insertion: .scale(scale: 0.95).combined(with: .opacity), removal: .opacity))
