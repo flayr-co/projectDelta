@@ -129,7 +129,13 @@ fileprivate struct BlockEditCell: View {
                     }
                     .pickerStyle(.segmented)
                     
-                    let placeholder = block.graphType == QuestionGraphType.equation.rawValue ? "Enter function (e.g., y = 2x + 1)" : "Enter coordinates (e.g., (1,2), (3,4))"
+                    // The Advanced Interactive Canvas
+                    InteractiveGraphBuilderView(
+                        content: $block.content,
+                        graphType: block.graphType ?? QuestionGraphType.equation.rawValue
+                    )
+                    
+                    let placeholder = block.graphType == QuestionGraphType.equation.rawValue ? "Or enter manual function (e.g., y = 2x + 1)" : "Or enter manual coordinates (e.g., (1,2), (3,4))"
                     
                     TextField(placeholder, text: $block.content, axis: .vertical)
                         .lineLimit(2...6)
@@ -144,7 +150,7 @@ fileprivate struct BlockEditCell: View {
                 }
             }
             
-            // Live LaTeX Preview with explicit math wrappers to force correct rendering
+            // Live LaTeX Preview
             if !block.content.isEmpty && (block.type == QuestionBlockType.math.rawValue || (block.type == QuestionBlockType.graph.rawValue && block.graphType == QuestionGraphType.equation.rawValue)) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Live Preview:")
@@ -188,6 +194,319 @@ fileprivate struct BlockEditCell: View {
         case QuestionBlockType.graph.rawValue: return .purple
         default: return .primary
         }
+    }
+}
+
+// MARK: - Advanced Interactive Graph Canvas
+fileprivate struct InteractiveGraphBuilderView: View {
+    @Binding var content: String
+    var graphType: String
+    
+    @State private var points: [CGPoint] = []
+    
+    // Viewport and Interaction State
+    @State private var currentScale: CGFloat = 30.0
+    @State private var lastScale: CGFloat = 30.0
+    
+    @State private var currentPan: CGSize = .zero
+    @State private var lastPan: CGSize = .zero
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text(graphType == QuestionGraphType.equation.rawValue ? "Pan, Zoom & Tap 2 points to generate a line" : "Pan, Zoom & Tap to add data points")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                if !points.isEmpty {
+                    Button(action: {
+                        points.removeAll()
+                        content = ""
+                    }) {
+                        Text("Clear Canvas")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            
+            GeometryReader { geo in
+                let size = geo.size
+                let origin = CGPoint(x: size.width / 2 + currentPan.width, y: size.height / 2 + currentPan.height)
+                let step = calculateGridStep(scale: currentScale)
+                
+                ZStack {
+                    // Background & Adaptive Grid
+                    Canvas { context, canvasSize in
+                        drawAdaptiveGrid(context: context, size: canvasSize, origin: origin, scale: currentScale, step: step)
+                        
+                        if graphType == QuestionGraphType.equation.rawValue, points.count == 2 {
+                            drawLine(context: context, p1: points[0], p2: points[1], origin: origin, scale: currentScale, canvasSize: canvasSize)
+                        }
+                    }
+                    
+                    // Interaction Layer
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture()
+                                .onChanged { val in
+                                    currentPan = CGSize(width: lastPan.width + val.translation.width, height: lastPan.height + val.translation.height)
+                                }
+                                .onEnded { _ in
+                                    lastPan = currentPan
+                                }
+                        )
+                        .simultaneousGesture(
+                            MagnifyGesture()
+                                .onChanged { val in
+                                    let newScale = lastScale * val.magnification
+                                    currentScale = max(5.0, min(newScale, 200.0)) // Clamp zoom limits
+                                }
+                                .onEnded { _ in
+                                    lastScale = currentScale
+                                }
+                        )
+                        .onTapGesture { location in
+                            handleTap(location: location, origin: origin, scale: currentScale, step: step)
+                        }
+                    
+                    // Draggable Points
+                    ForEach(points.indices, id: \.self) { index in
+                        DraggablePointView(
+                            point: Binding(get: {
+                                points.indices.contains(index) ? points[index] : .zero
+                            }, set: {
+                                if points.indices.contains(index) { points[index] = $0 }
+                            }),
+                            origin: origin,
+                            scale: currentScale,
+                            step: step,
+                            onUpdate: {
+                                if graphType == QuestionGraphType.equation.rawValue {
+                                    generateLinearEquation()
+                                } else {
+                                    generatePointsString()
+                                }
+                            }
+                        )
+                    }
+                }
+                .background(Color(UIColor.secondarySystemGroupedBackground))
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                .clipped()
+            }
+            .aspectRatio(1.0, contentMode: .fit)
+        }
+        .onChange(of: graphType) { _, _ in
+            points.removeAll()
+        }
+    }
+    
+    // MARK: Adaptive Grid System
+    private func calculateGridStep(scale: CGFloat) -> CGFloat {
+        let targetSpacing: CGFloat = 60.0 // Target pixels between grid lines
+        let rawStep = targetSpacing / scale
+        
+        let mag = pow(10.0, floor(log10(rawStep)))
+        let normalized = rawStep / mag
+        
+        if normalized < 2.0 { return 1.0 * mag }
+        if normalized < 5.0 { return 2.0 * mag }
+        return 5.0 * mag
+    }
+    
+    private func drawAdaptiveGrid(context: GraphicsContext, size: CGSize, origin: CGPoint, scale: CGFloat, step: CGFloat) {
+        let minXMath = -origin.x / scale
+        let maxXMath = (size.width - origin.x) / scale
+        let minYMath = (origin.y - size.height) / scale
+        let maxYMath = origin.y / scale
+        
+        var minorPath = Path()
+        
+        // Draw Vertical Lines & X Labels
+        var x = floor(minXMath / step) * step
+        while x <= maxXMath {
+            let sx = origin.x + x * scale
+            minorPath.move(to: CGPoint(x: sx, y: 0))
+            minorPath.addLine(to: CGPoint(x: sx, y: size.height))
+            
+            if x != 0 {
+                let text = Text(x.cleanMathString).font(.system(size: 10)).foregroundColor(.secondary)
+                context.draw(text, at: CGPoint(x: sx, y: origin.y + 12), anchor: .top)
+            }
+            x += step
+        }
+        
+        // Draw Horizontal Lines & Y Labels
+        var y = floor(minYMath / step) * step
+        while y <= maxYMath {
+            let sy = origin.y - y * scale
+            minorPath.move(to: CGPoint(x: 0, y: sy))
+            minorPath.addLine(to: CGPoint(x: size.width, y: sy))
+            
+            if y != 0 {
+                let text = Text(y.cleanMathString).font(.system(size: 10)).foregroundColor(.secondary)
+                context.draw(text, at: CGPoint(x: origin.x - 6, y: sy), anchor: .trailing)
+            }
+            y += step
+        }
+        
+        context.stroke(minorPath, with: .color(Color.gray.opacity(0.15)), lineWidth: 1)
+        
+        // Draw Main Axes
+        var axesPath = Path()
+        axesPath.move(to: CGPoint(x: origin.x, y: 0))
+        axesPath.addLine(to: CGPoint(x: origin.x, y: size.height))
+        axesPath.move(to: CGPoint(x: 0, y: origin.y))
+        axesPath.addLine(to: CGPoint(x: size.width, y: origin.y))
+        
+        context.stroke(axesPath, with: .color(Color.primary.opacity(0.6)), lineWidth: 2)
+    }
+    
+    private func drawLine(context: GraphicsContext, p1: CGPoint, p2: CGPoint, origin: CGPoint, scale: CGFloat, canvasSize: CGSize) {
+        var linePath = Path()
+        
+        let sp1 = CGPoint(x: origin.x + p1.x * scale, y: origin.y - p1.y * scale)
+        let sp2 = CGPoint(x: origin.x + p2.x * scale, y: origin.y - p2.y * scale)
+        
+        if sp1.x == sp2.x {
+            linePath.move(to: CGPoint(x: sp1.x, y: 0))
+            linePath.addLine(to: CGPoint(x: sp1.x, y: canvasSize.height))
+        } else {
+            let m = (sp2.y - sp1.y) / (sp2.x - sp1.x)
+            let b = sp1.y - m * sp1.x
+            linePath.move(to: CGPoint(x: 0, y: b))
+            linePath.addLine(to: CGPoint(x: canvasSize.width, y: m * canvasSize.width + b))
+        }
+        
+        context.stroke(linePath, with: .color(.purple), lineWidth: 3)
+    }
+    
+    // MARK: Gestures & Mathematics
+    private func handleTap(location: CGPoint, origin: CGPoint, scale: CGFloat, step: CGFloat) {
+        let mathX = (location.x - origin.x) / scale
+        let mathY = (origin.y - location.y) / scale
+        
+        // Snap naturally to 1/5th of the dynamic grid step
+        let snap = step / 5.0
+        let snappedP = CGPoint(x: round(mathX / snap) * snap, y: round(mathY / snap) * snap)
+        
+        if graphType == QuestionGraphType.equation.rawValue {
+            if points.count >= 2 { points.removeAll() }
+            points.append(snappedP)
+            if points.count == 2 { generateLinearEquation() } else { content = "" }
+        } else {
+            points.append(snappedP)
+            generatePointsString()
+        }
+        
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+    }
+    
+    private func generateLinearEquation() {
+        // Prevent index out of range crash by ensuring both points exist
+        guard points.count == 2 else {
+            content = ""
+            return
+        }
+        
+        let p1 = points[0]
+        let p2 = points[1]
+        
+        if p1.x == p2.x {
+            content = "x = \(p1.x.cleanMathString)"
+            return
+        }
+        
+        let m = (p2.y - p1.y) / (p2.x - p1.x)
+        let b = p1.y - m * p1.x
+        
+        var eq = "y = "
+        if m != 0 {
+            if m == 1 { eq += "x" }
+            else if m == -1 { eq += "-x" }
+            else { eq += "\(m.cleanMathString)x" }
+        }
+        
+        if b > 0 {
+            eq += (m == 0) ? "\(b.cleanMathString)" : " + \(b.cleanMathString)"
+        } else if b < 0 {
+            eq += (m == 0) ? "\(b.cleanMathString)" : " - \(abs(b).cleanMathString)"
+        } else if m == 0 && b == 0 {
+            eq += "0"
+        }
+        content = eq
+    }
+    
+    private func generatePointsString() {
+        content = points.map { "(\($0.x.cleanMathString), \($0.y.cleanMathString))" }.joined(separator: ", ")
+    }
+}
+
+// MARK: - Draggable Labeled Point Subview
+fileprivate struct DraggablePointView: View {
+    @Binding var point: CGPoint
+    let origin: CGPoint
+    let scale: CGFloat
+    let step: CGFloat
+    let onUpdate: () -> Void
+    
+    @State private var dragInitial: CGPoint? = nil
+    
+    var body: some View {
+        let screenP = CGPoint(x: origin.x + point.x * scale, y: origin.y - point.y * scale)
+        
+        ZStack(alignment: .bottom) {
+            Text("(\(point.x.cleanMathString), \(point.y.cleanMathString))")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundColor(.primary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .background(.ultraThinMaterial)
+                .cornerRadius(6)
+                .shadow(color: .black.opacity(0.1), radius: 2)
+                .offset(y: -30) // Keeps the text floating above the user's finger
+            
+            Circle()
+                .fill(Color.purple)
+                .frame(width: 24, height: 24) // Slightly larger visual point
+                .overlay(Circle().stroke(Color.white, lineWidth: 3))
+                .shadow(color: .black.opacity(0.2), radius: 3)
+        }
+        .frame(width: 60, height: 60) // Generous invisible touch target
+        .contentShape(Rectangle()) // Ensures the entire 60x60 area is draggable
+        .position(screenP)
+        .highPriorityGesture( // Forces the point's drag to override the canvas's pan gesture
+            DragGesture(minimumDistance: 0)
+                .onChanged { val in
+                    if dragInitial == nil { dragInitial = point }
+                    let start = dragInitial!
+                    
+                    let mathDx = val.translation.width / scale
+                    let mathDy = -val.translation.height / scale // Invert Y
+                    
+                    let rawP = CGPoint(x: start.x + mathDx, y: start.y + mathDy)
+                    
+                    let snap = step / 5.0
+                    point = CGPoint(x: round(rawP.x / snap) * snap, y: round(rawP.y / snap) * snap)
+                    onUpdate()
+                }
+                .onEnded { _ in
+                    dragInitial = nil
+                }
+        )
     }
 }
 
@@ -242,7 +561,6 @@ fileprivate struct MathKeypadView: View {
                     actionButton(systemName: "space", action: { text.append(" ") }, color: Color(UIColor.systemGray4))
                     
                 case .fn:
-                    // Notice these inject plain-text strings, not raw LaTeX
                     keyButton("sin(", display: "sin")
                     keyButton("cos(", display: "cos")
                     keyButton("tan(", display: "tan")
@@ -300,9 +618,7 @@ fileprivate struct MathKeypadView: View {
     }
     
     private func backspace() {
-        if !text.isEmpty {
-            text.removeLast()
-        }
+        if !text.isEmpty { text.removeLast() }
     }
     
     @ViewBuilder
@@ -333,5 +649,12 @@ fileprivate struct MathKeypadView: View {
                 .foregroundColor(.primary)
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Math Formatter Extension
+fileprivate extension CGFloat {
+    var cleanMathString: String {
+        return self.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", self) : String(format: "%.2f", self)
     }
 }

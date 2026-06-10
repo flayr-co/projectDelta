@@ -23,18 +23,27 @@ struct MainTabView: View {
             Color(UIColor.systemBackground)
                 .ignoresSafeArea()
             
-            Group {
-                switch selectedTab {
-                case 0: HomeView().id(homeRefreshKey)
-                case 1: CardView().id(cardRefreshKey)
-                case 2: ProfileView().id(profileRefreshKey)
-                default: Text("Selection does not exist")
-                }
+            // Native TabView preserves view state automatically instead of destroying inactive views
+            TabView(selection: $selectedTab) {
+                HomeView()
+                    .id(homeRefreshKey)
+                    .tag(0)
+                    .toolbar(.hidden, for: .tabBar)
+                    .safeAreaPadding(.bottom, 100)
+                
+                CardView()
+                    .id(cardRefreshKey)
+                    .tag(1)
+                    .toolbar(.hidden, for: .tabBar)
+                    .safeAreaPadding(.bottom, 100)
+                
+                ProfileView()
+                    .id(profileRefreshKey)
+                    .tag(2)
+                    .toolbar(.hidden, for: .tabBar)
+                    .safeAreaPadding(.bottom, 100)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Natively pads the bottom of child scroll views, allowing them to underlap the tab bar smoothly
-            .safeAreaPadding(.bottom, 100)
-
+            
             HStack(spacing: 0) {
                 TabBarButton(icon: "house.fill", label: "Home", isSelected: selectedTab == 0) {
                     handleTabSelection(index: 0, refreshKey: &homeRefreshKey)
