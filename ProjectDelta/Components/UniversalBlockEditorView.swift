@@ -9,13 +9,14 @@ struct UniversalBlockEditorView: View {
     @Binding var blocks: [QuestionBlockModel]
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             ForEach($blocks) { $block in
                 BlockEditCell(block: $block) {
-                    withAnimation {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                         blocks.removeAll { $0.id == block.id }
                     }
                 }
+                .transition(.asymmetric(insertion: .scale(scale: 0.95).combined(with: .opacity), removal: .opacity))
             }
             
             Menu {
@@ -26,19 +27,20 @@ struct UniversalBlockEditorView: View {
                     Label("Add Math Equation", systemImage: "x.squareroot")
                 }
                 Button(action: { addBlock(type: .graph) }) {
-                    Label("Add Graph", systemImage: "chart.xyaxis.line")
+                    Label("Add Interactive Graph", systemImage: "chart.xyaxis.line")
                 }
             } label: {
-                HStack {
+                HStack(spacing: 8) {
                     Image(systemName: "plus.circle.fill")
+                        .font(.title3)
                     Text("Add Content Block")
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color.blue.opacity(0.1))
-                .foregroundColor(.blue)
-                .cornerRadius(12)
+                .background(Color.teal.opacity(0.15))
+                .foregroundColor(.teal)
+                .cornerRadius(14)
             }
         }
     }
@@ -54,12 +56,13 @@ fileprivate struct BlockEditCell: View {
     @Binding var block: QuestionBlockModel
     var onDelete: () -> Void
     
-    @FocusState private var isMathFocused: Bool
+    @FocusState private var isFocused: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
             HStack {
-                Label(block.type, systemImage: iconForType())
+                Label(block.type.capitalized, systemImage: iconForType())
                     .font(.subheadline)
                     .fontWeight(.bold)
                     .foregroundColor(colorForType())
@@ -67,121 +70,144 @@ fileprivate struct BlockEditCell: View {
                 Spacer()
                 
                 Button(role: .destructive, action: onDelete) {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
+                    Image(systemName: "trash.fill")
+                        .foregroundColor(.red.opacity(0.8))
                         .padding(8)
                         .background(Color.red.opacity(0.1))
                         .clipShape(Circle())
                 }
             }
             
+            // Content Editor Based on Type
             if block.type == QuestionBlockType.text.rawValue {
-                TextField("Enter plain text instruction or context...", text: $block.content, axis: .vertical)
+                TextField("Enter instruction or context...", text: $block.content, axis: .vertical)
                     .lineLimit(3...10)
-                    .padding(10)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .cornerRadius(8)
+                    .padding(12)
+                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .cornerRadius(10)
+                    .focused($isFocused)
                     
             } else if block.type == QuestionBlockType.math.rawValue {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Use the keypad below to build simple expressions.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    TextField("Equation or math expression...", text: $block.content, axis: .vertical)
-                        .lineLimit(2...6)
-                        .font(.system(.body, design: .monospaced))
-                        .padding(10)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(8)
-                        .focused($isMathFocused)
-                        .keyboardType(.numbersAndPunctuation)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .toolbar {
-                            ToolbarItemGroup(placement: .keyboard) {
-                                if isMathFocused {
-                                    Spacer()
-                                    Button("Done") {
-                                        isMathFocused = false
-                                    }
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.blue)
-                                }
-                            }
-                        }
-                    
-                    if isMathFocused {
-                        MathKeypadView(text: $block.content)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                            .padding(.top, 4)
-                    }
-                }
+                buildMathEditor()
             } else if block.type == QuestionBlockType.graph.rawValue {
-                VStack(alignment: .leading, spacing: 10) {
-                    Picker("Graph Type", selection: Binding(
-                        get: { block.graphType ?? QuestionGraphType.equation.rawValue },
-                        set: { block.graphType = $0 }
-                    )) {
-                        ForEach(QuestionGraphType.allCases, id: \.rawValue) { type in
-                            Text(type.rawValue).tag(type.rawValue)
+                buildGraphEditor()
+            }
+        }
+        .padding(16)
+        .background(Color(UIColor.systemBackground))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 3)
+    }
+    
+    // MARK: - Sub-Editors
+    
+    @ViewBuilder
+    private func buildMathEditor() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("LaTeX Expression Builder")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+            
+            // Input Field
+            TextField("e.g. \\frac{1}{2}x + 5", text: $block.content, axis: .vertical)
+                .lineLimit(2...6)
+                .font(.system(.body, design: .monospaced))
+                .padding(12)
+                .background(Color.teal.opacity(0.05))
+                .cornerRadius(10)
+                .focused($isFocused)
+                .keyboardType(.numbersAndPunctuation)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(isFocused ? Color.teal : Color.clear, lineWidth: 2)
+                )
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        if isFocused {
+                            Spacer()
+                            Button("Done") { isFocused = false }
+                                .fontWeight(.bold)
+                                .foregroundColor(.teal)
                         }
                     }
-                    .pickerStyle(.segmented)
-                    
-                    // The Advanced Interactive Canvas
-                    InteractiveGraphBuilderView(
-                        content: $block.content,
-                        graphType: block.graphType ?? QuestionGraphType.equation.rawValue
-                    )
-                    
-                    let placeholder = block.graphType == QuestionGraphType.equation.rawValue ? "Or enter manual function (e.g., y = 2x + 1)" : "Or enter manual coordinates (e.g., (1,2), (3,4))"
-                    
-                    TextField(placeholder, text: $block.content, axis: .vertical)
-                        .lineLimit(2...6)
-                        .font(.system(.body, design: .monospaced))
-                        .padding(10)
-                        .background(Color.purple.opacity(0.1))
-                        .cornerRadius(8)
-                        .focused($isMathFocused)
-                        .keyboardType(.numbersAndPunctuation)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
                 }
-            }
             
-            // Live LaTeX Preview
-            if !block.content.isEmpty && (block.type == QuestionBlockType.math.rawValue || (block.type == QuestionBlockType.graph.rawValue && block.graphType == QuestionGraphType.equation.rawValue)) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Live Preview:")
+            // WebAssign Style Live Preview
+            if !block.content.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Live Render")
                         .font(.caption2)
                         .fontWeight(.bold)
                         .foregroundColor(.teal)
+                        .textCase(.uppercase)
                     
                     LatexView(latex: "$$ " + block.content.parsedMathToLatex + " $$")
-                        .frame(minHeight: 45)
+                        .frame(minHeight: 50)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(8)
+                        .padding(12)
+                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                        .cornerRadius(10)
                 }
-                .padding(.top, 4)
+            }
+            
+            // Smart Keypad
+            if isFocused {
+                MathKeypadView(text: $block.content)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding()
-        .background(Color(UIColor.systemBackground))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.03), radius: 5, x: 0, y: 2)
     }
     
+    @ViewBuilder
+    private func buildGraphEditor() -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Picker("Mode", selection: Binding(
+                get: { block.graphType ?? QuestionGraphType.equation.rawValue },
+                set: { block.graphType = $0 }
+            )) {
+                ForEach(QuestionGraphType.allCases, id: \.rawValue) { type in
+                    Text(type.rawValue.capitalized).tag(type.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+            
+            InteractiveGraphBuilderView(
+                content: $block.content,
+                graphType: block.graphType ?? QuestionGraphType.equation.rawValue
+            )
+            
+            let placeholder = block.graphType == QuestionGraphType.equation.rawValue ? "Generated Equation (e.g., y = 2x + 1)" : "Generated Coordinates"
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Text(placeholder)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                TextField("Data...", text: $block.content, axis: .vertical)
+                    .lineLimit(1...4)
+                    .font(.system(.body, design: .monospaced))
+                    .padding(12)
+                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .cornerRadius(10)
+                    .focused($isFocused)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+            }
+        }
+    }
+    
+    // MARK: - Helpers
     private func iconForType() -> String {
         switch block.type {
         case QuestionBlockType.text.rawValue: return "text.alignleft"
-        case QuestionBlockType.math.rawValue: return "x.squareroot"
+        case QuestionBlockType.math.rawValue: return "function"
         case QuestionBlockType.graph.rawValue: return "chart.xyaxis.line"
         default: return "cube"
         }
@@ -190,7 +216,7 @@ fileprivate struct BlockEditCell: View {
     private func colorForType() -> Color {
         switch block.type {
         case QuestionBlockType.text.rawValue: return .blue
-        case QuestionBlockType.math.rawValue: return .orange
+        case QuestionBlockType.math.rawValue: return .teal
         case QuestionBlockType.graph.rawValue: return .purple
         default: return .primary
         }
@@ -212,30 +238,33 @@ fileprivate struct InteractiveGraphBuilderView: View {
     @State private var lastPan: CGSize = .zero
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             HStack {
-                Text(graphType == QuestionGraphType.equation.rawValue ? "Pan, Zoom & Tap 2 points to generate a line" : "Pan, Zoom & Tap to add data points")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
+                Image(systemName: "hand.draw.fill")
+                    .foregroundColor(.teal)
+                Text(graphType == QuestionGraphType.equation.rawValue ? "Plot 2 points to define the line" : "Tap to place coordinate points")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
                 
                 Spacer()
                 
                 if !points.isEmpty {
                     Button(action: {
-                        points.removeAll()
-                        content = ""
+                        withAnimation {
+                            points.removeAll()
+                            content = ""
+                        }
                     }) {
-                        Text("Clear Canvas")
+                        Text("Clear")
                             .font(.caption)
                             .fontWeight(.bold)
-                            .foregroundColor(.red)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(6)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.red)
+                            .cornerRadius(8)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             
@@ -270,7 +299,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
                             MagnifyGesture()
                                 .onChanged { val in
                                     let newScale = lastScale * val.magnification
-                                    currentScale = max(5.0, min(newScale, 200.0)) // Clamp zoom limits
+                                    currentScale = max(10.0, min(newScale, 150.0))
                                 }
                                 .onEnded { _ in
                                     lastScale = currentScale
@@ -301,23 +330,23 @@ fileprivate struct InteractiveGraphBuilderView: View {
                         )
                     }
                 }
-                .background(Color(UIColor.secondarySystemGroupedBackground))
-                .cornerRadius(10)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                .background(Color(UIColor.systemBackground))
+                .cornerRadius(12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.teal.opacity(0.3), lineWidth: 2))
                 .clipped()
             }
             .aspectRatio(1.0, contentMode: .fit)
         }
         .onChange(of: graphType) { _, _ in
             points.removeAll()
+            content = ""
         }
     }
     
     // MARK: Adaptive Grid System
     private func calculateGridStep(scale: CGFloat) -> CGFloat {
-        let targetSpacing: CGFloat = 60.0 // Target pixels between grid lines
+        let targetSpacing: CGFloat = 60.0
         let rawStep = targetSpacing / scale
-        
         let mag = pow(10.0, floor(log10(rawStep)))
         let normalized = rawStep / mag
         
@@ -334,7 +363,6 @@ fileprivate struct InteractiveGraphBuilderView: View {
         
         var minorPath = Path()
         
-        // Draw Vertical Lines & X Labels
         var x = floor(minXMath / step) * step
         while x <= maxXMath {
             let sx = origin.x + x * scale
@@ -342,13 +370,12 @@ fileprivate struct InteractiveGraphBuilderView: View {
             minorPath.addLine(to: CGPoint(x: sx, y: size.height))
             
             if x != 0 {
-                let text = Text(x.cleanMathString).font(.system(size: 10)).foregroundColor(.secondary)
-                context.draw(text, at: CGPoint(x: sx, y: origin.y + 12), anchor: .top)
+                let text = Text(x.cleanMathString).font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
+                context.draw(text, at: CGPoint(x: sx, y: origin.y + 6), anchor: .top)
             }
             x += step
         }
         
-        // Draw Horizontal Lines & Y Labels
         var y = floor(minYMath / step) * step
         while y <= maxYMath {
             let sy = origin.y - y * scale
@@ -356,7 +383,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
             minorPath.addLine(to: CGPoint(x: size.width, y: sy))
             
             if y != 0 {
-                let text = Text(y.cleanMathString).font(.system(size: 10)).foregroundColor(.secondary)
+                let text = Text(y.cleanMathString).font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
                 context.draw(text, at: CGPoint(x: origin.x - 6, y: sy), anchor: .trailing)
             }
             y += step
@@ -364,14 +391,13 @@ fileprivate struct InteractiveGraphBuilderView: View {
         
         context.stroke(minorPath, with: .color(Color.gray.opacity(0.15)), lineWidth: 1)
         
-        // Draw Main Axes
         var axesPath = Path()
         axesPath.move(to: CGPoint(x: origin.x, y: 0))
         axesPath.addLine(to: CGPoint(x: origin.x, y: size.height))
         axesPath.move(to: CGPoint(x: 0, y: origin.y))
         axesPath.addLine(to: CGPoint(x: size.width, y: origin.y))
         
-        context.stroke(axesPath, with: .color(Color.primary.opacity(0.6)), lineWidth: 2)
+        context.stroke(axesPath, with: .color(Color.primary.opacity(0.8)), lineWidth: 2)
     }
     
     private func drawLine(context: GraphicsContext, p1: CGPoint, p2: CGPoint, origin: CGPoint, scale: CGFloat, canvasSize: CGSize) {
@@ -390,16 +416,14 @@ fileprivate struct InteractiveGraphBuilderView: View {
             linePath.addLine(to: CGPoint(x: canvasSize.width, y: m * canvasSize.width + b))
         }
         
-        context.stroke(linePath, with: .color(.purple), lineWidth: 3)
+        context.stroke(linePath, with: .color(.teal), lineWidth: 3)
     }
     
-    // MARK: Gestures & Mathematics
     private func handleTap(location: CGPoint, origin: CGPoint, scale: CGFloat, step: CGFloat) {
         let mathX = (location.x - origin.x) / scale
         let mathY = (origin.y - location.y) / scale
         
-        // Snap naturally to 1/5th of the dynamic grid step
-        let snap = step / 5.0
+        let snap = step / 4.0
         let snappedP = CGPoint(x: round(mathX / snap) * snap, y: round(mathY / snap) * snap)
         
         if graphType == QuestionGraphType.equation.rawValue {
@@ -411,12 +435,10 @@ fileprivate struct InteractiveGraphBuilderView: View {
             generatePointsString()
         }
         
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.impactOccurred()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
     
     private func generateLinearEquation() {
-        // Prevent index out of range crash by ensuring both points exist
         guard points.count == 2 else {
             content = ""
             return
@@ -470,36 +492,35 @@ fileprivate struct DraggablePointView: View {
         
         ZStack(alignment: .bottom) {
             Text("(\(point.x.cleanMathString), \(point.y.cleanMathString))")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundColor(.primary)
-                .padding(.horizontal, 6)
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(.ultraThinMaterial)
+                .background(Color.black.opacity(0.75))
                 .cornerRadius(6)
-                .shadow(color: .black.opacity(0.1), radius: 2)
-                .offset(y: -30) // Keeps the text floating above the user's finger
+                .offset(y: -35)
             
             Circle()
-                .fill(Color.purple)
-                .frame(width: 24, height: 24) // Slightly larger visual point
+                .fill(Color.teal)
+                .frame(width: 20, height: 20)
                 .overlay(Circle().stroke(Color.white, lineWidth: 3))
-                .shadow(color: .black.opacity(0.2), radius: 3)
+                .shadow(color: .black.opacity(0.3), radius: 4)
         }
-        .frame(width: 60, height: 60) // Generous invisible touch target
-        .contentShape(Rectangle()) // Ensures the entire 60x60 area is draggable
+        .frame(width: 60, height: 60)
+        .contentShape(Rectangle())
         .position(screenP)
-        .highPriorityGesture( // Forces the point's drag to override the canvas's pan gesture
+        .highPriorityGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { val in
                     if dragInitial == nil { dragInitial = point }
                     let start = dragInitial!
                     
                     let mathDx = val.translation.width / scale
-                    let mathDy = -val.translation.height / scale // Invert Y
+                    let mathDy = -val.translation.height / scale
                     
                     let rawP = CGPoint(x: start.x + mathDx, y: start.y + mathDy)
                     
-                    let snap = step / 5.0
+                    let snap = step / 4.0
                     point = CGPoint(x: round(rawP.x / snap) * snap, y: round(rawP.y / snap) * snap)
                     onUpdate()
                 }
@@ -521,17 +542,16 @@ fileprivate struct MathKeypadView: View {
     @Binding var text: String
     @State private var currentTab: KeypadTab = .num
     
-    let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 5)
+    let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 5)
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             Picker("", selection: $currentTab) {
                 ForEach(KeypadTab.allCases, id: \.self) { tab in
                     Text(tab.rawValue).tag(tab)
                 }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, 4)
             
             LazyVGrid(columns: columns, spacing: 8) {
                 switch currentTab {
@@ -539,82 +559,82 @@ fileprivate struct MathKeypadView: View {
                     keyButton("7", display: "7")
                     keyButton("8", display: "8")
                     keyButton("9", display: "9")
-                    keyButton(" / ", display: "÷", color: Color(UIColor.systemGray5))
-                    actionButton(systemName: "delete.left.fill", action: backspace, color: Color(UIColor.systemGray4))
+                    keyButton("\\div", display: "÷", color: Color.teal.opacity(0.15))
+                    actionButton(systemName: "delete.left.fill", action: backspace, color: Color.red.opacity(0.15), textColor: .red)
                     
                     keyButton("4", display: "4")
                     keyButton("5", display: "5")
                     keyButton("6", display: "6")
-                    keyButton(" * ", display: "×", color: Color(UIColor.systemGray5))
-                    keyButton("(", display: "(", color: Color(UIColor.systemGray5))
+                    keyButton("\\times", display: "×", color: Color.teal.opacity(0.15))
+                    keyButton("\\frac{ }{ }", display: "a/b", color: Color.teal.opacity(0.15))
                     
                     keyButton("1", display: "1")
                     keyButton("2", display: "2")
                     keyButton("3", display: "3")
-                    keyButton(" - ", display: "-", color: Color(UIColor.systemGray5))
-                    keyButton(")", display: ")", color: Color(UIColor.systemGray5))
+                    keyButton("-", display: "-", color: Color.teal.opacity(0.15))
+                    keyButton("^{2}", display: "x²", color: Color.teal.opacity(0.15))
                     
                     keyButton("0", display: "0")
                     keyButton(".", display: ".")
-                    keyButton(" = ", display: "=", color: Color(UIColor.systemGray5))
-                    keyButton(" + ", display: "+", color: Color(UIColor.systemGray5))
-                    actionButton(systemName: "space", action: { text.append(" ") }, color: Color(UIColor.systemGray4))
+                    keyButton("=", display: "=", color: Color.teal.opacity(0.15))
+                    keyButton("+", display: "+", color: Color.teal.opacity(0.15))
+                    keyButton("^{ }", display: "xⁿ", color: Color.teal.opacity(0.15))
                     
                 case .fn:
-                    keyButton("sin(", display: "sin")
-                    keyButton("cos(", display: "cos")
-                    keyButton("tan(", display: "tan")
-                    keyButton("ln(", display: "ln")
-                    actionButton(systemName: "delete.left.fill", action: backspace, color: Color(UIColor.systemGray4))
+                    keyButton("\\sin()", display: "sin")
+                    keyButton("\\cos()", display: "cos")
+                    keyButton("\\tan()", display: "tan")
+                    keyButton("\\ln()", display: "ln")
+                    actionButton(systemName: "delete.left.fill", action: backspace, color: Color.red.opacity(0.15), textColor: .red)
                     
-                    keyButton("csc(", display: "csc")
-                    keyButton("sec(", display: "sec")
-                    keyButton("cot(", display: "cot")
-                    keyButton("log(", display: "log")
-                    keyButton("^(", display: "xⁿ", color: Color(UIColor.systemGray5))
+                    keyButton("\\csc()", display: "csc")
+                    keyButton("\\sec()", display: "sec")
+                    keyButton("\\cot()", display: "cot")
+                    keyButton("\\log_{10}()", display: "log")
+                    keyButton("\\sqrt{ }", display: "√", color: Color.teal.opacity(0.15))
                     
-                    keyButton("x", display: "x", color: Color(UIColor.systemGray5))
-                    keyButton("y", display: "y", color: Color(UIColor.systemGray5))
-                    keyButton("e^(", display: "eⁿ", color: Color(UIColor.systemGray5))
-                    keyButton("}", display: "}", color: Color(UIColor.systemGray5))
-                    keyButton("√(", display: "√", color: Color(UIColor.systemGray5))
+                    keyButton("x", display: "x", color: Color.teal.opacity(0.15))
+                    keyButton("y", display: "y", color: Color.teal.opacity(0.15))
+                    keyButton("e^{}", display: "eⁿ", color: Color.teal.opacity(0.15))
+                    keyButton("(", display: "(", color: Color.teal.opacity(0.15))
+                    keyButton(")", display: ")", color: Color.teal.opacity(0.15))
                     
-                    keyButton("a", display: "a", color: Color(UIColor.systemGray5))
-                    keyButton("b", display: "b", color: Color(UIColor.systemGray5))
-                    keyButton("{", display: "{", color: Color(UIColor.systemGray5))
-                    keyButton("}", display: "}", color: Color(UIColor.systemGray5))
-                    actionButton(systemName: "space", action: { text.append(" ") }, color: Color(UIColor.systemGray4))
+                    keyButton("a", display: "a", color: Color.teal.opacity(0.15))
+                    keyButton("b", display: "b", color: Color.teal.opacity(0.15))
+                    keyButton("c", display: "c", color: Color.teal.opacity(0.15))
+                    keyButton("[", display: "[", color: Color.teal.opacity(0.15))
+                    keyButton("]", display: "]", color: Color.teal.opacity(0.15))
                     
                 case .sym:
-                    keyButton("π", display: "π")
-                    keyButton("θ", display: "θ")
-                    keyButton("α", display: "α")
-                    keyButton("β", display: "β")
-                    actionButton(systemName: "delete.left.fill", action: backspace, color: Color(UIColor.systemGray4))
+                    keyButton("\\pi", display: "π")
+                    keyButton("\\theta", display: "θ")
+                    keyButton("\\alpha", display: "α")
+                    keyButton("\\beta", display: "β")
+                    actionButton(systemName: "delete.left.fill", action: backspace, color: Color.red.opacity(0.15), textColor: .red)
                     
-                    keyButton(" ≤ ", display: "≤")
-                    keyButton(" ≥ ", display: "≥")
-                    keyButton(" ≠ ", display: "≠")
-                    keyButton(" ≈ ", display: "≈")
-                    keyButton(" / ", display: "a/b", color: Color(UIColor.systemGray5))
+                    keyButton("\\leq", display: "≤")
+                    keyButton("\\geq", display: "≥")
+                    keyButton("\\neq", display: "≠")
+                    keyButton("\\approx", display: "≈")
+                    keyButton("\\pm", display: "±", color: Color.teal.opacity(0.15))
                     
-                    keyButton("∫", display: "∫")
-                    keyButton("∑", display: "∑")
-                    keyButton("∞", display: "∞")
-                    keyButton("°", display: "°")
-                    keyButton("^(2)", display: "x²", color: Color(UIColor.systemGray5))
+                    keyButton("\\int", display: "∫")
+                    keyButton("\\sum", display: "∑")
+                    keyButton("\\infty", display: "∞")
+                    keyButton("^{\\circ}", display: "°")
+                    keyButton("\\Delta", display: "Δ", color: Color.teal.opacity(0.15))
                     
-                    keyButton("(", display: "(", color: Color(UIColor.systemGray5))
-                    keyButton(")", display: ")", color: Color(UIColor.systemGray5))
-                    keyButton("{", display: "{", color: Color(UIColor.systemGray5))
-                    keyButton("}", display: "}", color: Color(UIColor.systemGray5))
-                    actionButton(systemName: "space", action: { text.append(" ") }, color: Color(UIColor.systemGray4))
+                    keyButton("\\{", display: "{", color: Color.teal.opacity(0.15))
+                    keyButton("\\}", display: "}", color: Color.teal.opacity(0.15))
+                    keyButton("<", display: "<", color: Color.teal.opacity(0.15))
+                    keyButton(">", display: ">", color: Color.teal.opacity(0.15))
+                    actionButton(systemName: "space", action: { text.append(" ") }, color: Color.teal.opacity(0.15))
                 }
             }
         }
-        .padding(10)
-        .background(Color(UIColor.secondarySystemGroupedBackground))
-        .cornerRadius(10)
+        .padding(12)
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(14)
     }
     
     private func backspace() {
@@ -622,31 +642,31 @@ fileprivate struct MathKeypadView: View {
     }
     
     @ViewBuilder
-    private func keyButton(_ insertString: String, display: String, color: Color = Color(UIColor.systemBackground)) -> some View {
+    private func keyButton(_ insertString: String, display: String, color: Color = Color(UIColor.tertiarySystemBackground)) -> some View {
         Button(action: { text.append(insertString) }) {
             Text(display)
-                .font(.system(size: 15, weight: .bold, design: .monospaced))
+                .font(.system(size: 16, weight: .bold, design: .monospaced))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .frame(height: 44)
                 .background(color)
-                .cornerRadius(6)
-                .shadow(color: .black.opacity(0.1), radius: 1, y: 1)
+                .cornerRadius(8)
+                .shadow(color: Color.black.opacity(0.05), radius: 1, y: 1)
                 .foregroundColor(.primary)
         }
         .buttonStyle(.plain)
     }
     
     @ViewBuilder
-    private func actionButton(systemName: String, action: @escaping () -> Void, color: Color) -> some View {
+    private func actionButton(systemName: String, action: @escaping () -> Void, color: Color, textColor: Color = .primary) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 16, weight: .bold))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .frame(height: 44)
                 .background(color)
-                .cornerRadius(6)
-                .shadow(color: .black.opacity(0.1), radius: 1, y: 1)
-                .foregroundColor(.primary)
+                .cornerRadius(8)
+                .shadow(color: Color.black.opacity(0.05), radius: 1, y: 1)
+                .foregroundColor(textColor)
         }
         .buttonStyle(.plain)
     }

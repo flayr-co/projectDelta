@@ -47,19 +47,14 @@ struct DynamicGraphView: View {
     var data: GraphData
     @Environment(\.colorScheme) var colorScheme
 
-    var primaryColor: Color {
-        colorScheme == .dark ? .cyan : .red
-    }
-
-    var secondaryColor: Color {
-        colorScheme == .dark ? .pink : .blue
-    }
+    var primaryColor: Color { .teal }
+    var secondaryColor: Color { .orange }
     
     var primaryEquation: String {
         if let regressionLine = linearRegression(x: data.xValues, y: data.yValues) {
             let slope = String(format: (regressionLine.slope.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"), regressionLine.slope)
             let intercept = String(format: (regressionLine.intercept.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"), regressionLine.intercept)
-            return "y = \(slope)x + \(intercept)"
+            return "y = \(slope)x \(regressionLine.intercept >= 0 ? "+" : "-") \(abs(Double(intercept) ?? 0))"
         } else {
             return "Primary Line"
         }
@@ -70,17 +65,16 @@ struct DynamicGraphView: View {
            let regressionLine = linearRegression(x: data.xValues, y: secondaryYValues) {
             let slope = String(format: (regressionLine.slope.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"), regressionLine.slope)
             let intercept = String(format: (regressionLine.intercept.truncatingRemainder(dividingBy: 1) == 0 ? "%.0f" : "%.2f"), regressionLine.intercept)
-            return "y = \(slope)x + \(intercept)"
+            return "y = \(slope)x \(regressionLine.intercept >= 0 ? "+" : "-") \(abs(Double(intercept) ?? 0))"
         } else {
             return "Secondary Line"
         }
     }
 
     var body: some View {
-        VStack {
+        VStack(spacing: 16) {
             Chart {
                 if let inequality = data.inequality {
-                    // Iterate over the x-values to create individual AreaMarks
                     ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
                         let xValue = data.xValues[xIndex]
                         let yLineValue = inequality.slope * xValue + inequality.intercept
@@ -92,7 +86,7 @@ struct DynamicGraphView: View {
                             yStart: .value("Y Start", yStartValue),
                             yEnd: .value("Y End", yEndValue)
                         )
-                        .foregroundStyle(Color.cyan.opacity(0.3))
+                        .foregroundStyle(primaryColor.opacity(0.15))
                     }
                 }
                 
@@ -105,15 +99,15 @@ struct DynamicGraphView: View {
                         y: .value("Y Value", yValue)
                     )
                     .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     .foregroundStyle(primaryColor)
-                    .foregroundStyle(by: .value("Line Type", "Primary"))
 
                     PointMark(
                         x: .value("X Value", xValue),
                         y: .value("Y Value", yValue)
                     )
                     .symbol(Circle())
-                    .symbolSize(30)
+                    .symbolSize(60)
                     .foregroundStyle(primaryColor)
                 }
 
@@ -127,134 +121,91 @@ struct DynamicGraphView: View {
                             y: .value("Secondary Y Value", yValue)
                         )
                         .interpolationMethod(.catmullRom)
-                    .foregroundStyle(secondaryColor)  // Ensure the line color is set
-                        .foregroundStyle(by: .value("Line Type", "Secondary"))
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                        .foregroundStyle(secondaryColor)
 
                         PointMark(
                             x: .value("X Value", xValue),
                             y: .value("Secondary Y Value", yValue)
                         )
                         .symbol(Circle())
-                        .symbolSize(30)
+                        .symbolSize(60)
                         .foregroundStyle(secondaryColor)
                     }
                 }
             }
-            .chartLegend {
-                Text(primaryEquation)
-                    .foregroundColor(primaryColor)
-                if data.secondaryYValues != nil {
-                    Text(secondaryEquation)
-                        .foregroundColor(secondaryColor)
-                        .offset(CGSize(width: 80.0, height: 89.0))
+            .chartXScale(domain: (data.xValues.min() ?? 0)...(data.xValues.max() ?? 10))
+            .chartYScale(domain: adjustedYDomain())
+            .chartXAxis {
+                AxisMarks(position: .bottom) { value in
+                    AxisGridLine().foregroundStyle(Color.gray.opacity(0.2))
+                    AxisTick().foregroundStyle(Color.gray.opacity(0.4))
+                    AxisValueLabel() {
+                        if let intValue = value.as(Double.self) {
+                            Text(String(format: "%.0f", intValue))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
             }
-            .chartXScale(domain: (data.xValues.min()!)...(data.xValues.max()!))
-            .chartYScale(domain: adjustedYDomain())
-            .frame(height: 200)
-            .padding(.horizontal, 30)
-            .onAppear {
-                debugPrintData()
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine().foregroundStyle(Color.gray.opacity(0.2))
+                    AxisTick().foregroundStyle(Color.gray.opacity(0.4))
+                    AxisValueLabel() {
+                        if let intValue = value.as(Double.self) {
+                            Text(String(format: "%.0f", intValue))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .frame(height: 250)
+            .padding()
+            .background(Color(UIColor.systemBackground))
+            .cornerRadius(16)
+            .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+            
+            // Custom Clean Legend
+            HStack(spacing: 20) {
+                HStack(spacing: 6) {
+                    Circle().fill(primaryColor).frame(width: 8, height: 8)
+                    Text(primaryEquation)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                }
+                
+                if data.secondaryYValues != nil {
+                    HStack(spacing: 6) {
+                        Circle().fill(secondaryColor).frame(width: 8, height: 8)
+                        Text(secondaryEquation)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                    }
+                }
             }
         }
-    }
-    
-    func minY(for inequality: GraphData.Inequality, at xValue: Double) -> Double {
-        return inequality.slope * xValue + inequality.intercept
-    }
-
-    func maxY(for inequality: GraphData.Inequality, at xValue: Double) -> Double {
-        return inequality.slope * xValue + inequality.intercept
+        .padding(.horizontal)
     }
 
     func adjustedYDomain() -> ClosedRange<Double> {
         let allYValues = data.yValues + (data.secondaryYValues ?? [])
-        let minY = allYValues.min()!
-        let maxY = allYValues.max()!
+        guard let minY = allYValues.min(), let maxY = allYValues.max() else { return 0...10 }
         
         if minY == maxY {
             return (minY - 1)...(maxY + 1)
         } else {
             let yRange = maxY - minY
-            return (minY - 0.1 * yRange)...(maxY + 0.1 * yRange)
-        }
-    }
-
-    func debugPrintData() {
-        print("DynamicGraphView initialized with data:")
-        print("xValues: \(data.xValues)")
-        print("yValues: \(data.yValues)")
-        if let secondaryYValues = data.secondaryYValues {
-            print("secondaryYValues: \(secondaryYValues)")
+            return (minY - 0.15 * yRange)...(maxY + 0.15 * yRange) // 15% padding for cleaner visual
         }
     }
 }
 
-
-// This is used for a line plot when the slope = 0
-struct HorizontalLineChart: View {
-    var data: GraphData
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        VStack {
-            GeometryReader { geometry in
-                let yValue = data.yValues.first!
-                let yPosition = geometry.size.height / 2
-                
-                Path { path in
-                    path.move(to: CGPoint(x: 0, y: yPosition))
-                    path.addLine(to: CGPoint(x: geometry.size.width, y: yPosition))
-                }
-                .stroke(colorScheme == .dark ? .cyan : .red, lineWidth: 2)
-                .overlay(
-                    ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, _) in
-                        let xValue = data.xValues[xIndex]
-                        Circle()
-                            .frame(width: 6, height: 6)
-                            .foregroundColor(colorScheme == .dark ? Color(red: 0.0, green: 0.8, blue: 1.0) : Color(red: 0.7, green: 0.0, blue: 0.0))
-                            .position(x: CGFloat(xValue / data.xValues.max()!) * geometry.size.width, y: yPosition)
-                    }
-                )
-            }
-            .frame(height: 200)
-            .padding(.horizontal, 30)
-        }
-    }
-}
-
-// This is used for a line plot when the slope is undefined
-struct VerticalLineChart: View {
-    var data: GraphData
-    @Environment(\.colorScheme) var colorScheme
-    
-    var body: some View {
-        VStack {
-            GeometryReader { geometry in
-                let xValue = data.xValues.first!
-                let xPosition = geometry.size.width / 2
-                
-                Path { path in
-                    path.move(to: CGPoint(x: xPosition, y: 0))
-                    path.addLine(to: CGPoint(x: xPosition, y: geometry.size.height))
-                }
-                .stroke(colorScheme == .dark ? .cyan : .red, lineWidth: 2)
-                .overlay(
-                    ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (_, yIndex) in
-                        let yValue = data.yValues[yIndex]
-                        Circle()
-                            .frame(width: 6, height: 6)
-                            .foregroundColor(colorScheme == .dark ? Color(red: 0.0, green: 0.8, blue: 1.0) : Color(red: 0.7, green: 0.0, blue: 0.0))
-                            .position(x: xPosition, y: CGFloat(yValue / data.yValues.max()!) * geometry.size.height)
-                    }
-                )
-            }
-            .frame(height: 200)
-            .padding(.horizontal, 30)
-        }
-    }
-}
-
+// Helper mathematical functions
 func linearRegression(x: [Double], y: [Double]) -> (slope: Double, intercept: Double)? {
     guard x.count == y.count && x.count > 1 else { return nil }
     
@@ -264,158 +215,18 @@ func linearRegression(x: [Double], y: [Double]) -> (slope: Double, intercept: Do
     let sumXY = zip(x, y).map(*).reduce(0, +)
     let sumXSquare = x.map { $0 * $0 }.reduce(0, +)
     
-    let slope = (n * sumXY - sumX * sumY) / (n * sumXSquare - sumX * sumX)
+    let denominator = (n * sumXSquare - sumX * sumX)
+    if denominator == 0 { return (0, 0) } // Prevent division by zero
+    
+    let slope = (n * sumXY - sumX * sumY) / denominator
     let intercept = (sumY - slope * sumX) / n
     
     return (slope, intercept)
 }
 
-struct NegativeSlopeGraphView: View {
-    var data: GraphData
-    @Environment(\.colorScheme) var colorScheme
-    
-    var regressionLine: (slope: Double, intercept: Double)? {
-        linearRegression(x: data.xValues, y: data.yValues)
-    }
-    
-    var xIncrement: Double {
-        let differences = zip(data.xValues.dropFirst(), data.xValues).map(-)
-        return differences.max() ?? 1.0
-    }
-
-    var yIncrement: Double {
-        let differences = zip(data.yValues.dropFirst(), data.yValues).map(-)
-        return differences.max() ?? 1.0
-    }
-    
-    var crossesXAxis: Bool {
-        guard let regressionLine = regressionLine else { return false }
-        let yValuesAtXMin = regressionLine.slope * data.xValues.min()! + regressionLine.intercept
-        let yValuesAtXMax = regressionLine.slope * data.xValues.max()! + regressionLine.intercept
-        return (yValuesAtXMin <= 0 && yValuesAtXMax >= 0) || (yValuesAtXMin >= 0 && yValuesAtXMax <= 0)
-    }
-
-    var crossesYAxis: Bool {
-        guard let regressionLine = regressionLine else { return false }
-        return (0 <= data.xValues.max()! && 0 >= data.xValues.min()!)
-    }
-    
-    var body: some View {
-        VStack {
-            Chart {
-                ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
-                    let xValue = data.xValues[xIndex]
-                    let yValue = data.yValues[yIndex]
-                    LineMark(
-                        x: .value("X Value", xValue),
-                        y: .value("Y Value", yValue)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(colorScheme == .dark ? .cyan : .red)
-
-                    PointMark(
-                        x: .value("X Value", xValue),
-                        y: .value("Y Value", yValue)
-                    )
-                    .symbol(Circle())
-                    .symbolSize(30)
-                    .foregroundStyle(colorScheme == .dark ? Color(red: 0.0, green: 0.8, blue: 1.0) : Color(red: 0.7, green: 0.0, blue: 0.0))
-                }
-            }
-            .chartXScale(domain: (data.xValues.min()!)...(data.xValues.max()!))
-            .chartYScale(domain: adjustedYDomain())
-            .chartXAxis {
-                AxisMarks(position: .bottom, values: Array(stride(from: data.xValues.min()!, through: data.xValues.max()!, by: xIncrement))) { value in
-                    AxisTick()
-                    AxisGridLine()
-                        .foregroundStyle(colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.4))
-                    AxisValueLabel {
-                        Text("\(value.as(Int.self) ?? 0)")
-                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .black.opacity(0.8))
-                            .padding(.leading, -5)
-                    }
-                }
-                if crossesYAxis {
-                    AxisMarks(position: .bottom, values: [0]) { value in
-                        AxisGridLine()
-                            .foregroundStyle(colorScheme == .dark ? .white.opacity(0.8) : .black.opacity(0.8))
-                    }
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading, values: yAxisValues()) { value in
-                    AxisTick()
-                    AxisGridLine()
-                        .foregroundStyle(colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.4))
-                    AxisValueLabel {
-                        Text("\(value.as(Int.self) ?? 0)")
-                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .black.opacity(0.8))
-                            .padding()
-                    }
-                }
-                if crossesXAxis {
-                    AxisMarks(position: .leading, values: [0]) { value in
-                        AxisGridLine()
-                            .foregroundStyle(colorScheme == .dark ? .white.opacity(0.8) : .black.opacity(0.8))
-                    }
-                }
-            }
-            .frame(height: 200)
-            .padding(.horizontal, 30)
-            .overlay(
-                VStack {
-                    if let regressionLine = regressionLine {
-                        Text("y = \(Int(regressionLine.slope))x + \(Int(regressionLine.intercept))")
-                            .font(.subheadline)
-                            .foregroundColor(colorScheme == .dark ? .cyan : .red)
-                            .fontWeight(.bold)
-                            .padding(4)
-                            .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
-                            .cornerRadius(4)
-                            .offset(x: 100, y: -40)
-                    }
-                    Spacer()
-                },
-                alignment: .topLeading
-            )
-            .onAppear {
-                debugPrintData()
-            }
-        }
-    }
-    
-    func adjustedYDomain() -> ClosedRange<Double> {
-        let minY = data.yValues.min()!
-        let maxY = data.yValues.max()!
-        
-        if minY == maxY {
-            return (minY - 1)...(maxY + 1)
-        } else {
-            let yRange = maxY - minY
-            return (minY - 0.1 * yRange)...(maxY + 0.1 * yRange)
-        }
-    }
-
-    func yAxisValues() -> [Double] {
-        let minY = data.yValues.min()!
-        let maxY = data.yValues.max()!
-        let yIncrement = (maxY - minY) / 5
-        return stride(from: minY, through: maxY, by: yIncrement).map { $0 }
-    }
-
-    func debugPrintData() {
-        print("NegativeSlopeGraphView initialized with data:")
-        print("xValues: \(data.xValues)")
-        print("yValues: \(data.yValues)")
-        if let regressionLine = regressionLine {
-            print("Slope: \(regressionLine.slope), Intercept: \(regressionLine.intercept)")
-        } else {
-            print("Regression line is nil")
-        }
-    }
-}
-
-
 #Preview {
-    DynamicGraphView(data: sampleData)
+    ZStack {
+        Color(UIColor.systemGroupedBackground).ignoresSafeArea()
+        DynamicGraphView(data: sampleData)
+    }
 }

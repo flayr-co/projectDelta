@@ -29,13 +29,22 @@ struct AddQuestionView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                
+                // Instructions Header
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Manual Question Entry")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("Build a custom question for your students. Use the block editor to seamlessly mix text, math equations, and graphs.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+                
                 // 1. Categorization Card
-                VStack(alignment: .leading, spacing: 16) {
-                    Label("Categorization", systemImage: "folder.fill")
-                        .font(.headline)
-                        .foregroundColor(.blue)
-                    
-                    VStack(spacing: 12) {
+                FormCard(title: "Categorization", icon: "folder.fill", iconColor: .blue) {
+                    VStack(spacing: 16) {
                         HStack {
                             Text("Subject")
                                 .fontWeight(.medium)
@@ -65,105 +74,88 @@ struct AddQuestionView: View {
                             .tint(.blue)
                         }
                     }
-                    .padding()
-                    .background(Color(UIColor.secondarySystemGroupedBackground))
-                    .cornerRadius(12)
                 }
-                .padding()
-                .background(Color(UIColor.systemBackground))
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
                 
                 // 2. Question Builder
-                VStack(alignment: .leading, spacing: 16) {
-                    Label("Question Builder", systemImage: "hammer.fill")
-                        .font(.headline)
-                        .foregroundColor(.purple)
-                    
-                    UniversalBlockEditorView(blocks: $questionBlocks)
+                FormCard(title: "Question Content", icon: "hammer.fill", iconColor: .purple) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Add text, LaTeX math, or dynamic graphs using the tools below.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        UniversalBlockEditorView(blocks: $questionBlocks)
+                    }
                 }
-                .padding()
-                .background(Color(UIColor.systemBackground))
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
                 
                 // 3. Multiple Choice Options
-                VStack(alignment: .leading, spacing: 16) {
-                    Label("Multiple Choice Answers", systemImage: "checklist")
-                        .font(.headline)
-                        .foregroundColor(.orange)
-                    
-                    Text("Select the circle next to the correct answer.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    VStack(spacing: 12) {
-                        ForEach(options.indices, id: \.self) { index in
-                            HStack {
-                                Button(action: {
-                                    withAnimation { correctIndex = index }
-                                }) {
-                                    Image(systemName: correctIndex == index ? "checkmark.circle.fill" : "circle")
-                                        .font(.title2)
-                                        .foregroundColor(correctIndex == index ? .green : .gray.opacity(0.5))
+                FormCard(title: "Answer Choices", icon: "checklist", iconColor: .orange) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Enter the possible answers and tap the circle next to the correct one.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        VStack(spacing: 12) {
+                            ForEach(options.indices, id: \.self) { index in
+                                HStack(spacing: 12) {
+                                    Button(action: {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                            correctIndex = index
+                                        }
+                                    }) {
+                                        Image(systemName: correctIndex == index ? "checkmark.circle.fill" : "circle")
+                                            .font(.title2)
+                                            .foregroundColor(correctIndex == index ? .green : .gray.opacity(0.5))
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    TextField("Option \(index + 1)", text: $options[index])
+                                        .padding(12)
+                                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                                        .cornerRadius(8)
                                 }
-                                .buttonStyle(.plain)
-                                
-                                TextField("Option \(index + 1)", text: $options[index])
-                                    .padding(12)
-                                    .background(Color(UIColor.secondarySystemGroupedBackground))
-                                    .cornerRadius(8)
                             }
                         }
                     }
                 }
-                .padding()
-                .background(Color(UIColor.systemBackground))
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
                 
                 // 4. Assistance
-                VStack(alignment: .leading, spacing: 16) {
-                    Label("Assistance (Optional)", systemImage: "lightbulb.fill")
-                        .font(.headline)
-                        .foregroundColor(.yellow)
-                    
-                    TextField("Enter a hint to help students...", text: $hint, axis: .vertical)
-                        .lineLimit(2...4)
-                        .padding(12)
-                        .background(Color(UIColor.secondarySystemGroupedBackground))
-                        .cornerRadius(8)
+                FormCard(title: "Assistance (Optional)", icon: "lightbulb.fill", iconColor: .yellow) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Provide a hint to point struggling students in the right direction.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        TextField("e.g., Remember to isolate the variable first...", text: $hint, axis: .vertical)
+                            .lineLimit(2...4)
+                            .padding(12)
+                            .background(Color(UIColor.secondarySystemGroupedBackground))
+                            .cornerRadius(8)
+                    }
                 }
-                .padding()
-                .background(Color(UIColor.systemBackground))
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
                 
                 // 5. Submit Button
                 Button(action: saveQuestion) {
                     HStack {
                         Image(systemName: "square.and.arrow.down.fill")
-                        Text("Save Question to Database")
+                        Text("Save to Database")
                             .fontWeight(.bold)
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(
-                        LinearGradient(colors: [.teal, .blue], startPoint: .leading, endPoint: .trailing)
-                    )
+                    .background(Color.teal)
                     .foregroundColor(.white)
                     .cornerRadius(14)
-                    .shadow(color: .blue.opacity(0.3), radius: 10, y: 5)
+                    .shadow(color: Color.teal.opacity(0.3), radius: 10, y: 5)
                 }
                 .disabled(questionBlocks.isEmpty || options.contains(where: \.isEmpty))
-                .opacity(questionBlocks.isEmpty || options.contains(where: \.isEmpty) ? 0.6 : 1.0)
+                .opacity(questionBlocks.isEmpty || options.contains(where: \.isEmpty) ? 0.5 : 1.0)
+                .padding(.horizontal)
             }
-            .padding()
+            .padding(.vertical)
         }
-        // This natively forces the bottom boundary of the scroll view up, rescuing the button from the tab bar
-        .safeAreaPadding(.bottom, 120)
+        .safeAreaPadding(.bottom, 100)
         .background(Color(UIColor.systemGroupedBackground).ignoresSafeArea())
-        .navigationTitle("Add Question")
+        .navigationTitle("New Question")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let initialArea = SubjectArea(rawValue: subject.name) ?? SubjectArea(rawValue: subject.subjectArea.rawValue) {
@@ -209,5 +201,46 @@ struct AddQuestionView: View {
                 correctIndex = 0
             }
         }
+    }
+}
+
+// MARK: - Helper UI Component
+// Move this to a generic components file if needed elsewhere
+struct FormCard<Content: View>: View {
+    let title: String
+    let icon: String
+    let iconColor: Color
+    let content: Content
+    
+    init(title: String, icon: String, iconColor: Color, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.icon = icon
+        self.iconColor = iconColor
+        self.content = content()
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(iconColor.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: icon)
+                        .foregroundColor(iconColor)
+                        .font(.subheadline)
+                }
+                
+                Text(title)
+                    .font(.headline)
+            }
+            
+            content
+        }
+        .padding()
+        .background(Color(UIColor.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+        .padding(.horizontal)
     }
 }

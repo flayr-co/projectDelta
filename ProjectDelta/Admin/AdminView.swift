@@ -2,8 +2,6 @@
 //  AdminView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/20/23.
-//
 
 import SwiftUI
 
@@ -12,59 +10,94 @@ struct AdminView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) var dismiss
     
-    let primaryAccent = Color.teal
+    let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
 
-    var backgroundColor: Color {
-        colorScheme == .dark ? Color(UIColor.systemBackground) : Color(red: 0.95, green: 0.95, blue: 0.97)
+    var themeBackground: Color {
+        colorScheme == .dark ? Color(red: 0.12, green: 0.11, blue: 0.10) : Color(red: 0.97, green: 0.96, blue: 0.94)
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                backgroundColor.ignoresSafeArea()
+                themeBackground.ignoresSafeArea()
                 
                 if viewModel.isProcessing && viewModel.subjects.isEmpty {
-                    ProgressView("Loading Admin Data...")
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .tint(emeraldAccent)
+                        Text("Loading Classroom Data...")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                } else if viewModel.subjects.isEmpty {
+                    ContentUnavailableView(
+                        "No Subjects Found",
+                        systemImage: "books.vertical.fill",
+                        description: Text("Get started by creating a new subject for your students.")
+                    )
                 } else {
                     mainListContent
                 }
             }
-            .navigationTitle("Admin Dashboard")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Instructor Panel")
+            .navigationBarTitleDisplayMode(.large)
             .task {
                 await viewModel.fetchSubjects()
                 await viewModel.fetchAllQuestions()
             }
         }
-        .tint(.red)
+        .tint(emeraldAccent)
     }
     
     @ViewBuilder
     private var mainListContent: some View {
         List {
-            Section(header: Text("Subjects").font(.headline)) {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Welcome to your dashboard.")
+                        .font(.headline)
+                    Text("Select a subject below to manage its curriculum, generate new practice tests, or review analytics.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 8)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            }
+            
+            Section(header: Text("Your Subjects").font(.headline)) {
                 ForEach(viewModel.subjects) { subject in
                     NavigationLink(destination: AdminSubjectDetailView(subject: subject, viewModel: viewModel)) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "folder.fill")
-                                .foregroundColor(primaryAccent)
-                                .font(.title3)
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(emeraldAccent.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+                                
+                                Image(systemName: "folder.fill")
+                                    .foregroundColor(emeraldAccent)
+                                    .font(.title3)
+                            }
                             
-                            VStack(alignment: .leading) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text(subject.name)
                                     .font(.body)
                                     .fontWeight(.semibold)
                                 Text(subject.description)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
+                                    .lineLimit(2)
                             }
                         }
+                        .padding(.vertical, 4)
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .padding(.bottom, 100) // Added padding to clear floating tab bar
+        .scrollContentBackground(.hidden) // Allows the custom warm background to show through
+        .padding(.bottom, 100)
     }
 }
 
@@ -74,14 +107,27 @@ struct AdminSubjectDetailView: View {
     let subject: Subject
     @Bindable var viewModel: AdminViewModel
     
+    @Environment(\.colorScheme) private var colorScheme
+    let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
+    
     var body: some View {
         List {
+            Section {
+                Text("Manage content for \(subject.name). Build structured lessons or generate targeted assessments.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
+            }
+            
             lessonsSection
             testsSection
         }
-        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(colorScheme == .dark ? Color(red: 0.12, green: 0.11, blue: 0.10) : Color(red: 0.97, green: 0.96, blue: 0.94))
         .navigationTitle(subject.name)
-        .padding(.bottom, 100) // Added padding to clear floating tab bar
+        .navigationBarTitleDisplayMode(.inline)
+        .padding(.bottom, 100)
         .task {
             if let id = subject.id {
                 await viewModel.fetchLessons(for: id)
@@ -91,11 +137,17 @@ struct AdminSubjectDetailView: View {
     }
     
     private var lessonsSection: some View {
-        Section(header: Text("Lessons").font(.headline)) {
+        Section(header: Text("Curriculum").font(.headline)) {
             NavigationLink(destination: LessonEditorView()) {
-                Label("Create New Lesson", systemImage: "plus.circle.fill")
-                    .foregroundColor(.teal)
-                    .font(.headline)
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(emeraldAccent)
+                        .font(.title3)
+                    Text("Create New Lesson")
+                        .fontWeight(.medium)
+                        .foregroundColor(emeraldAccent)
+                }
+                .padding(.vertical, 4)
             }
             
             ForEach(viewModel.lessons) { lesson in
@@ -108,30 +160,43 @@ struct AdminSubjectDetailView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    .padding(.vertical, 4)
                 }
             }
         }
     }
     
     private var testsSection: some View {
-        Section(header: Text("Test Generator").font(.headline)) {
-            NavigationLink(destination: AdminTestManagerView(subjectName: subject.name, lessonName: "New Lesson")) {
-                Label("Generate Recommended Test", systemImage: "wand.and.stars")
-                    .foregroundColor(.cyan)
-                    .font(.headline)
+        Section(header: Text("Assessments").font(.headline)) {
+            // Correctly routed to AddTestView and passing the fetched lessons
+            NavigationLink(destination: AddTestView(subjectName: subject.name, availableLessons: viewModel.lessons)) {
+                HStack {
+                    Image(systemName: "wand.and.stars")
+                        .foregroundColor(emeraldAccent)
+                        .font(.title3)
+                    Text("Generate AI Assessment")
+                        .fontWeight(.medium)
+                        .foregroundColor(emeraldAccent)
+                }
+                .padding(.vertical, 4)
             }
             
             ForEach(viewModel.tests) { test in
-                NavigationLink(destination: AdminTestManagerView(subjectName: subject.name, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
+                NavigationLink(destination: AddTestView(subjectName: subject.name, existingTest: test, availableLessons: viewModel.lessons)) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("\(test.subtopic ?? "Untitled") Test")
+                        Text("\(test.subtopic ?? "Untitled") Assessment")
                             .font(.body)
                             .fontWeight(.semibold)
                         
-                        Text("\(test.questionAmount) Questions • \(test.timeLimit) Mins")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        HStack {
+                            Label("\(test.questionAmount) Qs", systemImage: "list.bullet.clipboard")
+                            Text("•")
+                            Label("\(test.timeLimit) Mins", systemImage: "timer")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     }
+                    .padding(.vertical, 4)
                 }
             }
         }

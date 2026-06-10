@@ -24,9 +24,9 @@ class TestBuilderViewModel {
     
     private let db = Firestore.firestore()
     
-    func initialize(subject: String, lesson: String, testId: String?) async {
+    func initialize(subject: String, initialLesson: String, testId: String?) async {
         self.subjectName = subject
-        self.lessonName = lesson
+        self.lessonName = initialLesson
         self.existingTestId = testId
         
         if let tId = testId {
@@ -51,9 +51,10 @@ class TestBuilderViewModel {
     }
     
     func generateRecommendedTest() async {
+        guard !lessonName.isEmpty else { return }
         isGenerating = true
         
-        try? await Task.sleep(for: .seconds(1.5))
+        try? await Task.sleep(for: .seconds(1.5)) // Simulated generation delay
         
         self.generatedQuestions = (0..<questionCount).map { _ in
             QuestionWrapper(question: Question(
@@ -71,7 +72,9 @@ class TestBuilderViewModel {
             ))
         }
         
-        showEditor = true
+        withAnimation {
+            showEditor = true
+        }
         isGenerating = false
     }
     
@@ -93,7 +96,7 @@ class TestBuilderViewModel {
                 "subtopic": lessonName,
                 "testIdentifier": Int.random(in: 1000...9999),
                 "timeLimit": 60,
-                "title": testTitle.isEmpty ? "\(lessonName) Test" : testTitle,
+                "title": testTitle.isEmpty ? "\(lessonName) Assessment" : testTitle,
                 "createdAt": FieldValue.serverTimestamp()
             ]
             batch.setData(testData, forDocument: testRef)
@@ -133,84 +136,166 @@ class TestBuilderViewModel {
 
 struct AddTestView: View {
     let subjectName: String
-    let lessonName: String
     var existingTest: Test? = nil
+    var availableLessons: [Lesson] = [] // Passed in to allow selection
     
     @State private var viewModel = TestBuilderViewModel()
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
+    let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
+    
+    var themeBackground: Color {
+        colorScheme == .dark ? Color(red: 0.12, green: 0.11, blue: 0.10) : Color(red: 0.97, green: 0.96, blue: 0.94)
+    }
+    var cardBackground: Color {
+        colorScheme == .dark ? Color(red: 0.18, green: 0.17, blue: 0.16) : Color.white
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
+        Group {
             if viewModel.showEditor {
                 editorContent
             } else {
                 generatorContent
             }
         }
-        .navigationTitle(existingTest != nil ? "Edit Test" : "New Test")
+        .navigationTitle(existingTest != nil ? "Edit Assessment" : "Test Generator")
         .navigationBarTitleDisplayMode(.inline)
+        .background(themeBackground.ignoresSafeArea())
         .task {
-            await viewModel.initialize(subject: subjectName, lesson: lessonName, testId: existingTest?.id)
+            // Set initial lesson if available
+            let initialLesson = existingTest?.subtopic ?? availableLessons.first?.name ?? ""
+            await viewModel.initialize(subject: subjectName, initialLesson: initialLesson, testId: existingTest?.id)
             if existingTest != nil {
-                viewModel.testTitle = existingTest?.subject ?? "Untitled Test"
+                viewModel.testTitle = existingTest?.title ?? existingTest?.subject ?? "Untitled Test"
             }
         }
     }
     
     @ViewBuilder
     private var generatorContent: some View {
-        VStack(spacing: 20) {
-            Text("Create Test for \(subjectName)")
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            Text("Lesson: \(lessonName)")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Stepper(value: $viewModel.questionCount, in: 1...50) {
-                Text("Number of Questions: \(viewModel.questionCount)")
-                    .font(.headline)
-            }
-            .padding(.horizontal)
-            .padding(.top, 10)
-            
-            Button(action: {
-                Task {
-                    await viewModel.generateRecommendedTest()
-                }
-            }) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.teal)
-                        .frame(height: 55)
+        ScrollView {
+            VStack(spacing: 30) {
+                // Header
+                VStack(spacing: 12) {
+                    Image(systemName: "wand.and.stars")
+                        .font(.system(size: 50))
+                        .foregroundColor(emeraldAccent)
+                        .padding(.bottom, 10)
                     
-                    if viewModel.isGenerating {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text("Generate Questions")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                    }
+                    Text("Build an Assessment")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Select a lesson from your curriculum and define how many questions to generate.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 30)
                 }
+                .padding(.top, 40)
+                
+                // Form Fields
+                VStack(spacing: 24) {
+                    // Lesson Selection UI
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Target Lesson")
+                            .font(.headline)
+                        
+                        Menu {
+                            if availableLessons.isEmpty {
+                                Button("No Lessons Available", action: {})
+                                    .disabled(true)
+                            } else {
+                                ForEach(availableLessons) { lesson in
+                                    Button(lesson.name) {
+                                        viewModel.lessonName = lesson.name
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Text(viewModel.lessonName.isEmpty ? "Select a Lesson..." : viewModel.lessonName)
+                                    .foregroundColor(viewModel.lessonName.isEmpty ? .secondary : .primary)
+                                Spacer()
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(cardBackground)
+                            .cornerRadius(12)
+                            .shadow(color: Color.black.opacity(0.03), radius: 5, y: 2)
+                        }
+                    }
+                    
+                    // Question Count Slider
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Question Count")
+                            .font(.headline)
+                        
+                        HStack {
+                            Slider(value: Binding(
+                                get: { Double(viewModel.questionCount) },
+                                set: { viewModel.questionCount = Int($0) }
+                            ), in: 1...50, step: 1)
+                            .tint(emeraldAccent)
+                            
+                            Text("\(viewModel.questionCount)")
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .frame(width: 40)
+                        }
+                        .padding()
+                        .background(cardBackground)
+                        .cornerRadius(12)
+                        .shadow(color: Color.black.opacity(0.03), radius: 5, y: 2)
+                    }
+                    
+                    // Generate Button
+                    Button(action: {
+                        Task { await viewModel.generateRecommendedTest() }
+                    }) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(viewModel.lessonName.isEmpty ? Color.gray.opacity(0.3) : emeraldAccent)
+                                .frame(height: 56)
+                            
+                            if viewModel.isGenerating {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Generate Questions")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(viewModel.lessonName.isEmpty ? .secondary : .white)
+                            }
+                        }
+                    }
+                    .disabled(viewModel.isGenerating || viewModel.lessonName.isEmpty)
+                    .padding(.top, 10)
+                }
+                .padding(.horizontal, 24)
+                
+                Spacer()
             }
-            .disabled(viewModel.isGenerating)
-            .padding(.horizontal)
-            
-            Spacer()
         }
-        .padding(.top, 40)
     }
     
     @ViewBuilder
     private var editorContent: some View {
         VStack(spacing: 0) {
             List {
-                Section(header: Text("Test Details")) {
+                Section(header: Text("Assessment Settings")) {
                     TextField("Test Title", text: $viewModel.testTitle)
                         .font(.headline)
+                }
+                
+                Section {
+                    Text("Review the generated questions below. You can edit the text, math formulas, or multiple-choice options.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
                 }
                 
                 ForEach(viewModel.generatedQuestions) { wrapper in
@@ -255,38 +340,49 @@ struct AddTestView: View {
                         )))
                     }
                 }) {
-                    Label("Add Another Question", systemImage: "plus.circle.fill")
-                        .font(.headline)
-                        .foregroundColor(.blue)
-                }
-            }
-            .listStyle(.insetGrouped)
-            .scrollDismissesKeyboard(.interactively)
-            
-            Button(action: {
-                Task {
-                    await viewModel.saveTestToDatabase()
-                    dismiss()
-                }
-            }) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.green)
-                        .frame(height: 55)
-                    
-                    if viewModel.isSaving {
-                        ProgressView().tint(.white)
-                    } else {
-                        Text("Save Test to Database")
+                    HStack {
+                        Spacer()
+                        Label("Add Blank Question", systemImage: "plus.circle.fill")
                             .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
+                            .foregroundColor(emeraldAccent)
+                        Spacer()
                     }
                 }
             }
-            .disabled(viewModel.isSaving)
-            .padding()
-            .background(colorScheme == .dark ? Color.black : Color.white)
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            
+            // Fixed bottom save bar
+            VStack {
+                Divider()
+                Button(action: {
+                    Task {
+                        await viewModel.saveTestToDatabase()
+                        dismiss()
+                    }
+                }) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(emeraldAccent)
+                            .frame(height: 56)
+                        
+                        if viewModel.isSaving {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("Publish Assessment")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .disabled(viewModel.isSaving)
+                .padding(.horizontal)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+            }
+            .background(cardBackground.ignoresSafeArea(edges: .bottom))
         }
     }
 }
@@ -298,64 +394,75 @@ struct AdminQuestionEditorCell: View {
     var onDelete: () -> Void
     
     @State private var blocks: [QuestionBlockModel] = []
+    let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
     
     var body: some View {
         Section(header: HStack {
             Text("Question \(index + 1)")
                 .font(.headline)
+                .foregroundColor(.primary)
             Spacer()
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "trash")
                     .foregroundColor(.red)
             }
         }) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Question Builder")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
+            VStack(alignment: .leading, spacing: 16) {
                 UniversalBlockEditorView(blocks: $blocks)
                     .onChange(of: blocks) { _, newBlocks in
                         question.updateWith(blocks: newBlocks)
                     }
-            }
-            .padding(.vertical, 8)
-            
-            Text("Multiple Choice Options")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .padding(.top, 8)
-            
-            ForEach(0..<4, id: \.self) { i in
-                HStack {
-                    Button(action: { question.correctOptionIndex = i }) {
-                        Image(systemName: question.correctOptionIndex == i ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(question.correctOptionIndex == i ? .green : .gray)
-                            .imageScale(.large)
-                    }
-                    .buttonStyle(.plain)
+                
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Answer Choices")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                     
-                    TextField("Option \(i + 1)", text: Binding(
-                        get: { question.options.indices.contains(i) ? question.options[i] : "" },
-                        set: { if question.options.indices.contains(i) { question.options[i] = $0 } }
+                    ForEach(0..<4, id: \.self) { i in
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                    question.correctOptionIndex = i
+                                }
+                            }) {
+                                Image(systemName: question.correctOptionIndex == i ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(question.correctOptionIndex == i ? emeraldAccent : .gray.opacity(0.5))
+                                    .font(.title2)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            TextField("Option \(i + 1)", text: Binding(
+                                get: { question.options.indices.contains(i) ? question.options[i] : "" },
+                                set: { if question.options.indices.contains(i) { question.options[i] = $0 } }
+                            ))
+                            .padding(10)
+                            .background(Color(UIColor.tertiarySystemGroupedBackground))
+                            .cornerRadius(8)
+                        }
+                    }
+                }
+                
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Optional Hint")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    TextField("Provide a hint to help students...", text: Binding(
+                        get: { question.hint ?? "" },
+                        set: { question.hint = $0.isEmpty ? nil : $0 }
                     ))
-                    .padding(8)
-                    .background(Color(UIColor.secondarySystemBackground))
+                    .padding(10)
+                    .background(Color(UIColor.tertiarySystemGroupedBackground))
                     .cornerRadius(8)
                 }
             }
-            
-            TextField("Hint (Optional)", text: Binding(
-                get: { question.hint ?? "" },
-                set: { question.hint = $0.isEmpty ? nil : $0 }
-            ))
-            .padding(8)
-            .background(Color(UIColor.secondarySystemBackground))
-            .cornerRadius(8)
-            .padding(.top, 8)
+            .padding(.vertical, 8)
         }
         .onAppear {
-            // Load blocks efficiently from the struct
             blocks = question.parsedBlocks
         }
     }
