@@ -5,93 +5,95 @@
 //  Created by Jake Meissner on 5/21/24.
 //
 
+//
+//  LatexView.swift
+//  ProjectDelta
+//
+
 import SwiftUI
 import WebKit
 
-struct LatexView: UIViewRepresentable {
-    let latex: String
-    @Environment(\.colorScheme) var colorScheme
+struct LatexView: View {
+    var latex: String
+    @State private var isLoading = true
+    
+    var body: some View {
+        ZStack {
+            LatexWebView(latex: latex, isLoading: $isLoading)
+            
+            if isLoading {
+                VStack {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                        .tint(.primary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Prevents layout shifting during the load process
+                .background(Color.clear)
+            }
+        }
+    }
+}
 
+// Wrapping pure WebView inside Representable is fundamentally required to compute MathJax
+struct LatexWebView: UIViewRepresentable {
+    var latex: String
+    @Binding var isLoading: Bool
+    
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
         webView.scrollView.isScrollEnabled = false
+        webView.navigationDelegate = context.coordinator
         return webView
     }
-
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        let backgroundColor = colorScheme == .dark ? "black" : "white"
-        let textColor = colorScheme == .dark ? "white" : "black"
-        let latexTextColor = colorScheme == .dark ? "cyan" : "red"
-
-        // Process LaTeX to handle line breaks and colors
-        let processedLatex = latex
-            .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(latexTextColor)}{$1}", options: .regularExpression)
-            .replacingOccurrences(of: "\\n", with: "\\\\\\")
-
+    
+    func updateUIView(_ uiView: WKWebView, context: Context) {
         let htmlString = """
         <!DOCTYPE html>
         <html>
         <head>
-            <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-            <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-            <style>
-                body {
-                    font-size: 3.3em;
-                    color: \(textColor);
-                    background-color: \(backgroundColor);
-                    margin: 0;
-                    padding: 0;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    height: 100%;
-                }
-                #math-content {
-                    display: inline-block;
-                }
-            </style>
-            <script>
-                MathJax = {
-                    tex: {
-                        inlineMath: [['$', '$'], ['\\(', '\\)']],
-                        displayMath: [['$$', '$$'], ['\\[', '\\]']],
-                        processEscapes: true,
-                        tags: 'none'
-                    },
-                    options: {
-                        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
-                        ignoreHtmlClass: 'tex2jax_ignore',
-                        processHtmlClass: 'tex2jax_process'
-                    },
-                    svg: {
-                        fontCache: 'global'
-                    }
-                };
-            </script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <style>
+            body { 
+                margin: 0; 
+                display: flex; 
+                justify-content: flex-start; 
+                align-items: center; 
+                font-size: 110%; 
+                color: var(--text-color, #000); 
+                background: transparent;
+                padding-left: 8px;
+            }
+        </style>
         </head>
         <body>
-            <div id="math-content">
-                \(processedLatex)
-            </div>
-            <script>
-                MathJax.typesetPromise();
-            </script>
+            <div>\(latex)</div>
         </body>
         </html>
         """
-        webView.loadHTMLString(htmlString, baseURL: nil)
+        uiView.loadHTMLString(htmlString, baseURL: nil)
     }
-
-    static func dismantleUIView(_ uiView: WKWebView, coordinator: ()) {
-        uiView.stopLoading()
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, WKNavigationDelegate {
+        var parent: LatexWebView
+        
+        init(_ parent: LatexWebView) {
+            self.parent = parent
+        }
+        
+        // Triggers the loading indicator shutdown as soon as the MathJax DOM tree registers
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            DispatchQueue.main.async {
+                self.parent.isLoading = false
+            }
+        }
     }
 }
-
-
-
-
-
-
-
-
-

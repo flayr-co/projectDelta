@@ -2,8 +2,6 @@
 //  QuizViewModel.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/27/23.
-//
 
 import Foundation
 import FirebaseFirestore
@@ -21,7 +19,7 @@ class QuizViewModel {
     var isGeneratingQuiz: Bool = false
     
     // Snapshot & Evaluation State
-    var userAnswers: [String: Int] = [:] // Maps Question ID to selected option index
+    var userAnswers: [String: Int] = [:]
     var isQuizComplete: Bool = false
     var currentSnapshot: QuizSnapshot?
     
@@ -57,9 +55,6 @@ class QuizViewModel {
         userAnswers[questionId] = optionIndex
     }
     
-    /// Comprehensively searches hierarchical and flat databases.
-    /// If no lesson is passed, it intelligently groups and randomizes a test assignment.
-    /// If a lesson is passed, it sequentially loops through iteration tests based on attempt records.
     func fetchSubtopicTest(for subjectName: String, subtopic: String? = nil) {
         Task {
             self.isGeneratingQuiz = true
@@ -72,29 +67,31 @@ class QuizViewModel {
                 var fetchedQuestions: [Question] = []
                 let activeSubtopic = (subtopic != nil && subtopic != "All" && subtopic?.isEmpty == false) ? subtopic : nil
                 
-                // 1. Primary Architecture Check: Hierarchical Tests
-                var testQuery: Query = db.collection("Tests").whereField("subject", isEqualTo: subjectName)
-                if let lessonFilter = activeSubtopic {
-                    testQuery = testQuery.whereField("lesson", isEqualTo: lessonFilter)
-                }
-                
-                let testSnapshot = try? await testQuery.getDocuments()
-                let testDocs = testSnapshot?.documents ?? []
-                
-                if !testDocs.isEmpty {
-                    let selectedTestDoc: QueryDocumentSnapshot
-                    if activeSubtopic == nil {
-                        // QuickTestView logic: Random Test Selection
-                        selectedTestDoc = testDocs.randomElement()!
-                    } else {
-                        // Practice Mode / LessonView logic: Sequential Iteration Loop
-                        let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: activeSubtopic)
-                        let testIndex = attemptCount % testDocs.count
-                        selectedTestDoc = testDocs[testIndex]
+                // 1. Primary Architecture Check: Hierarchical Tests (Fixed matching path)
+                let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
+                if let subjectDoc = subjectQuery.documents.first {
+                    var testQuery: Query = subjectDoc.reference.collection("Tests")
+                    
+                    if let lessonFilter = activeSubtopic {
+                        testQuery = testQuery.whereField("subtopic", isEqualTo: lessonFilter)
                     }
                     
-                    let nestedQuestionsSnapshot = try await selectedTestDoc.reference.collection("Questions").getDocuments()
-                    fetchedQuestions = nestedQuestionsSnapshot.documents.compactMap { try? $0.data(as: Question.self) }
+                    let testSnapshot = try? await testQuery.getDocuments()
+                    let testDocs = testSnapshot?.documents ?? []
+                    
+                    if !testDocs.isEmpty {
+                        let selectedTestDoc: QueryDocumentSnapshot
+                        if activeSubtopic == nil {
+                            selectedTestDoc = testDocs.randomElement()!
+                        } else {
+                            let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: activeSubtopic)
+                            let testIndex = attemptCount % testDocs.count
+                            selectedTestDoc = testDocs[testIndex]
+                        }
+                        
+                        let nestedQuestionsSnapshot = try await selectedTestDoc.reference.collection("Questions").getDocuments()
+                        fetchedQuestions = nestedQuestionsSnapshot.documents.compactMap { try? $0.data(as: Question.self) }
+                    }
                 }
                 
                 // 2. Secondary Architecture Check: Flat Collection Fallback
@@ -107,14 +104,12 @@ class QuizViewModel {
                     let flatSnapshot = try await query.getDocuments()
                     var allQuestions = flatSnapshot.documents.compactMap { try? $0.data(as: Question.self) }
                     
-                    // If Quick Test triggered without a specific subtopic, simulate a cohesive test by grouping subtopics
                     if activeSubtopic == nil && !allQuestions.isEmpty {
                         let subtopics = Array(Set(allQuestions.compactMap { $0.subtopic })).filter { !$0.isEmpty }
                         if let randomSubtopic = subtopics.randomElement() {
                             allQuestions = allQuestions.filter { $0.subtopic == randomSubtopic }
                         }
                     }
-                    
                     fetchedQuestions = allQuestions
                 }
                 
@@ -125,10 +120,8 @@ class QuizViewModel {
                     self.questions = []
                 } else {
                     if activeSubtopic == nil {
-                        // Shuffle and pick 10 random questions for Quick Test assignments
                         self.questions = Array(fetchedQuestions.shuffled().prefix(10))
                     } else {
-                        // Loop through batches sequentially for specific lessons
                         let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: activeSubtopic)
                         let batchSize = 10
                         var batches: [[Question]] = []

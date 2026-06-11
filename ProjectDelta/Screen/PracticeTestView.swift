@@ -2,15 +2,12 @@
 //  PracticeTestView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 5/22/24.
-//
 
 import SwiftUI
 import FirebaseCore
 import FirebaseFirestore
 
 struct PracticeTestView: View {
-    // MARK: - PROPERTIES
     @Environment(AuthViewModel.self) var viewModel
     var practiceTestViewModel: PracticeTestViewModel
     @Environment(\.colorScheme) var colorScheme
@@ -29,62 +26,62 @@ struct PracticeTestView: View {
     var practiceTestID: String
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                (colorScheme == .dark ? Color.customDarkGray : Color.white)
-                    .ignoresSafeArea()
+        // Redundant NavigationStack removed
+        ZStack {
+            (colorScheme == .dark ? Color.customDarkGray : Color.white)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                if showUIControls {
+                    headerView
+                        .transition(.opacity)
+                }
                 
-                VStack(spacing: 0) {
+                if !practiceTestEnded && practiceTestViewModel.questions.isEmpty {
+                    Spacer()
+                    ProgressView("Loading test...")
+                    Spacer()
+                } else if !practiceTestEnded && currentQuestionIndex < practiceTestViewModel.questions.count {
+                    
                     if showUIControls {
-                        headerView
+                        questionSelectorView
                             .transition(.opacity)
                     }
                     
-                    if !practiceTestEnded && practiceTestViewModel.questions.isEmpty {
-                        Spacer()
-                        ProgressView("Loading test...")
-                        Spacer()
-                    } else if !practiceTestEnded && currentQuestionIndex < practiceTestViewModel.questions.count {
-                        
-                        // Question Selector
-                        if showUIControls {
-                            questionSelectorView
-                                .transition(.opacity)
+                    TabView(selection: $currentQuestionIndex) {
+                        ForEach(0..<practiceTestViewModel.questions.count, id: \.self) { index in
+                            questionContentPage(for: index)
+                                .tag(index)
                         }
-                        
-                        TabView(selection: $currentQuestionIndex) {
-                            ForEach(0..<practiceTestViewModel.questions.count, id: \.self) { index in
-                                questionContentPage(for: index)
-                                    .tag(index)
-                            }
-                        }
-                        .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                        
-                    } else if practiceTestEnded {
-                        testEndView
                     }
+                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                    
+                } else if practiceTestEnded {
+                    testEndView
                 }
             }
-            .overlay(alignment: .bottom) {
-                if !practiceTestEnded && !practiceTestViewModel.questions.isEmpty && showUIControls {
-                    testNavigationControls
-                        .transition(.opacity)
-                }
-            }
-            .task {
-                await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID)
-                // Resize userAnswers array dynamically based on fetched questions to prevent out of bounds
-                userAnswers = [Int?](repeating: nil, count: practiceTestViewModel.questions.count)
-            }
-            .navigationBarBackButtonHidden(true)
         }
+        .overlay(alignment: .bottom) {
+            if !practiceTestEnded && !practiceTestViewModel.questions.isEmpty && showUIControls {
+                testNavigationControls
+                    .transition(.opacity)
+            }
+        }
+        .task {
+            await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID)
+            userAnswers = [Int?](repeating: nil, count: practiceTestViewModel.questions.count)
+        }
+        .navigationBarBackButtonHidden(true)
     }
     
     // MARK: - COMPONENTS
     
     private var headerView: some View {
         HStack(spacing: 12) {
-            NavigationLink(destination: CardView().navigationBarBackButtonHidden(true)) {
+            Button(action: {
+                // Allows dismissing cleanly instead of hard-linking
+                NotificationCenter.default.post(name: Notification.Name("dismissTest"), object: nil)
+            }) {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.left")
                         .font(.system(size: 16, weight: .bold))
@@ -142,14 +139,30 @@ struct PracticeTestView: View {
     private func questionContentPage(for index: Int) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text(practiceTestViewModel.questions[index].questionText)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(nil)
-                    .padding(.horizontal)
-                    .padding(.top, 20)
-                    .fixedSize(horizontal: false, vertical: true)
+                
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(practiceTestViewModel.questions[index].parsedBlocks) { block in
+                        if block.type == QuestionBlockType.text.rawValue {
+                            Text(block.content)
+                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else if block.type == QuestionBlockType.math.rawValue {
+                            LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
+                                .frame(minHeight: calculateMathHeight(for: block.content))
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(colorScheme == .dark ? Color.black.opacity(0.3) : Color.gray.opacity(0.1))
+                                .cornerRadius(12)
+                        } else if block.type == QuestionBlockType.graph.rawValue {
+                            InlineGraphRenderer(graphString: block.content)
+                                .padding(.vertical, 8)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 20)
 
                 VStack(spacing: 16) {
                     ForEach(Array(practiceTestViewModel.questions[index].options.enumerated()), id: \.offset) { optionIndex, option in
@@ -176,6 +189,13 @@ struct PracticeTestView: View {
             }
         }
         .scrollIndicators(.hidden)
+    }
+    
+    private func calculateMathHeight(for latex: String) -> CGFloat {
+        let lineBreaks = latex.components(separatedBy: "\\\\").count - 1
+        let hasFraction = latex.contains("\\frac") || latex.contains("/")
+        let baseHeight: CGFloat = 60
+        return baseHeight + (CGFloat(lineBreaks) * 30) + (hasFraction ? 30 : 0)
     }
 
     private var testNavigationControls: some View {
@@ -262,7 +282,9 @@ struct PracticeTestView: View {
                 }
                 .buttonStyle(.plain)
                 
-                NavigationLink(destination: CardView().navigationBarBackButtonHidden(true)) {
+                Button(action: {
+                    NotificationCenter.default.post(name: Notification.Name("dismissTest"), object: nil)
+                }) {
                     Text("Go Home")
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
@@ -309,7 +331,6 @@ struct PracticeTestView: View {
 
     private func postPracticeTestUpdate() {
         practiceTestEnded = true
-        print("Practice test has ended. Points and progress will now be updated....\n")
 
         score = 0
         for (index, answer) in userAnswers.enumerated() {
@@ -351,9 +372,4 @@ struct PracticeTestView: View {
             }
         }
     }
-}
-
-#Preview {
-    PracticeTestView(practiceTestViewModel: PracticeTestViewModel(authViewModel: AuthViewModel()), lessonID: "GZRfB4pXbn6rbxTeLpDp", practiceTestID: "VYccqY1rjXETQOdMm4ap")
-        .environment(AuthViewModel())
 }

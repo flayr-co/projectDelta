@@ -2,8 +2,6 @@
 //  LessonContentPage.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/31/23.
-//
 
 import SwiftUI
 import Charts
@@ -30,7 +28,7 @@ struct LessonContentPage: View {
     @Environment(LessonViewModel.self) var lessonVM
     @Environment(\.colorScheme) var colorScheme
     
-    // Core Parser Engine: Breaks down the single source-of-truth string into modular SwiftUI views.
+    // Core Parser Engine
     var parsedBlocks: [ParsedContentBlock] {
         var blocks: [ParsedContentBlock] = []
         var remaining = page.content
@@ -101,7 +99,8 @@ struct LessonContentPage: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            // Re-tuned spacing to eliminate huge gaps between dynamic modules
+            VStack(alignment: .leading, spacing: 16) {
                 
                 // NEW INLINE PARSER RENDERER
                 ForEach(parsedBlocks) { block in
@@ -126,16 +125,16 @@ struct LessonContentPage: View {
                         
                     case .graph(let graphDataStr):
                         InlineGraphRenderer(graphString: graphDataStr)
-                            .frame(height: 250)
                             .padding(.horizontal)
                     }
                 }
 
                 // LEGACY BACKWARD COMPATIBILITY
+                // Removed explicit height constraint to prevent layout warping with iOS 17 Charts
                 if let graphData = page.graphData {
                     DynamicGraphView(data: graphData)
-                        .frame(height: 250)
                         .padding(.horizontal)
+                        .padding(.vertical, 8)
                 }
 
                 if let example = page.example, !example.isEmpty {
@@ -247,7 +246,7 @@ struct InlineGraphRenderer: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 250)
             .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
             .cornerRadius(12)
         } else {
@@ -267,6 +266,7 @@ struct InlineGraphRenderer: View {
                     .foregroundStyle(.green)
                 }
             }
+            .frame(height: 250)
             .padding(16)
             .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
             .cornerRadius(12)

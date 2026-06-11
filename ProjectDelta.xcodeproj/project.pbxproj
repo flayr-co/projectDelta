@@ -321,12 +321,12 @@
 		52D998EE2ADB3018007F90A6 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
-				52D998F42ADB359D007F90A6 /* Views+Extensions.swift */,
-				527F98712AEB22990031F9E6 /* GreetingText.swift */,
 				527F98852AEF3EA90031F9E6 /* DarkModeBackground.swift */,
+				527F98712AEB22990031F9E6 /* GreetingText.swift */,
+				52668ED02BFD06FA0019965F /* LatexView.swift */,
 				52E371B82B215253004CFDDA /* PhotoPicker.swift */,
 				52DAF6912BED5EF1006EE19F /* TextStylingUtility.swift */,
-				52668ED02BFD06FA0019965F /* LatexView.swift */,
+				52D998F42ADB359D007F90A6 /* Views+Extensions.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";

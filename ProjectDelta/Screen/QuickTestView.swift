@@ -2,8 +2,6 @@
 //  QuickTestView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner.
-//
 
 import SwiftUI
 import FirebaseFirestore
@@ -73,9 +71,31 @@ struct QuickTestView: View {
                 let selectedIndex = quizViewModel.userAnswers[qId]
                 
                 VStack(alignment: .leading, spacing: 24) {
-                    Text(question.questionText)
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
-                        .padding()
+                    
+                    // Advanced Block Renderer Integration
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(question.parsedBlocks) { block in
+                            if block.type == QuestionBlockType.text.rawValue {
+                                Text(block.content)
+                                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                    .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else if block.type == QuestionBlockType.math.rawValue {
+                                LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
+                                    .frame(minHeight: calculateMathHeight(for: block.content))
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(colorScheme == .dark ? Color.black.opacity(0.3) : Color.gray.opacity(0.1))
+                                    .cornerRadius(12)
+                            } else if block.type == QuestionBlockType.graph.rawValue {
+                                InlineGraphRenderer(graphString: block.content)
+                                    .padding(.vertical, 8)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 20)
 
                     VStack(spacing: 16) {
                         ForEach(Array(question.options.enumerated()), id: \.offset) { optIndex, option in
@@ -99,6 +119,13 @@ struct QuickTestView: View {
                 }
             }
         }
+    }
+    
+    private func calculateMathHeight(for latex: String) -> CGFloat {
+        let lineBreaks = latex.components(separatedBy: "\\\\").count - 1
+        let hasFraction = latex.contains("\\frac") || latex.contains("/")
+        let baseHeight: CGFloat = 60
+        return baseHeight + (CGFloat(lineBreaks) * 30) + (hasFraction ? 30 : 0)
     }
 
     private var quizEndView: some View {

@@ -29,70 +29,69 @@ struct SubjectGridView: View {
     ]
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                (colorScheme == .dark ? Color(red: 0.10, green: 0.10, blue: 0.12) : warmTan)
-                    .ignoresSafeArea()
+        // Redundant NavigationStack removed to prevent double-back arrows
+        ZStack {
+            (colorScheme == .dark ? Color(red: 0.10, green: 0.10, blue: 0.12) : warmTan)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header Bar
+                HStack {
+                    BackButtonView {
+                        dismiss()
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
                 
-                VStack(spacing: 0) {
-                    // Header Bar
-                    HStack {
-                        BackButtonView {
-                            dismiss()
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                // Dashboard Title Block
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Curriculum")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                        .tracking(1.5)
                     
-                    // Dashboard Title Block
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Curriculum")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(.secondary)
-                            .textCase(.uppercase)
-                            .tracking(1.5)
-                        
-                        Text("Choose a Subject")
-                            .font(.largeTitle)
-                            .fontWeight(.black)
-                            .foregroundColor(.primary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
-                    
-                    // Grid Content Scroll
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(quizViewModel.subjects, id: \.self) { subject in
-                                NavigationLink {
-                                    switch navigationSource {
-                                    case .homeView:
-                                        LessonView(subjectName: subject)
-                                            .environment(lessonVM)
-                                    case .testView:
-                                        LessonSelectionView(subjectName: subject)
-                                            .environment(quizViewModel)
-                                    case .cardView:
-                                        QuickTestView(subject: subject)
-                                            .environment(quizViewModel)
-                                    }
-                                } label: {
-                                    subjectCard(for: subject)
+                    Text("Choose a Subject")
+                        .font(.largeTitle)
+                        .fontWeight(.black)
+                        .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+                
+                // Grid Content Scroll
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(quizViewModel.subjects, id: \.self) { subject in
+                            NavigationLink {
+                                switch navigationSource {
+                                case .homeView:
+                                    LessonView(subjectName: subject)
+                                        .environment(lessonVM)
+                                case .testView:
+                                    LessonSelectionView(subjectName: subject)
+                                        .environment(quizViewModel)
+                                case .cardView:
+                                    QuickTestView(subject: subject)
+                                        .environment(quizViewModel)
                                 }
-                                .buttonStyle(SubjectCardButtonStyle())
+                            } label: {
+                                subjectCard(for: subject)
                             }
+                            .buttonStyle(SubjectCardButtonStyle())
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 32)
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 32)
                 }
             }
-            .navigationBarBackButtonHidden(true)
         }
+        .navigationBarBackButtonHidden(true)
         .task {
             do {
                 quizViewModel.subjects = try await quizViewModel.fetchSubjectsFromFirestore()
@@ -174,6 +173,7 @@ struct LessonSelectionView: View {
     let emeraldAccent = Color(red: 0.18, green: 0.80, blue: 0.44)
     
     var body: some View {
+        // Redundant NavigationStack removed
         ZStack {
             (colorScheme == .dark ? Color(red: 0.10, green: 0.10, blue: 0.12) : warmTan)
                 .ignoresSafeArea()
@@ -244,11 +244,15 @@ struct LessonSelectionView: View {
         do {
             let db = Firestore.firestore()
             
-            // Fetch hierarchical tests
-            let testsSnap = try await db.collection("Tests").whereField("subject", isEqualTo: subjectName).getDocuments()
-            let testLessons = testsSnap.documents.compactMap { $0.data()["lesson"] as? String }
+            // Correctly mirroring the hierarchical architecture
+            let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
+            var testLessons: [String] = []
             
-            // Fetch flat questions
+            if let subjectId = subjectQuery.documents.first?.documentID {
+                let testsSnap = try await db.collection("Subjects").document(subjectId).collection("Tests").getDocuments()
+                testLessons = testsSnap.documents.compactMap { $0.data()["subtopic"] as? String }
+            }
+            
             let flatSnap = try await db.collection("questions").whereField("subject", isEqualTo: subjectName).getDocuments()
             let flatLessons = flatSnap.documents.compactMap { $0.data()["subtopic"] as? String }
             
@@ -294,18 +298,10 @@ struct LessonSelectionView: View {
     }
 }
 
-// MARK: - Button Style Extensions
-
 struct SubjectCardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)
     }
-}
-
-#Preview {
-    SubjectGridView(navigationSource: .homeView)
-        .environment(QuizViewModel(authViewModel: AuthViewModel()))
-        .environment(LessonViewModel())
 }

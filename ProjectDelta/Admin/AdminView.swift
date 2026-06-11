@@ -169,21 +169,22 @@ struct AdminSubjectDetailView: View {
     private var testsSection: some View {
         Section(header: Text("Assessments").font(.headline)) {
             // Correctly routed to AddTestView and passing the fetched lessons
-            NavigationLink(destination: AddTestView(subjectName: subject.name, availableLessons: viewModel.lessons)) {
-                HStack {
-                    Image(systemName: "wand.and.stars")
-                        .foregroundColor(emeraldAccent)
-                        .font(.title3)
-                    Text("Generate AI Assessment")
-                        .fontWeight(.medium)
-                        .foregroundColor(emeraldAccent)
-                }
-                .padding(.vertical, 4)
-            }
-            
-            ForEach(viewModel.tests) { test in
-                NavigationLink(destination: AddTestView(subjectName: subject.name, existingTest: test, availableLessons: viewModel.lessons)) {
-                    VStack(alignment: .leading, spacing: 4) {
+                        NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: viewModel.lessons.first?.name ?? "New Lesson")) {
+                            HStack {
+                                Image(systemName: "wand.and.stars")
+                                    .foregroundColor(emeraldAccent)
+                                    .font(.title3)
+                                Text("Generate AI Assessment")
+                                    .fontWeight(.medium)
+                                    .foregroundColor(emeraldAccent)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        
+                        // Replace the existing tests loop NavigationLink
+                        ForEach(viewModel.tests) { test in
+                            NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
+                                VStack(alignment: .leading, spacing: 4) {
                         Text("\(test.subtopic ?? "Untitled") Assessment")
                             .font(.body)
                             .fontWeight(.semibold)
