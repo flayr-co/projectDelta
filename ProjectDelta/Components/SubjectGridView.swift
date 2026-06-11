@@ -74,7 +74,7 @@ struct SubjectGridView: View {
                                         LessonView(subjectName: subject)
                                             .environment(lessonVM)
                                     case .testView:
-                                        TestView(subject: subject)
+                                        LessonSelectionView(subjectName: subject)
                                             .environment(quizViewModel)
                                     case .cardView:
                                         QuickTestView(subject: subject)
@@ -156,6 +156,141 @@ struct SubjectGridView: View {
         if lower.contains("physics") || lower.contains("aero") { return "rocket.tilt.fill" }
         if lower.contains("linear") || lower.contains("matrix") { return "line.3.horizontal.circle" }
         return "book.closed.fill"
+    }
+}
+
+// MARK: - Lesson Selection View (For Practice Mode)
+
+struct LessonSelectionView: View {
+    var subjectName: String
+    @Environment(QuizViewModel.self) var quizViewModel
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var lessons: [String] = []
+    @State private var isLoading = true
+    
+    let warmTan = Color(red: 0.97, green: 0.96, blue: 0.94)
+    let emeraldAccent = Color(red: 0.18, green: 0.80, blue: 0.44)
+    
+    var body: some View {
+        ZStack {
+            (colorScheme == .dark ? Color(red: 0.10, green: 0.10, blue: 0.12) : warmTan)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                HStack {
+                    BackButtonView { dismiss() }
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(subjectName)
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                        .tracking(1.5)
+                    
+                    Text("Select a Lesson")
+                        .font(.largeTitle)
+                        .fontWeight(.black)
+                        .foregroundColor(.primary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+                
+                if isLoading {
+                    Spacer()
+                    ProgressView("Finding practice material...")
+                        .tint(emeraldAccent)
+                    Spacer()
+                } else if lessons.isEmpty {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No Practice Available",
+                        systemImage: "book.closed.fill",
+                        description: Text("There are currently no generated tests available for this subject.")
+                    )
+                    Spacer()
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 16) {
+                            ForEach(lessons, id: \.self) { lessonName in
+                                NavigationLink(destination: QuickTestView(subject: subjectName, subtopic: lessonName).environment(quizViewModel)) {
+                                    lessonCard(for: lessonName)
+                                }
+                                .buttonStyle(SubjectCardButtonStyle())
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 32)
+                    }
+                }
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        .task {
+            await fetchLessonsWithTests()
+        }
+    }
+    
+    private func fetchLessonsWithTests() async {
+        isLoading = true
+        do {
+            let db = Firestore.firestore()
+            
+            // Fetch hierarchical tests
+            let testsSnap = try await db.collection("Tests").whereField("subject", isEqualTo: subjectName).getDocuments()
+            let testLessons = testsSnap.documents.compactMap { $0.data()["lesson"] as? String }
+            
+            // Fetch flat questions
+            let flatSnap = try await db.collection("questions").whereField("subject", isEqualTo: subjectName).getDocuments()
+            let flatLessons = flatSnap.documents.compactMap { $0.data()["subtopic"] as? String }
+            
+            let combined = Array(Set(testLessons + flatLessons)).filter { !$0.isEmpty }.sorted()
+            self.lessons = combined
+        } catch {
+            print("Error parsing practice lessons: \(error)")
+        }
+        isLoading = false
+    }
+    
+    @ViewBuilder
+    private func lessonCard(for lessonName: String) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: "bookmark.fill")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(emeraldAccent)
+                .frame(width: 44, height: 44)
+                .background(emeraldAccent.opacity(colorScheme == .dark ? 0.15 : 0.1))
+                .cornerRadius(12)
+            
+            Text(lessonName)
+                .font(.headline)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.leading)
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.4))
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(colorScheme == .dark ? Color(red: 0.16, green: 0.16, blue: 0.19) : .white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.05), lineWidth: 1)
+        )
     }
 }
 

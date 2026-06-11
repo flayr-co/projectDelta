@@ -57,8 +57,9 @@ class QuizViewModel {
         userAnswers[questionId] = optionIndex
     }
     
-    /// Comprehensively searches both hierarchical "Tests" structures and flat "questions" structures
-    /// while strictly ignoring generic parameter filters like "All" to guarantee query execution.
+    /// Comprehensively searches hierarchical and flat databases.
+    /// If no lesson is passed, it intelligently groups and randomizes a test assignment.
+    /// If a lesson is passed, it sequentially loops through iteration tests based on attempt records.
     func fetchSubtopicTest(for subjectName: String, subtopic: String? = nil) {
         Task {
             self.isGeneratingQuiz = true
@@ -78,9 +79,21 @@ class QuizViewModel {
                 }
                 
                 let testSnapshot = try? await testQuery.getDocuments()
-                if let firstTestDoc = testSnapshot?.documents.first {
-                    // Fetch nested questions from this test specifically
-                    let nestedQuestionsSnapshot = try await firstTestDoc.reference.collection("Questions").getDocuments()
+                let testDocs = testSnapshot?.documents ?? []
+                
+                if !testDocs.isEmpty {
+                    let selectedTestDoc: QueryDocumentSnapshot
+                    if activeSubtopic == nil {
+                        // QuickTestView logic: Random Test Selection
+                        selectedTestDoc = testDocs.randomElement()!
+                    } else {
+                        // Practice Mode / LessonView logic: Sequential Iteration Loop
+                        let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: activeSubtopic)
+                        let testIndex = attemptCount % testDocs.count
+                        selectedTestDoc = testDocs[testIndex]
+                    }
+                    
+                    let nestedQuestionsSnapshot = try await selectedTestDoc.reference.collection("Questions").getDocuments()
                     fetchedQuestions = nestedQuestionsSnapshot.documents.compactMap { try? $0.data(as: Question.self) }
                 }
                 
@@ -92,29 +105,45 @@ class QuizViewModel {
                     }
                     
                     let flatSnapshot = try await query.getDocuments()
-                    fetchedQuestions = flatSnapshot.documents.compactMap { try? $0.data(as: Question.self) }
+                    var allQuestions = flatSnapshot.documents.compactMap { try? $0.data(as: Question.self) }
+                    
+                    // If Quick Test triggered without a specific subtopic, simulate a cohesive test by grouping subtopics
+                    if activeSubtopic == nil && !allQuestions.isEmpty {
+                        let subtopics = Array(Set(allQuestions.compactMap { $0.subtopic })).filter { !$0.isEmpty }
+                        if let randomSubtopic = subtopics.randomElement() {
+                            allQuestions = allQuestions.filter { $0.subtopic == randomSubtopic }
+                        }
+                    }
+                    
+                    fetchedQuestions = allQuestions
                 }
                 
                 fetchedQuestions.sort { ($0.id ?? "") < ($1.id ?? "") }
                 
                 if fetchedQuestions.isEmpty {
-                    print("No questions found for \(subjectName) - \(subtopic ?? "All"). Checked both hierarchical and flat structures.")
+                    print("No questions found for \(subjectName) - \(subtopic ?? "All").")
                     self.questions = []
                 } else {
-                    let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: activeSubtopic)
-                    let batchSize = 10
-                    var batches: [[Question]] = []
-                    
-                    for i in stride(from: 0, to: fetchedQuestions.count, by: batchSize) {
-                        let end = min(i + batchSize, fetchedQuestions.count)
-                        batches.append(Array(fetchedQuestions[i..<end]))
-                    }
-                    
-                    if batches.isEmpty {
-                        self.questions = []
+                    if activeSubtopic == nil {
+                        // Shuffle and pick 10 random questions for Quick Test assignments
+                        self.questions = Array(fetchedQuestions.shuffled().prefix(10))
                     } else {
-                        let batchIndex = attemptCount % batches.count
-                        self.questions = batches[batchIndex]
+                        // Loop through batches sequentially for specific lessons
+                        let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: activeSubtopic)
+                        let batchSize = 10
+                        var batches: [[Question]] = []
+                        
+                        for i in stride(from: 0, to: fetchedQuestions.count, by: batchSize) {
+                            let end = min(i + batchSize, fetchedQuestions.count)
+                            batches.append(Array(fetchedQuestions[i..<end]))
+                        }
+                        
+                        if batches.isEmpty {
+                            self.questions = []
+                        } else {
+                            let batchIndex = attemptCount % batches.count
+                            self.questions = batches[batchIndex]
+                        }
                     }
                 }
             } catch {

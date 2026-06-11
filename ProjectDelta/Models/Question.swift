@@ -143,19 +143,13 @@ extension Question {
     }
     
     mutating func updateWith(blocks: [QuestionBlockModel]) {
-        let processedBlocks = blocks.map { block -> QuestionBlockModel in
-            var b = block
-            if b.type == QuestionBlockType.math.rawValue {
-                b.content = b.content.parsedMathToLatex
-            }
-            return b
-        }
-        
-        if let data = try? JSONEncoder().encode(processedBlocks),
+        // Save the raw blocks exactly as the user typed them.
+        // We no longer permanently overwrite the raw content with parsed LaTeX here.
+        if let data = try? JSONEncoder().encode(blocks),
            let jsonString = String(data: data, encoding: .utf8) {
             self.questionText = jsonString
         } else {
-            self.questionText = processedBlocks.map { $0.content }.joined(separator: "\n")
+            self.questionText = blocks.map { $0.content }.joined(separator: "\n")
         }
     }
 }
