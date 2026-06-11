@@ -13,68 +13,65 @@ struct QuickTestView: View {
     @Environment(\.dismiss) var dismiss
     
     @State private var currentQuestionIndex = 0
-    @State private var showUIControls: Bool = true
     
     var subject: String
     var subtopic: String? = nil
     
     var body: some View {
-        ZStack {
-            (colorScheme == .dark ? Color.customDarkGray : Color.white)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                if showUIControls { headerView }
-                
-                if quizViewModel.isGeneratingQuiz {
-                    Spacer()
-                    ProgressView("Analyzing curriculum...")
-                    Spacer()
-                } else if quizViewModel.isQuizComplete {
-                    quizEndView
-                } else if !quizViewModel.questions.isEmpty {
-                    TabView(selection: $currentQuestionIndex) {
-                        ForEach(0..<quizViewModel.questions.count, id: \.self) { index in
-                            questionContentPage(for: index)
-                                .tag(index)
-                        }
+        VStack(spacing: 0) {
+            if quizViewModel.isGeneratingQuiz {
+                Spacer()
+                ProgressView("Analyzing curriculum...")
+                    .tint(colorScheme == .dark ? .cyan : .blue)
+                Spacer()
+            } else if quizViewModel.isQuizComplete {
+                quizEndView
+            } else if !quizViewModel.questions.isEmpty {
+                TabView(selection: $currentQuestionIndex) {
+                    ForEach(0..<quizViewModel.questions.count, id: \.self) { index in
+                        questionContentPage(for: index)
+                            .tag(index)
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
                 }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+            } else {
+                Spacer()
+                Text("No questions found for this test.")
+                    .foregroundColor(.secondary)
+                Spacer()
             }
         }
-        .overlay(alignment: .bottom) {
-            if !quizViewModel.isQuizComplete && !quizViewModel.questions.isEmpty && showUIControls {
-                testNavigationControls
-            }
-        }
+        .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
         .task {
             quizViewModel.fetchSubtopicTest(for: subject, subtopic: subtopic)
         }
-    }
-
-    private var headerView: some View {
-        HStack {
-            Button(action: { dismiss() }) {
-                Image(systemName: "arrow.left").foregroundColor(.red).bold()
+        .safeAreaInset(edge: .bottom) {
+            if !quizViewModel.isQuizComplete && !quizViewModel.questions.isEmpty {
+                bottomNavigationBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            Text(subtopic ?? subject).font(.headline).bold()
-            Spacer()
-        }.padding()
+        }
+        .navigationTitle(subtopic ?? subject)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.red)
+                }
+            }
+        }
     }
 
     private func questionContentPage(for index: Int) -> some View {
         ScrollView {
             if index < quizViewModel.questions.count {
-                let question = quizViewModel.questions[index]
-                let qId = question.id ?? ""
-                let selectedIndex = quizViewModel.userAnswers[qId]
-                
                 VStack(alignment: .leading, spacing: 24) {
                     
-                    // Advanced Block Renderer Integration
                     VStack(alignment: .leading, spacing: 16) {
-                        ForEach(question.parsedBlocks) { block in
+                        ForEach(quizViewModel.questions[index].parsedBlocks) { block in
                             if block.type == QuestionBlockType.text.rawValue {
                                 Text(block.content)
                                     .font(.system(size: 20, weight: .semibold, design: .rounded))
@@ -83,7 +80,6 @@ struct QuickTestView: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             } else if block.type == QuestionBlockType.math.rawValue {
                                 LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
-                                    .frame(minHeight: calculateMathHeight(for: block.content))
                                     .padding(12)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(colorScheme == .dark ? Color.black.opacity(0.3) : Color.gray.opacity(0.1))
@@ -94,38 +90,129 @@ struct QuickTestView: View {
                             }
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 20)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 24)
 
+                    // Flawless Compiler Option Loop
                     VStack(spacing: 16) {
-                        ForEach(Array(question.options.enumerated()), id: \.offset) { optIndex, option in
+                        let currentOptions = quizViewModel.questions[index].options
+                        let qId = quizViewModel.questions[index].id ?? ""
+                        let selectedIndex = quizViewModel.userAnswers[qId]
+                        
+                        ForEach(currentOptions.indices, id: \.self) { optIndex in
                             Button {
                                 quizViewModel.selectAnswer(for: qId, optionIndex: optIndex)
                             } label: {
                                 HStack {
-                                    Text(option)
+                                    Text(currentOptions[optIndex])
                                         .multilineTextAlignment(.leading)
+                                        .foregroundColor(selectedIndex == optIndex ? .white : (colorScheme == .dark ? .white : .black))
                                     Spacer()
                                     if selectedIndex == optIndex {
                                         Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.white)
                                     }
                                 }
                                 .padding()
-                                .background(selectedIndex == optIndex ? Color.cyan.opacity(0.2) : Color.gray.opacity(0.1))
+                                .background(selectedIndex == optIndex ? (colorScheme == .dark ? Color.cyan : Color.blue) : Color.gray.opacity(0.15))
                                 .cornerRadius(12)
-                            }.buttonStyle(.plain)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(selectedIndex == optIndex ? (colorScheme == .dark ? Color.cyan : Color.blue) : Color.clear, lineWidth: 2)
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
-                    }.padding(.horizontal)
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    Spacer(minLength: 40)
                 }
             }
         }
+        .scrollIndicators(.hidden)
     }
-    
-    private func calculateMathHeight(for latex: String) -> CGFloat {
-        let lineBreaks = latex.components(separatedBy: "\\\\").count - 1
-        let hasFraction = latex.contains("\\frac") || latex.contains("/")
-        let baseHeight: CGFloat = 60
-        return baseHeight + (CGFloat(lineBreaks) * 30) + (hasFraction ? 30 : 0)
+
+    private var bottomNavigationBar: some View {
+        HStack {
+            Button(action: {
+                if currentQuestionIndex > 0 {
+                    withAnimation { currentQuestionIndex -= 1 }
+                }
+            }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(currentQuestionIndex == 0 ? .gray.opacity(0.3) : (colorScheme == .dark ? .cyan : .blue))
+                    .frame(width: 44, height: 44)
+            }
+            .disabled(currentQuestionIndex == 0)
+
+            Spacer()
+
+            Menu {
+                Picker("Jump to Question", selection: Binding(
+                    get: { currentQuestionIndex },
+                    set: { withAnimation { currentQuestionIndex = $0 } }
+                )) {
+                    ForEach(0..<quizViewModel.questions.count, id: \.self) { index in
+                        Text("Question \(index + 1)").tag(index)
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text("\(currentQuestionIndex + 1) of \(quizViewModel.questions.count)")
+                        .font(.subheadline.monospacedDigit())
+                        .fontWeight(.medium)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.gray.opacity(0.15))
+                .clipShape(Capsule())
+            }
+
+            Spacer()
+
+            let isLastQuestion = currentQuestionIndex == quizViewModel.questions.count - 1
+            
+            if !isLastQuestion {
+                Button(action: {
+                    withAnimation { currentQuestionIndex += 1 }
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(colorScheme == .dark ? .cyan : .blue)
+                        .frame(width: 44, height: 44)
+                }
+            } else {
+                Button(action: {
+                    Task {
+                        await quizViewModel.finishQuiz(subjectId: subject, subtopic: subtopic ?? subject)
+                    }
+                }) {
+                    Text("Turn In")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(colorScheme == .dark ? Color.cyan : Color.blue)
+                        .clipShape(Capsule())
+                        .shadow(color: (colorScheme == .dark ? Color.cyan : Color.blue).opacity(0.3), radius: 4, y: 2)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea(edges: .bottom)
+                .shadow(color: .black.opacity(0.05), radius: 5, y: -5)
+        )
     }
 
     private var quizEndView: some View {
@@ -143,8 +230,13 @@ struct QuickTestView: View {
                     VStack(spacing: 16) {
                         ForEach(snapshot.questionResults) { result in
                             VStack(alignment: .leading, spacing: 12) {
-                                Text(result.questionText)
-                                    .font(.headline)
+                                if result.questionText.contains("\"type\":\"Text\"") {
+                                    Text("Review Question")
+                                        .font(.headline)
+                                } else {
+                                    Text(result.questionText)
+                                        .font(.headline)
+                                }
                                 
                                 HStack {
                                     let userAnswerString = result.userSelectedOptionIndex != nil ? result.options[result.userSelectedOptionIndex!] : "No Answer"
@@ -158,15 +250,16 @@ struct QuickTestView: View {
                                 }
                                 .font(.subheadline)
                                 
-                                Divider()
-                                
-                                Text("Feedback:")
-                                    .font(.caption)
-                                    .bold()
-                                    .foregroundColor(.secondary)
-                                Text(result.feedback)
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
+                                if !result.feedback.isEmpty {
+                                    Divider()
+                                    Text("Feedback:")
+                                        .font(.caption)
+                                        .bold()
+                                        .foregroundColor(.secondary)
+                                    Text(result.feedback)
+                                        .font(.footnote)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                             .padding()
                             .background(Color.gray.opacity(0.1))
@@ -178,43 +271,21 @@ struct QuickTestView: View {
                     ProgressView("Processing results...")
                 }
                 
-                Button("Return to Subject") {
+                Button(action: {
                     dismiss()
+                }) {
+                    Text("Return to Subject")
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 24)
+                        .background(colorScheme == .dark ? Color.cyan : Color.blue)
+                        .clipShape(Capsule())
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
                 .padding(.vertical)
             }
             .padding(.top)
         }
-    }
-
-    private var testNavigationControls: some View {
-        HStack {
-            Button("Back") {
-                if currentQuestionIndex > 0 { currentQuestionIndex -= 1 }
-            }
-            .disabled(currentQuestionIndex == 0)
-            
-            Spacer()
-            
-            let isLastQuestion = currentQuestionIndex == quizViewModel.questions.count - 1
-            let currentQuestionId = quizViewModel.questions.indices.contains(currentQuestionIndex) ? (quizViewModel.questions[currentQuestionIndex].id ?? "") : ""
-            let hasAnswered = quizViewModel.userAnswers[currentQuestionId] != nil
-            
-            Button(isLastQuestion ? "Submit" : "Next") {
-                if isLastQuestion {
-                    Task {
-                        await quizViewModel.finishQuiz(subjectId: subject, subtopic: subtopic ?? subject)
-                    }
-                } else {
-                    withAnimation {
-                        currentQuestionIndex += 1
-                    }
-                }
-            }
-            .disabled(!hasAnswered)
-        }
-        .padding()
-        .background(.ultraThinMaterial)
     }
 }

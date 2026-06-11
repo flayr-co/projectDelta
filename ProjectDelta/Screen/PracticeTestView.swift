@@ -11,135 +11,67 @@ struct PracticeTestView: View {
     @Environment(AuthViewModel.self) var viewModel
     var practiceTestViewModel: PracticeTestViewModel
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dismiss) var dismiss
     
     @State private var currentQuestionIndex = 0
-    @State private var userAnswers: [Int?] = []
-    @State private var userAnswer: Int?
+    @State private var userAnswers: [Int: Int] = [:]
     @State private var score: Int = 0
     @State private var practiceTestEnded: Bool = false
-    @State private var navigateToCardView: Bool = false
     @State private var selectedQuestionIndex: Int = 0
-    
-    @State private var showUIControls: Bool = true
     
     var lessonID: String
     var practiceTestID: String
 
     var body: some View {
-        // Redundant NavigationStack removed
-        ZStack {
-            (colorScheme == .dark ? Color.customDarkGray : Color.white)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                if showUIControls {
-                    headerView
-                        .transition(.opacity)
-                }
-                
-                if !practiceTestEnded && practiceTestViewModel.questions.isEmpty {
-                    Spacer()
-                    ProgressView("Loading test...")
-                    Spacer()
-                } else if !practiceTestEnded && currentQuestionIndex < practiceTestViewModel.questions.count {
-                    
-                    if showUIControls {
-                        questionSelectorView
-                            .transition(.opacity)
+        VStack(spacing: 0) {
+            if !practiceTestEnded && practiceTestViewModel.questions.isEmpty {
+                Spacer()
+                ProgressView("Loading test...")
+                    .tint(colorScheme == .dark ? .cyan : .blue)
+                Spacer()
+            } else if !practiceTestEnded {
+                TabView(selection: $currentQuestionIndex) {
+                    ForEach(0..<practiceTestViewModel.questions.count, id: \.self) { index in
+                        questionContentPage(for: index)
+                            .tag(index)
                     }
-                    
-                    TabView(selection: $currentQuestionIndex) {
-                        ForEach(0..<practiceTestViewModel.questions.count, id: \.self) { index in
-                            questionContentPage(for: index)
-                                .tag(index)
-                        }
-                    }
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                    
-                } else if practiceTestEnded {
-                    testEndView
                 }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+            } else {
+                testEndView
             }
         }
-        .overlay(alignment: .bottom) {
-            if !practiceTestEnded && !practiceTestViewModel.questions.isEmpty && showUIControls {
-                testNavigationControls
-                    .transition(.opacity)
-            }
-        }
+        .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
         .task {
             await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID)
-            userAnswers = [Int?](repeating: nil, count: practiceTestViewModel.questions.count)
         }
+        .safeAreaInset(edge: .bottom) {
+            if !practiceTestEnded && !practiceTestViewModel.questions.isEmpty {
+                bottomNavigationBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .navigationTitle("Practice Test")
+        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.red)
+                }
+            }
+        }
     }
     
     // MARK: - COMPONENTS
-    
-    private var headerView: some View {
-        HStack(spacing: 12) {
-            Button(action: {
-                // Allows dismissing cleanly instead of hard-linking
-                NotificationCenter.default.post(name: Notification.Name("dismissTest"), object: nil)
-            }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.left")
-                        .font(.system(size: 16, weight: .bold))
-                }
-                .foregroundColor(.red)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Text("Practice Test")
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
-                .lineLimit(1)
-                .layoutPriority(1)
-
-            Spacer()
-        }
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .background(colorScheme == .dark ? Color.customDarkGray : .white)
-    }
-    
-    private var questionSelectorView: some View {
-        HStack(spacing: 20) {
-            Menu {
-                Picker("Select Question", selection: $selectedQuestionIndex) {
-                    ForEach(0..<practiceTestViewModel.questions.count, id: \.self) { index in
-                        Text("Question \(index + 1)").tag(index)
-                    }
-                }
-            } label: {
-                Label("Question \(currentQuestionIndex + 1)", systemImage: "chevron.down")
-                    .font(.headline)
-                    .foregroundColor(colorScheme == .dark ? Color.cyan : Color.blue)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .onChange(of: selectedQuestionIndex) { oldValue, newIndex in
-                withAnimation {
-                    currentQuestionIndex = newIndex
-                }
-            }
-            
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 10)
-    }
     
     private func questionContentPage(for index: Int) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 
+                // Advanced Block Renderer
                 VStack(alignment: .leading, spacing: 16) {
                     ForEach(practiceTestViewModel.questions[index].parsedBlocks) { block in
                         if block.type == QuestionBlockType.text.rawValue {
@@ -150,7 +82,6 @@ struct PracticeTestView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         } else if block.type == QuestionBlockType.math.rawValue {
                             LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
-                                .frame(minHeight: calculateMathHeight(for: block.content))
                                 .padding(12)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(colorScheme == .dark ? Color.black.opacity(0.3) : Color.gray.opacity(0.1))
@@ -161,89 +92,109 @@ struct PracticeTestView: View {
                         }
                     }
                 }
-                .padding(.horizontal)
-                .padding(.top, 20)
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
 
+                // Flawless Compiler Option Loop
                 VStack(spacing: 16) {
-                    ForEach(Array(practiceTestViewModel.questions[index].options.enumerated()), id: \.offset) { optionIndex, option in
-                        Button(action: {
-                            if index < userAnswers.count {
-                                userAnswers[index] = optionIndex
-                            }
-                        }) {
-                            optionView(option: option, isSelected: index < userAnswers.count ? userAnswers[index] == optionIndex : false)
+                    let currentOptions = practiceTestViewModel.questions[index].options
+                    ForEach(currentOptions.indices, id: \.self) { optIndex in
+                        Button {
+                            userAnswers[index] = optIndex
+                        } label: {
+                            optionView(
+                                option: currentOptions[optIndex],
+                                isSelected: userAnswers[index] == optIndex
+                            )
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 20)
                 
-                Spacer(minLength: 120)
+                Spacer(minLength: 40)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    showUIControls.toggle()
-                }
-            }
         }
         .scrollIndicators(.hidden)
     }
-    
-    private func calculateMathHeight(for latex: String) -> CGFloat {
-        let lineBreaks = latex.components(separatedBy: "\\\\").count - 1
-        let hasFraction = latex.contains("\\frac") || latex.contains("/")
-        let baseHeight: CGFloat = 60
-        return baseHeight + (CGFloat(lineBreaks) * 30) + (hasFraction ? 30 : 0)
-    }
 
-    private var testNavigationControls: some View {
+    private var bottomNavigationBar: some View {
         HStack {
             Button(action: {
                 if currentQuestionIndex > 0 {
                     withAnimation { currentQuestionIndex -= 1 }
                 }
             }) {
-                Image(systemName: "chevron.left.circle.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(colorScheme == .dark ? .cyan : .blue)
-                    .contentShape(Circle())
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(currentQuestionIndex == 0 ? .gray.opacity(0.3) : (colorScheme == .dark ? .cyan : .blue))
+                    .frame(width: 44, height: 44)
             }
-            .buttonStyle(.plain)
             .disabled(currentQuestionIndex == 0)
-            .opacity(currentQuestionIndex == 0 ? 0.3 : 1)
 
             Spacer()
-            
-            Text("\(currentQuestionIndex + 1) of \(practiceTestViewModel.questions.count)")
-                .font(.footnote.monospacedDigit())
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
 
-            Spacer()
-            
-            Button(action: {
-                if currentQuestionIndex < practiceTestViewModel.questions.count - 1 {
-                    withAnimation { currentQuestionIndex += 1 }
-                } else {
-                    if !practiceTestEnded {
-                        postPracticeTestUpdate()
+            Menu {
+                Picker("Jump to Question", selection: Binding(
+                    get: { currentQuestionIndex },
+                    set: { withAnimation { currentQuestionIndex = $0 } }
+                )) {
+                    ForEach(0..<practiceTestViewModel.questions.count, id: \.self) { index in
+                        Text("Question \(index + 1)").tag(index)
                     }
                 }
-            }) {
-                Image(systemName: currentQuestionIndex < practiceTestViewModel.questions.count - 1 ? "chevron.right.circle.fill" : "checkmark.circle.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(currentQuestionIndex < userAnswers.count && userAnswers[currentQuestionIndex] == nil ? .gray : (colorScheme == .dark ? .cyan : .blue))
-                    .contentShape(Circle())
+            } label: {
+                HStack(spacing: 6) {
+                    Text("\(currentQuestionIndex + 1) of \(practiceTestViewModel.questions.count)")
+                        .font(.subheadline.monospacedDigit())
+                        .fontWeight(.medium)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.gray.opacity(0.15))
+                .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
-            .disabled(currentQuestionIndex < userAnswers.count ? userAnswers[currentQuestionIndex] == nil : true)
+
+            Spacer()
+
+            if currentQuestionIndex < practiceTestViewModel.questions.count - 1 {
+                Button(action: {
+                    withAnimation { currentQuestionIndex += 1 }
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(colorScheme == .dark ? .cyan : .blue)
+                        .frame(width: 44, height: 44)
+                }
+            } else {
+                Button(action: {
+                    postPracticeTestUpdate()
+                }) {
+                    Text("Turn In")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(colorScheme == .dark ? Color.cyan : Color.blue)
+                        .clipShape(Capsule())
+                        .shadow(color: (colorScheme == .dark ? Color.cyan : Color.blue).opacity(0.3), radius: 4, y: 2)
+                }
+            }
         }
-        .padding(.horizontal, 25)
-        .padding(.bottom, 30)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea(edges: .bottom)
+                .shadow(color: .black.opacity(0.05), radius: 5, y: -5)
+        )
     }
     
     private var testEndView: some View {
@@ -269,7 +220,7 @@ struct PracticeTestView: View {
                         currentQuestionIndex = 0
                         score = 0
                         practiceTestEnded = false
-                        userAnswers = [Int?](repeating: nil, count: practiceTestViewModel.questions.count)
+                        userAnswers.removeAll()
                     }
                 }) {
                     Text("Retry")
@@ -282,9 +233,7 @@ struct PracticeTestView: View {
                 }
                 .buttonStyle(.plain)
                 
-                Button(action: {
-                    NotificationCenter.default.post(name: Notification.Name("dismissTest"), object: nil)
-                }) {
+                Button(action: { dismiss() }) {
                     Text("Go Home")
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
@@ -324,20 +273,13 @@ struct PracticeTestView: View {
         )
     }
 
-    private var currentQuestionDocId: String? {
-        guard currentQuestionIndex < practiceTestViewModel.questions.count else { return nil }
-        return practiceTestViewModel.questions[currentQuestionIndex].id
-    }
-
     private func postPracticeTestUpdate() {
         practiceTestEnded = true
-
         score = 0
-        for (index, answer) in userAnswers.enumerated() {
-            if index < practiceTestViewModel.questions.count {
-                if let answer = answer, answer == practiceTestViewModel.questions[index].correctOptionIndex {
-                    score += 1
-                }
+        
+        for index in 0..<practiceTestViewModel.questions.count {
+            if let answer = userAnswers[index], answer == practiceTestViewModel.questions[index].correctOptionIndex {
+                score += 1
             }
         }
         
@@ -350,22 +292,20 @@ struct PracticeTestView: View {
             await viewModel.storeTodaysPoints(pointsGainedToday: totalPointsChange)
             
             if let currentSubjectArea = practiceTestViewModel.currentSubject?.subjectArea {
-                for (index, answer) in userAnswers.enumerated() {
-                    if index < practiceTestViewModel.questions.count {
-                        let questionDocId = practiceTestViewModel.questions[index].id ?? ""
-                        let isCorrect = (answer == practiceTestViewModel.questions[index].correctOptionIndex)
-                        
-                        if !questionDocId.isEmpty {
-                            do {
-                                try await practiceTestViewModel.updateUserProgressForSubject(
-                                    userID: userId,
-                                    subjectArea: currentSubjectArea,
-                                    answeredCorrectly: isCorrect,
-                                    questionDocumentID: questionDocId
-                                )
-                            } catch {
-                                print("Failed to update user progress for question \(questionDocId): \(error.localizedDescription)")
-                            }
+                for index in 0..<practiceTestViewModel.questions.count {
+                    let questionDocId = practiceTestViewModel.questions[index].id ?? ""
+                    let isCorrect = (userAnswers[index] == practiceTestViewModel.questions[index].correctOptionIndex)
+                    
+                    if !questionDocId.isEmpty {
+                        do {
+                            try await practiceTestViewModel.updateUserProgressForSubject(
+                                userID: userId,
+                                subjectArea: currentSubjectArea,
+                                answeredCorrectly: isCorrect,
+                                questionDocumentID: questionDocId
+                            )
+                        } catch {
+                            print("Failed to update user progress for question \(questionDocId): \(error.localizedDescription)")
                         }
                     }
                 }
