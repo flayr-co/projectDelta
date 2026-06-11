@@ -90,7 +90,7 @@ class TestBuilderViewModel {
             let testData: [String: Any] = [
                 "questionAmount": generatedQuestions.count,
                 "subject": subjectName,
-                "subtopic": lessonName, // This is explicitly the key mapping you need
+                "subtopic": lessonName,
                 "testIdentifier": Int.random(in: 1000...9999),
                 "timeLimit": 60,
                 "title": testTitle.isEmpty ? "\(lessonName) Test" : testTitle,
@@ -150,6 +150,7 @@ struct AddTestView: View {
     @State private var viewModel = TestBuilderViewModel()
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -194,13 +195,13 @@ struct AddTestView: View {
             }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.teal)
+                        .fill(emeraldAccent)
                         .frame(height: 55)
                     
                     if viewModel.isGenerating {
                         ProgressView().tint(.white)
                     } else {
-                        Text("Generate Questions")
+                        Text("Generate Template")
                             .font(.headline)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -267,13 +268,13 @@ struct AddTestView: View {
             }) {
                 Label("Add Another Question", systemImage: "plus.circle.fill")
                     .font(.headline)
-                    .foregroundColor(.blue)
+                    .foregroundColor(emeraldAccent)
             }
         }
         .listStyle(.insetGrouped)
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) {
-            // Re-secured using standard safe area padding layout to naturally push up past the tab bar
+            // Absolute lock for the bottom button overlay
             VStack(spacing: 0) {
                 Divider()
                 Button(action: {
@@ -284,7 +285,7 @@ struct AddTestView: View {
                 }) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.green)
+                            .fill(emeraldAccent)
                             .frame(height: 55)
                         
                         if viewModel.isSaving {
@@ -300,9 +301,9 @@ struct AddTestView: View {
                 .disabled(viewModel.isSaving)
                 .padding(.horizontal)
                 .padding(.top, 16)
-                .padding(.bottom, 32)
+                .padding(.bottom, 24)
             }
-            .background(.ultraThinMaterial)
+            .background(colorScheme == .dark ? Color(UIColor.systemBackground) : Color.white)
         }
     }
 }
@@ -313,6 +314,7 @@ struct AdminQuestionEditorCell: View {
     var onDelete: () -> Void
     
     @State private var blocks: [QuestionBlockModel] = []
+    let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
     
     var body: some View {
         Section(header: HStack {
@@ -345,7 +347,7 @@ struct AdminQuestionEditorCell: View {
                 HStack {
                     Button(action: { question.correctOptionIndex = i }) {
                         Image(systemName: question.correctOptionIndex == i ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(question.correctOptionIndex == i ? .green : .gray)
+                            .foregroundColor(question.correctOptionIndex == i ? emeraldAccent : .gray)
                             .imageScale(.large)
                     }
                     .buttonStyle(.plain)

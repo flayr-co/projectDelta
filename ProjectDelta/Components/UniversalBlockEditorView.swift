@@ -11,7 +11,7 @@ struct UniversalBlockEditorView: View {
     var body: some View {
         VStack(spacing: 20) {
             ForEach($blocks) { $block in
-                let blockId = block.id // Safely evaluate and cache the ID
+                let blockId = block.id
                 
                 BlockEditCell(block: $block) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -151,7 +151,6 @@ fileprivate struct BlockEditCell: View {
                         .textCase(.uppercase)
                     
                     LatexView(latex: "$$ " + block.content.parsedMathToLatex + " $$")
-                        .frame(minHeight: 50)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
                         .background(Color(UIColor.secondarySystemGroupedBackground))
@@ -184,6 +183,7 @@ fileprivate struct BlockEditCell: View {
                 content: $block.content,
                 graphType: block.graphType ?? QuestionGraphType.equation.rawValue
             )
+            .frame(height: 300) // Explicitly increased height for better resolution
             
             let placeholder = block.graphType == QuestionGraphType.equation.rawValue ? "Generated Equation (e.g., y = 2x + 1)" : "Generated Coordinates"
             
@@ -244,7 +244,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
             HStack {
                 Image(systemName: "hand.draw.fill")
                     .foregroundColor(.teal)
-                Text(graphType == QuestionGraphType.equation.rawValue ? "Plot 2 points to define the line" : "Tap to place coordinate points")
+                Text(graphType == QuestionGraphType.equation.rawValue ? "Plot 2 points" : "Tap points")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
@@ -337,7 +337,6 @@ fileprivate struct InteractiveGraphBuilderView: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.teal.opacity(0.3), lineWidth: 2))
                 .clipped()
             }
-            .aspectRatio(1.0, contentMode: .fit)
         }
         .onChange(of: graphType) { _, _ in
             points.removeAll()

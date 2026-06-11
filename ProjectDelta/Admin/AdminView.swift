@@ -96,12 +96,12 @@ struct AdminView: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden) // Allows the custom warm background to show through
+        .scrollContentBackground(.hidden)
         .padding(.bottom, 100)
     }
 }
 
-// MARK: - Detail View
+// MARK: - Subject Detail View
 
 struct AdminSubjectDetailView: View {
     let subject: Subject
@@ -113,15 +113,40 @@ struct AdminSubjectDetailView: View {
     var body: some View {
         List {
             Section {
-                Text("Manage content for \(subject.name). Build structured lessons or generate targeted assessments.")
+                Text("Select a lesson below to edit its curriculum or build a practice test.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
             }
             
-            lessonsSection
-            testsSection
+            Section(header: Text("Lessons").font(.headline)) {
+                NavigationLink(destination: LessonEditorView()) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundColor(emeraldAccent)
+                            .font(.title3)
+                        Text("Create New Lesson")
+                            .fontWeight(.medium)
+                            .foregroundColor(emeraldAccent)
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                ForEach(viewModel.lessons) { lesson in
+                    NavigationLink(destination: AdminLessonDetailView(subject: subject, lesson: lesson, viewModel: viewModel)) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(lesson.name)
+                                .font(.body)
+                                .fontWeight(.semibold)
+                            Text(lesson.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
         }
         .scrollContentBackground(.hidden)
         .background(colorScheme == .dark ? Color(red: 0.12, green: 0.11, blue: 0.10) : Color(red: 0.97, green: 0.96, blue: 0.94))
@@ -135,71 +160,69 @@ struct AdminSubjectDetailView: View {
             }
         }
     }
+}
+
+// MARK: - Specific Lesson Details
+
+struct AdminLessonDetailView: View {
+    let subject: Subject
+    let lesson: Lesson
+    @Bindable var viewModel: AdminViewModel
     
-    private var lessonsSection: some View {
-        Section(header: Text("Curriculum").font(.headline)) {
-            NavigationLink(destination: LessonEditorView()) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundColor(emeraldAccent)
-                        .font(.title3)
-                    Text("Create New Lesson")
-                        .fontWeight(.medium)
-                        .foregroundColor(emeraldAccent)
-                }
-                .padding(.vertical, 4)
-            }
-            
-            ForEach(viewModel.lessons) { lesson in
-                NavigationLink(destination: LessonEditorView(lesson: lesson)) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(lesson.name)
-                            .font(.body)
-                            .fontWeight(.semibold)
-                        Text(lesson.description)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-        }
+    @Environment(\.colorScheme) private var colorScheme
+    let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
+    
+    var existingTest: Test? {
+        viewModel.tests.first(where: { $0.subtopic == lesson.name })
     }
     
-    private var testsSection: some View {
-        Section(header: Text("Assessments").font(.headline)) {
-            // Correctly routed to AddTestView and passing the fetched lessons
-                        NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: viewModel.lessons.first?.name ?? "New Lesson")) {
-                            HStack {
-                                Image(systemName: "wand.and.stars")
-                                    .foregroundColor(emeraldAccent)
-                                    .font(.title3)
-                                Text("Generate AI Assessment")
-                                    .fontWeight(.medium)
-                                    .foregroundColor(emeraldAccent)
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        
-                        // Replace the existing tests loop NavigationLink
-                        ForEach(viewModel.tests) { test in
-                            NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
-                                VStack(alignment: .leading, spacing: 4) {
-                        Text("\(test.subtopic ?? "Untitled") Assessment")
-                            .font(.body)
-                            .fontWeight(.semibold)
-                        
-                        HStack {
-                            Label("\(test.questionAmount) Qs", systemImage: "list.bullet.clipboard")
-                            Text("•")
-                            Label("\(test.timeLimit) Mins", systemImage: "timer")
-                        }
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+    var body: some View {
+        List {
+            Section(header: Text("Curriculum").font(.headline)) {
+                NavigationLink(destination: LessonEditorView(lesson: lesson)) {
+                    HStack {
+                        Image(systemName: "pencil.line")
+                            .foregroundColor(.blue)
+                        Text("Edit Lesson Content")
+                            .fontWeight(.medium)
                     }
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 8)
+                }
+            }
+            
+            Section(header: Text("Assessment").font(.headline)) {
+                if let test = existingTest {
+                    NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: lesson.name, existingTest: test)) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Edit Practice Test")
+                                .font(.body)
+                                .fontWeight(.semibold)
+                            
+                            HStack {
+                                Label("\(test.questionAmount) Qs", systemImage: "list.bullet.clipboard")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } else {
+                    NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: lesson.name)) {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(emeraldAccent)
+                            Text("Build Practice Test")
+                                .fontWeight(.medium)
+                                .foregroundColor(emeraldAccent)
+                        }
+                        .padding(.vertical, 8)
+                    }
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(colorScheme == .dark ? Color(red: 0.12, green: 0.11, blue: 0.10) : Color(red: 0.97, green: 0.96, blue: 0.94))
+        .navigationTitle(lesson.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

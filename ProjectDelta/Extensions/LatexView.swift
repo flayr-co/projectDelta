@@ -16,32 +16,48 @@ import WebKit
 struct LatexView: View {
     var latex: String
     @State private var isLoading = true
+    @State private var dynamicHeight: CGFloat = 60
     
     var body: some View {
         ZStack {
-            LatexWebView(latex: latex, isLoading: $isLoading)
+            LatexWebView(latex: latex, dynamicHeight: $dynamicHeight, isLoading: $isLoading)
+                .frame(height: max(dynamicHeight, 60))
             
             if isLoading {
-                VStack {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                        .tint(.primary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // Prevents layout shifting during the load process
-                .background(Color.clear)
+                ProgressView()
+                    .scaleEffect(1.2)
+                    .tint(.primary)
             }
         }
     }
 }
 
-// Wrapping pure WebView inside Representable is fundamentally required to compute MathJax
 struct LatexWebView: UIViewRepresentable {
     var latex: String
+    @Binding var dynamicHeight: CGFloat
     @Binding var isLoading: Bool
+    @Environment(\.colorScheme) var colorScheme
     
     func makeUIView(context: Context) -> WKWebView {
-        let webView = WKWebView()
+        let configuration = WKWebViewConfiguration()
+        let userContentController = WKUserContentController()
+        
+        // Inject script to observe height changes and send them to Swift
+        let js = """
+        const resizeObserver = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                window.webkit.messageHandlers.heightHandler.postMessage(entry.target.offsetHeight);
+            }
+        });
+        resizeObserver.observe(document.getElementById('math-container'));
+        """
+        
+        let userScript = WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        userContentController.addUserScript(userScript)
+        userContentController.add(context.coordinator, name: "heightHandler")
+        configuration.userContentController = userContentController
+        
+        let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.isScrollEnabled = false
@@ -49,50 +65,101 @@ struct LatexWebView: UIViewRepresentable {
         return webView
     }
     
-    func updateUIView(_ uiView: WKWebView, context: Context) {
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        let textColor = colorScheme == .dark ? "white" : "black"
+        let latexTextColor = colorScheme == .dark ? "cyan" : "red"
+
+        // Old Regex for *blue* highlighting
+        let processedLatex = latex
+            .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(latexTextColor)}{$1}", options: .regularExpression)
+            .replacingOccurrences(of: "\\n", with: "\\\\\\")
+        
         let htmlString = """
         <!DOCTYPE html>
         <html>
         <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-        <style>
-            body { 
-                margin: 0; 
-                display: flex; 
-                justify-content: flex-start; 
-                align-items: center; 
-                font-size: 110%; 
-                color: var(--text-color, #000); 
-                background: transparent;
-                padding-left: 8px;
-            }
-        </style>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+            <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+            <style>
+                body {
+                    font-size: 110%;
+                    color: \(textColor);
+                    background-color: transparent;
+                    margin: 0;
+                    padding: 8px 0px; /* Padding to prevent vertical clipping */
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-start;
+                }
+                #math-container {
+                    display: inline-block;
+                    width: 100%;
+                }
+            </style>
+            <script>
+                window.MathJax = {
+                    tex: {
+                        inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                        displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+                        processEscapes: true,
+                        tags: 'none'
+                    },
+                    options: {
+                        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+                        ignoreHtmlClass: 'tex2jax_ignore',
+                        processHtmlClass: 'tex2jax_process'
+                    },
+                    svg: {
+                        fontCache: 'global'
+                    },
+                    startup: {
+                        pageReady: () => {
+                            return MathJax.startup.defaultPageReady().then(() => {
+                                let container = document.getElementById('math-container');
+                                window.webkit.messageHandlers.heightHandler.postMessage(container.offsetHeight);
+                            });
+                        }
+                    }
+                };
+            </script>
         </head>
         <body>
-            <div>\(latex)</div>
+            <div id="math-container">
+                \(processedLatex)
+            </div>
         </body>
         </html>
         """
-        uiView.loadHTMLString(htmlString, baseURL: nil)
+        webView.loadHTMLString(htmlString, baseURL: nil)
     }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
     
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: LatexWebView
         
         init(_ parent: LatexWebView) {
             self.parent = parent
         }
         
-        // Triggers the loading indicator shutdown as soon as the MathJax DOM tree registers
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             DispatchQueue.main.async {
                 self.parent.isLoading = false
+            }
+        }
+        
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "heightHandler", let height = message.body as? CGFloat {
+                DispatchQueue.main.async {
+                    // Add buffer to ensure bottom of fractions aren't trimmed
+                    let calculatedHeight = height + 15
+                    if calculatedHeight > self.parent.dynamicHeight {
+                        self.parent.dynamicHeight = calculatedHeight
+                    }
+                }
             }
         }
     }
