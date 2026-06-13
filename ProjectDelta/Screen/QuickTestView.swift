@@ -27,13 +27,19 @@ struct QuickTestView: View {
             } else if quizViewModel.isQuizComplete {
                 quizEndView
             } else if !quizViewModel.questions.isEmpty {
-                TabView(selection: $currentQuestionIndex) {
-                    ForEach(0..<quizViewModel.questions.count, id: \.self) { index in
-                        questionContentPage(for: index)
-                            .tag(index)
+                ZStack(alignment: .bottom) {
+                    TabView(selection: $currentQuestionIndex) {
+                        ForEach(0..<quizViewModel.questions.count, id: \.self) { index in
+                            questionContentPage(for: index)
+                                .tag(index)
+                                .padding(.bottom, 180)
+                        }
                     }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    
+                    bottomNavigationBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
             } else {
                 Spacer()
                 Text("No questions found for this test.")
@@ -44,12 +50,6 @@ struct QuickTestView: View {
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
         .task {
             quizViewModel.fetchSubtopicTest(for: subject, subtopic: subtopic)
-        }
-        .safeAreaInset(edge: .bottom) {
-            if !quizViewModel.isQuizComplete && !quizViewModel.questions.isEmpty {
-                bottomNavigationBar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
         }
         .navigationTitle(subtopic ?? subject)
         .navigationBarTitleDisplayMode(.inline)
@@ -152,7 +152,7 @@ struct QuickTestView: View {
             Menu {
                 Picker("Jump to Question", selection: Binding(
                     get: { currentQuestionIndex },
-                    set: { withAnimation { currentQuestionIndex = $0 } }
+                    set: { newValue in withAnimation { currentQuestionIndex = newValue } }
                 )) {
                     ForEach(0..<quizViewModel.questions.count, id: \.self) { index in
                         Text("Question \(index + 1)").tag(index)
@@ -205,14 +205,14 @@ struct QuickTestView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.vertical, 10)
         .background(
-            Rectangle()
+            Capsule()
                 .fill(.ultraThinMaterial)
-                .ignoresSafeArea(edges: .bottom)
-                .shadow(color: .black.opacity(0.05), radius: 5, y: -5)
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
         )
+        .padding(.horizontal, 20)
+        .padding(.bottom, 110)
     }
 
     private var quizEndView: some View {
@@ -286,6 +286,7 @@ struct QuickTestView: View {
                 .padding(.vertical)
             }
             .padding(.top)
+            .padding(.bottom, 110)
         }
     }
 }

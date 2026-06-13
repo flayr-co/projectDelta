@@ -30,13 +30,21 @@ struct PracticeTestView: View {
                     .tint(colorScheme == .dark ? .cyan : .blue)
                 Spacer()
             } else if !practiceTestEnded {
-                TabView(selection: $currentQuestionIndex) {
-                    ForEach(0..<practiceTestViewModel.questions.count, id: \.self) { index in
-                        questionContentPage(for: index)
-                            .tag(index)
+                ZStack(alignment: .bottom) {
+                    TabView(selection: $currentQuestionIndex) {
+                        ForEach(0..<practiceTestViewModel.questions.count, id: \.self) { index in
+                            questionContentPage(for: index)
+                                .tag(index)
+                                .padding(.bottom, 180)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    
+                    if !practiceTestViewModel.questions.isEmpty {
+                        bottomNavigationBar
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
             } else {
                 testEndView
             }
@@ -44,12 +52,6 @@ struct PracticeTestView: View {
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
         .task {
             await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID)
-        }
-        .safeAreaInset(edge: .bottom) {
-            if !practiceTestEnded && !practiceTestViewModel.questions.isEmpty {
-                bottomNavigationBar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
         }
         .navigationTitle("Practice Test")
         .navigationBarTitleDisplayMode(.inline)
@@ -138,7 +140,7 @@ struct PracticeTestView: View {
             Menu {
                 Picker("Jump to Question", selection: Binding(
                     get: { currentQuestionIndex },
-                    set: { withAnimation { currentQuestionIndex = $0 } }
+                    set: { newValue in withAnimation { currentQuestionIndex = newValue } }
                 )) {
                     ForEach(0..<practiceTestViewModel.questions.count, id: \.self) { index in
                         Text("Question \(index + 1)").tag(index)
@@ -187,14 +189,14 @@ struct PracticeTestView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.vertical, 10)
         .background(
-            Rectangle()
+            Capsule()
                 .fill(.ultraThinMaterial)
-                .ignoresSafeArea(edges: .bottom)
-                .shadow(color: .black.opacity(0.05), radius: 5, y: -5)
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
         )
+        .padding(.horizontal, 20)
+        .padding(.bottom, 110)
     }
     
     private var testEndView: some View {
@@ -248,6 +250,7 @@ struct PracticeTestView: View {
             
             Spacer()
         }
+        .padding(.bottom, 110)
         .frame(maxWidth: .infinity)
     }
 
