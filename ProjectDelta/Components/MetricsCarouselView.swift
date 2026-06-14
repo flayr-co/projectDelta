@@ -9,10 +9,78 @@ struct MetricsCarouselView: View {
     let progress: UserProgress?
     
     var body: some View {
+        Group {
+            #if os(macOS)
+            macOSLayout
+            #else
+            iOSLayout
+            #endif
+        }
+    }
+    
+    // MARK: - DESKTOP LAYOUT (macOS)
+    #if os(macOS)
+    private var macOSLayout: some View {
+        HStack(alignment: .top, spacing: 32) {
+            
+            // Left: Pinned Analytics Panel (Expanded Strict Anchor Width)
+            VStack(alignment: .center, spacing: 0) {
+                UserProgressPieChart()
+                    .padding(16) // Minimized padding to maximize internal space for text
+            }
+            .frame(width: 460) // Significantly expanded to prevent text crushing
+            .frame(maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.platformSystemBackground)
+                    .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 5)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+
+            // Right: Strict 2-Column Responsive Grid
+            ScrollView(.vertical, showsIndicators: false) {
+                let desktopColumns = [
+                    GridItem(.flexible(), spacing: 24),
+                    GridItem(.flexible(), spacing: 24)
+                ]
+                
+                LazyVGrid(columns: desktopColumns, spacing: 24) {
+                    MetricCard(title: "Total Volume", value: "\(progress?.questionsAttempted ?? 0)", icon: "bolt.fill", color: .orange)
+                        .frame(height: 160)
+                    
+                    MetricCard(title: "Accuracy", value: accuracyPercentage, icon: "target", color: .green)
+                        .frame(height: 160)
+                    
+                    if let prog = progress {
+                        ForEach(Array(prog.progress.sorted(by: { $0.key.rawValue < $1.key.rawValue })), id: \.key) { key, value in
+                            MetricCard(
+                                title: key.rawValue,
+                                value: "\(value.questionsCorrect) / \(value.questionsAttempted)",
+                                icon: "book.fill",
+                                color: .cyan
+                            )
+                            .frame(height: 160)
+                        }
+                    }
+                }
+                .padding(.trailing, 12) // Native scrollbar clearance
+                .padding(.bottom, 24)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+    #endif
+    
+    // MARK: - MOBILE LAYOUT (iOS)
+    #if os(iOS)
+    private var iOSLayout: some View {
         TabView {
-            // First Slide: The original progress view, fully styled to match the new cards
+            // First Slide
             UserProgressPieChart()
-                .padding(24)
+                .padding(16) // Reduced padding here as well
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -47,12 +115,12 @@ struct MetricsCarouselView: View {
                 }
             }
         }
-        #if os(iOS)
         .tabViewStyle(.page(indexDisplayMode: .always))
         .indexViewStyle(.page(backgroundDisplayMode: .never))
-        #endif
     }
+    #endif
     
+    // MARK: - CALCULATIONS
     private var accuracyPercentage: String {
         guard let prog = progress, prog.questionsAttempted > 0 else { return "0%" }
         let totalCorrect = prog.progress.values.reduce(0) { $0 + $1.questionsCorrect }
@@ -61,6 +129,7 @@ struct MetricsCarouselView: View {
     }
 }
 
+// MARK: - METRIC CARD COMPONENT
 struct MetricCard: View {
     let title: String
     let value: String
@@ -69,39 +138,39 @@ struct MetricCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
+            HStack(alignment: .top, spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundColor(color)
-                    .frame(width: 32, height: 32)
-                    .background(color.opacity(0.15))
-                    .clipShape(Circle())
+                    .frame(width: 36, height: 36)
+                    .background(color.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 
                 Text(title)
-                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .font(.system(.title3, design: .rounded, weight: .bold))
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
             }
             
-            Spacer()
+            Spacer(minLength: 0)
             
             Text(value)
-                .font(.system(size: 48, weight: .black, design: .rounded))
+                .font(.system(size: 42, weight: .heavy, design: .rounded))
                 .foregroundColor(.primary)
-                .minimumScaleFactor(0.5)
+                .minimumScaleFactor(0.4)
                 .lineLimit(1)
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.platformSystemBackground)
-                .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
+                .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.cyan.opacity(0.3), lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
         )
-        .padding(.horizontal, 4)
-        .padding(.vertical, 12)
     }
 }
