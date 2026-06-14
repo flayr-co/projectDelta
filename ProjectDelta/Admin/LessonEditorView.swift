@@ -55,12 +55,14 @@ struct LessonEditorView: View {
                 }
             }
             .navigationTitle(lesson.id?.isEmpty == false ? "Edit Lesson" : "New Lesson")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { saveLesson() }
                         .fontWeight(.bold)
                         .disabled(lessonTitle.isEmpty || subjectName.isEmpty)

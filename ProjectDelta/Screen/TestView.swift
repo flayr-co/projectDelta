@@ -118,7 +118,9 @@ struct TestView: View {
                             .tag(index)
                     }
                 }
+                #if os(iOS)
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                #endif
                 .onChange(of: currentQuestionIndex) { _, newValue in
                     if selectedQuestionIndex != newValue {
                         selectedQuestionIndex = newValue

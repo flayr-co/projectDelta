@@ -164,7 +164,7 @@ struct DynamicGraphView: View {
             }
             .frame(height: 250)
             .padding()
-            .background(Color(UIColor.systemBackground))
+            .background(Color.platformSystemBackground)
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
             
@@ -226,7 +226,7 @@ func linearRegression(x: [Double], y: [Double]) -> (slope: Double, intercept: Do
 
 #Preview {
     ZStack {
-        Color(UIColor.systemGroupedBackground).ignoresSafeArea()
+        Color.platformSystemGroupedBackground.ignoresSafeArea()
         DynamicGraphView(data: sampleData)
     }
 }

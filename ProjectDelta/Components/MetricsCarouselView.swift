@@ -16,7 +16,7 @@ struct MetricsCarouselView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color(.systemBackground))
+                        .fill(Color.platformSystemBackground)
                         .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
                 )
                 .overlay(
@@ -47,8 +47,10 @@ struct MetricsCarouselView: View {
                 }
             }
         }
+        #if os(iOS)
         .tabViewStyle(.page(indexDisplayMode: .always))
         .indexViewStyle(.page(backgroundDisplayMode: .never))
+        #endif
     }
     
     private var accuracyPercentage: String {
@@ -92,7 +94,7 @@ struct MetricCard: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(.systemBackground))
+                .fill(Color.platformSystemBackground)
                 .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
         )
         .overlay(

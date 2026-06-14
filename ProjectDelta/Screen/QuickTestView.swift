@@ -35,7 +35,9 @@ struct QuickTestView: View {
                                 .padding(.bottom, 180)
                         }
                     }
+                    #if os(iOS)
                     .tabViewStyle(.page(indexDisplayMode: .never))
+                    #endif
                     
                     bottomNavigationBar
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -52,10 +54,12 @@ struct QuickTestView: View {
             quizViewModel.fetchSubtopicTest(for: subject, subtopic: subtopic)
         }
         .navigationTitle(subtopic ?? subject)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .navigationBarBackButtonHidden(true)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .cancellationAction) {
                 Button(action: { dismiss() }) {
                     Image(systemName: "arrow.left")
                         .font(.system(size: 16, weight: .bold))

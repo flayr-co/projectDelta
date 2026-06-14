@@ -5,13 +5,16 @@
 //  Created by Jake Meissner on 5/21/24.
 //
 
-//
-//  LatexView.swift
-//  ProjectDelta
-//
-
 import SwiftUI
 import WebKit
+
+#if os(iOS)
+import UIKit
+typealias PlatformViewRepresentable = UIViewRepresentable
+#elseif os(macOS)
+import AppKit
+typealias PlatformViewRepresentable = NSViewRepresentable
+#endif
 
 struct LatexView: View {
     var latex: String
@@ -32,13 +35,31 @@ struct LatexView: View {
     }
 }
 
-struct LatexWebView: UIViewRepresentable {
+struct LatexWebView: PlatformViewRepresentable {
     var latex: String
     @Binding var dynamicHeight: CGFloat
     @Binding var isLoading: Bool
     @Environment(\.colorScheme) var colorScheme
     
+    #if os(iOS)
     func makeUIView(context: Context) -> WKWebView {
+        makeWebView(context: context)
+    }
+    
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        updateWebView(webView, context: context)
+    }
+    #elseif os(macOS)
+    func makeNSView(context: Context) -> WKWebView {
+        makeWebView(context: context)
+    }
+    
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        updateWebView(webView, context: context)
+    }
+    #endif
+    
+    private func makeWebView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let userContentController = WKUserContentController()
         
@@ -58,14 +79,18 @@ struct LatexWebView: UIViewRepresentable {
         configuration.userContentController = userContentController
         
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        #if os(iOS)
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.isScrollEnabled = false
+        #elseif os(macOS)
+        webView.setValue(false, forKey: "drawsBackground")
+        #endif
         webView.navigationDelegate = context.coordinator
         return webView
     }
     
-    func updateUIView(_ webView: WKWebView, context: Context) {
+    private func updateWebView(_ webView: WKWebView, context: Context) {
         let textColor = colorScheme == .dark ? "white" : "black"
         let latexTextColor = colorScheme == .dark ? "cyan" : "red"
 

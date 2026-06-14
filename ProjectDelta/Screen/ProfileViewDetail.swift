@@ -6,6 +6,12 @@
 //
 
 import SwiftUI
+import PhotosUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 struct ProfileViewDetail: View {
     @Environment(AuthViewModel.self) var viewModel
@@ -14,8 +20,10 @@ struct ProfileViewDetail: View {
     @State private var fullname: String = ""
     @State private var selectedRole: UserRole = .student
     @State private var profilePictureUrl: String = ""
-    @State private var showingImagePicker = false
-    @State private var profileImage: UIImage?
+    
+    // Cross-platform native PhotosUI properties
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var profileImageData: Data? = nil
 
     var body: some View {
         NavigationStack {
@@ -25,15 +33,26 @@ struct ProfileViewDetail: View {
                         Section(header: Text("Profile Picture")) {
                             HStack {
                                 Spacer()
-                                Button(action: {
-                                    showingImagePicker = true
-                                }) {
-                                    if let profileImage = profileImage {
-                                        Image(uiImage: profileImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 100, height: 100)
-                                            .clipShape(Circle())
+                                
+                                PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                                    if let profileImageData {
+                                        #if os(iOS)
+                                        if let uiImage = UIImage(data: profileImageData) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 100, height: 100)
+                                                .clipShape(Circle())
+                                        }
+                                        #elseif os(macOS)
+                                        if let nsImage = NSImage(data: profileImageData) {
+                                            Image(nsImage: nsImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 100, height: 100)
+                                                .clipShape(Circle())
+                                        }
+                                        #endif
                                     } else if let url = URL(string: profilePictureUrl) {
                                         AsyncImage(url: url) { image in
                                             image.resizable()
@@ -52,18 +71,29 @@ struct ProfileViewDetail: View {
                                             .foregroundColor(.gray)
                                     }
                                 }
-                                .sheet(isPresented: $showingImagePicker) {
-                                    PhotoPicker(image: $profileImage)
+                                .buttonStyle(.plain)
+                                .onChange(of: selectedPhotoItem) { oldValue, newValue in
+                                    Task {
+                                        if let item = newValue {
+                                            if let data = try? await item.loadTransferable(type: Data.self) {
+                                                profileImageData = data
+                                            }
+                                        }
+                                    }
                                 }
+                                
                                 Spacer()
                             }
                         }
 
                         Section(header: Text("User Details")) {
                             TextField("Full Name", text: $fullname)
+                            
                             TextField("Email", text: $email)
-                                .autocapitalization(.none)
+                                #if os(iOS)
+                                .textInputAutocapitalization(.never)
                                 .keyboardType(.emailAddress)
+                                #endif
 
                             Picker("Account Mode", selection: $selectedRole) {
                                 Text("Student").tag(UserRole.student)
@@ -76,8 +106,8 @@ struct ProfileViewDetail: View {
                         Section {
                             Button(action: {
                                 Task {
-                                    if let profileImage = profileImage {
-                                        await viewModel.uploadProfileImage(profileImage, for: user)
+                                    if let profileImageData = profileImageData {
+                                        await viewModel.uploadProfileImage(profileImageData, for: user)
                                     }
                                     await viewModel.updateUserDetails(email: email, fullname: fullname, role: selectedRole)
                                     isPresented = false
@@ -98,9 +128,11 @@ struct ProfileViewDetail: View {
                 }
             }
             .navigationTitle("Edit Profile")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { isPresented = false }
                 }
             }

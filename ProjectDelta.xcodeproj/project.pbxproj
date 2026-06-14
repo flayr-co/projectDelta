@@ -60,6 +60,7 @@
 		52AFCA0A2BBF381B0081A309 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AFCA092BBF381B0081A309 /* ProgressBar.swift */; };
 		52C68AC32FB64BBF001CD906 /* LessonEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */; };
 		52C72D682AFB014800BDC77E /* BarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C72D672AFB014800BDC77E /* BarChartView.swift */; };
+		52C8ACFE2FDCFBF60015BABE /* Color+Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C8ACFD2FDCFBEC0015BABE /* Color+Platform.swift */; };
 		52C90ED62FB3D1EB0088A60F /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED52FB3D1EB0088A60F /* FirebaseAuth */; };
 		52C90ED82FB3D1EB0088A60F /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED72FB3D1EB0088A60F /* FirebaseFirestore */; };
 		52C90EDA2FB3D1EB0088A60F /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED92FB3D1EB0088A60F /* FirebaseStorage */; };
@@ -70,7 +71,6 @@
 		52D998F32ADB353E007F90A6 /* FirestoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998F22ADB353E007F90A6 /* FirestoreManager.swift */; };
 		52D998F52ADB359D007F90A6 /* Views+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998F42ADB359D007F90A6 /* Views+Extensions.swift */; };
 		52DAF6922BED5EF2006EE19F /* TextStylingUtility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52DAF6912BED5EF1006EE19F /* TextStylingUtility.swift */; };
-		52E371B92B215253004CFDDA /* PhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E371B82B215253004CFDDA /* PhotoPicker.swift */; };
 		52E371BB2B228AD0004CFDDA /* UserProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E371BA2B228AD0004CFDDA /* UserProgress.swift */; };
 		52F903DE2BA521D70093E976 /* Lesson.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F903DD2BA521D70093E976 /* Lesson.swift */; };
 		52FA58232BBC993D0063091C /* TableOfContentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52FA58222BBC993D0063091C /* TableOfContentsView.swift */; };
@@ -117,6 +117,7 @@
 		527F987B2AEC5D410031F9E6 /* SubjectGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectGridView.swift; sourceTree = "<group>"; };
 		527F987D2AEC85030031F9E6 /* CloseButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloseButtonView.swift; sourceTree = "<group>"; };
 		527F98852AEF3EA90031F9E6 /* DarkModeBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DarkModeBackground.swift; sourceTree = "<group>"; };
+		528245002FDF52EE0037CEDC /* ProjectDelta.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ProjectDelta.entitlements; sourceTree = "<group>"; };
 		5284D28A2B212C0800409048 /* UserStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStatsView.swift; sourceTree = "<group>"; };
 		528D80822BFE5C4000FD9850 /* PracticeTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeTestView.swift; sourceTree = "<group>"; };
 		52920AE62B155B7700B60A14 /* QuestionGeneratorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionGeneratorViewModel.swift; sourceTree = "<group>"; };
@@ -130,6 +131,7 @@
 		52AFCA092BBF381B0081A309 /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
 		52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonEditorView.swift; sourceTree = "<group>"; };
 		52C72D672AFB014800BDC77E /* BarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartView.swift; sourceTree = "<group>"; };
+		52C8ACFD2FDCFBEC0015BABE /* Color+Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Platform.swift"; sourceTree = "<group>"; };
 		52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeTestViewModel.swift; sourceTree = "<group>"; };
 		52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTestView.swift; sourceTree = "<group>"; };
 		52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicGraphView.swift; sourceTree = "<group>"; };
@@ -137,7 +139,6 @@
 		52D998F22ADB353E007F90A6 /* FirestoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirestoreManager.swift; sourceTree = "<group>"; };
 		52D998F42ADB359D007F90A6 /* Views+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views+Extensions.swift"; sourceTree = "<group>"; };
 		52DAF6912BED5EF1006EE19F /* TextStylingUtility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextStylingUtility.swift; sourceTree = "<group>"; };
-		52E371B82B215253004CFDDA /* PhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoPicker.swift; sourceTree = "<group>"; };
 		52E371BA2B228AD0004CFDDA /* UserProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProgress.swift; sourceTree = "<group>"; };
 		52F903DD2BA521D70093E976 /* Lesson.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lesson.swift; sourceTree = "<group>"; };
 		52FA58222BBC993D0063091C /* TableOfContentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableOfContentsView.swift; sourceTree = "<group>"; };
@@ -190,6 +191,7 @@
 		5229BB062AD0CC8A0094395D /* ProjectDelta */ = {
 			isa = PBXGroup;
 			children = (
+				528245002FDF52EE0037CEDC /* ProjectDelta.entitlements */,
 				520B96822BA5372600332AF3 /* Admin */,
 				524207932AE49A8600E004EF /* App */,
 				5229BB0B2AD0CC8B0094395D /* Assets.xcassets */,
@@ -321,10 +323,10 @@
 		52D998EE2ADB3018007F90A6 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				52C8ACFD2FDCFBEC0015BABE /* Color+Platform.swift */,
 				527F98852AEF3EA90031F9E6 /* DarkModeBackground.swift */,
 				527F98712AEB22990031F9E6 /* GreetingText.swift */,
 				52668ED02BFD06FA0019965F /* LatexView.swift */,
-				52E371B82B215253004CFDDA /* PhotoPicker.swift */,
 				52DAF6912BED5EF1006EE19F /* TextStylingUtility.swift */,
 				52D998F42ADB359D007F90A6 /* Views+Extensions.swift */,
 			);
@@ -458,7 +460,6 @@
 				52C68AC32FB64BBF001CD906 /* LessonEditorView.swift in Sources */,
 				52DAF6922BED5EF2006EE19F /* TextStylingUtility.swift in Sources */,
 				52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */,
-				52E371B92B215253004CFDDA /* PhotoPicker.swift in Sources */,
 				52920AE72B155B7700B60A14 /* QuestionGeneratorViewModel.swift in Sources */,
 				5258BD5C2AE344C200F21A50 /* SettingsRowView.swift in Sources */,
 				5258B5A62FB8337600F1600A /* LessonContentPage.swift in Sources */,
@@ -480,6 +481,7 @@
 				5258BD5A2AE340D700F21A50 /* ProfileView.swift in Sources */,
 				5256AD8A2B041B57008523F7 /* Constants.swift in Sources */,
 				52F903DE2BA521D70093E976 /* Lesson.swift in Sources */,
+				52C8ACFE2FDCFBF60015BABE /* Color+Platform.swift in Sources */,
 				520B96842BA5375600332AF3 /* AdminView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -608,10 +610,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ProjectDelta/ProjectDelta.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ProjectDelta/Preview Content\"";
 				DEVELOPMENT_TEAM = Q492K6S5FU;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -627,6 +633,10 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jakecmeissner.ProjectDelta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -638,10 +648,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ProjectDelta/ProjectDelta.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ProjectDelta/Preview Content\"";
 				DEVELOPMENT_TEAM = Q492K6S5FU;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -657,6 +671,10 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jakecmeissner.ProjectDelta;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

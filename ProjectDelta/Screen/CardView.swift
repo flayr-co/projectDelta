@@ -9,7 +9,6 @@ import SwiftUI
 
 struct CardView: View {
     // MARK: - PROPERTIES
-    // Upgraded to native Environment for the Observation framework
     @Environment(AuthViewModel.self) var viewModel
     @Environment(\.colorScheme) var colorScheme
     @Environment(QuizViewModel.self) var quizViewModel
@@ -17,27 +16,11 @@ struct CardView: View {
     var body: some View {
         NavigationStack {
             // MARK: - HEADER
-//            HStack {
-//                NavigationLink {
-//                    ProfileView()
-//                } label: {
-//                    BackButtonView()
-//                }
-//                Text("Go back")
-//                    .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
-//
-//                Spacer()
-//            }
-            
             VStack {
                 if let user = viewModel.currentUser {
                     Text("Hello, \(user.fullname)!")
                         .greetingStyle()
                 }
-//                else {
-//                    Text("Hello!")
-//                        .greetingStyle()
-//                }
             }
             .padding(.leading, 15)
             .padding(.top, 20)
@@ -61,13 +44,14 @@ struct CardView: View {
                         .foregroundColor(colorScheme == .dark ? Color.pink : Color.cyan)
                         .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 5)
                 }
+                .buttonStyle(.plain) // Add plain style to prevent macOS highlighting oddities on pure images
                 .padding(.top, 20)
             }
                 
-                // MARK: - FOOTER
-                Spacer()
+            // MARK: - FOOTER
+            Spacer()
         
-            } //: NAVIGATION STACK
+        } //: NAVIGATION STACK
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
     } //: BODY
 }

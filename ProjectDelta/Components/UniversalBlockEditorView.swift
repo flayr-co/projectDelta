@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct UniversalBlockEditorView: View {
     @Binding var blocks: [QuestionBlockModel]
@@ -85,7 +88,7 @@ fileprivate struct BlockEditCell: View {
                 TextField("Enter instruction or context...", text: $block.content, axis: .vertical)
                     .lineLimit(3...10)
                     .padding(12)
-                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .background(Color.platformSecondarySystemGroupedBackground)
                     .cornerRadius(10)
                     .focused($isFocused)
                     
@@ -96,7 +99,7 @@ fileprivate struct BlockEditCell: View {
             }
         }
         .padding(16)
-        .background(Color(UIColor.systemBackground))
+        .background(Color.platformSystemBackground)
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -123,14 +126,17 @@ fileprivate struct BlockEditCell: View {
                 .background(Color.teal.opacity(0.05))
                 .cornerRadius(10)
                 .focused($isFocused)
+                #if os(iOS)
                 .keyboardType(.numbersAndPunctuation)
-                .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
+                #endif
+                .autocorrectionDisabled()
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(isFocused ? Color.teal : Color.clear, lineWidth: 2)
                 )
                 .toolbar {
+                    #if os(iOS)
                     ToolbarItemGroup(placement: .keyboard) {
                         if isFocused {
                             Spacer()
@@ -139,6 +145,7 @@ fileprivate struct BlockEditCell: View {
                                 .foregroundColor(.teal)
                         }
                     }
+                    #endif
                 }
             
             // WebAssign Style Live Preview
@@ -153,7 +160,7 @@ fileprivate struct BlockEditCell: View {
                     LatexView(latex: "$$ " + block.content.parsedMathToLatex + " $$")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
-                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                        .background(Color.platformSecondarySystemGroupedBackground)
                         .cornerRadius(10)
                 }
             }
@@ -196,11 +203,13 @@ fileprivate struct BlockEditCell: View {
                     .lineLimit(1...4)
                     .font(.system(.body, design: .monospaced))
                     .padding(12)
-                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .background(Color.platformSecondarySystemGroupedBackground)
                     .cornerRadius(10)
                     .focused($isFocused)
                     .autocorrectionDisabled()
+                    #if os(iOS)
                     .textInputAutocapitalization(.never)
+                    #endif
             }
         }
     }
@@ -332,7 +341,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
                         )
                     }
                 }
-                .background(Color(UIColor.systemBackground))
+                .background(Color.platformSystemBackground)
                 .cornerRadius(12)
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.teal.opacity(0.3), lineWidth: 2))
                 .clipped()
@@ -436,7 +445,11 @@ fileprivate struct InteractiveGraphBuilderView: View {
             generatePointsString()
         }
         
+        #if os(iOS)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #elseif os(macOS)
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
+        #endif
     }
     
     private func generateLinearEquation() {
@@ -634,7 +647,7 @@ fileprivate struct MathKeypadView: View {
             }
         }
         .padding(12)
-        .background(Color(UIColor.secondarySystemBackground))
+        .background(Color.platformSecondarySystemBackground)
         .cornerRadius(14)
     }
     
@@ -643,7 +656,7 @@ fileprivate struct MathKeypadView: View {
     }
     
     @ViewBuilder
-    private func keyButton(_ insertString: String, display: String, color: Color = Color(UIColor.tertiarySystemBackground)) -> some View {
+    private func keyButton(_ insertString: String, display: String, color: Color = Color.platformTertiarySystemBackground) -> some View {
         Button(action: { text.append(insertString) }) {
             Text(display)
                 .font(.system(size: 16, weight: .bold, design: .monospaced))

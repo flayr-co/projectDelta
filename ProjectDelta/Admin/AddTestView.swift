@@ -161,7 +161,9 @@ struct AddTestView: View {
             }
         }
         .navigationTitle(existingTest != nil ? "Edit Test" : "New Test")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             await viewModel.initialize(subject: subjectName, lesson: lessonName, testId: existingTest?.id)
             if existingTest != nil {
@@ -271,7 +273,9 @@ struct AddTestView: View {
                     .foregroundColor(emeraldAccent)
             }
         }
+        #if os(iOS)
         .listStyle(.insetGrouped)
+        #endif
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) {
             // Absolute lock for the bottom button overlay
@@ -303,7 +307,7 @@ struct AddTestView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 24)
             }
-            .background(colorScheme == .dark ? Color(UIColor.systemBackground) : Color.white)
+            .background(colorScheme == .dark ? Color.platformSystemBackground : Color.white)
         }
     }
 }
@@ -357,7 +361,7 @@ struct AdminQuestionEditorCell: View {
                         set: { if question.options.indices.contains(i) { question.options[i] = $0 } }
                     ))
                     .padding(8)
-                    .background(Color(UIColor.secondarySystemBackground))
+                    .background(Color.platformSecondarySystemBackground)
                     .cornerRadius(8)
                 }
             }
@@ -367,7 +371,7 @@ struct AdminQuestionEditorCell: View {
                 set: { question.hint = $0.isEmpty ? nil : $0 }
             ))
             .padding(8)
-            .background(Color(UIColor.secondarySystemBackground))
+            .background(Color.platformSecondarySystemBackground)
             .cornerRadius(8)
             .padding(.top, 8)
         }

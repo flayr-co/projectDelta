@@ -41,7 +41,9 @@ struct AdminView: View {
                 }
             }
             .navigationTitle("Instructor Panel")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .task {
                 await viewModel.fetchSubjects()
                 await viewModel.fetchAllQuestions()
@@ -137,7 +139,9 @@ struct AdminSubjectDetailView: View {
             .background(themeBackground)
         }
         .navigationTitle(subject.name)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             if let id = subject.id {
                 await viewModel.fetchLessons(for: id)

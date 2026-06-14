@@ -38,7 +38,9 @@ struct PracticeTestView: View {
                                 .padding(.bottom, 180)
                         }
                     }
+                    #if os(iOS)
                     .tabViewStyle(.page(indexDisplayMode: .never))
+                    #endif
                     
                     if !practiceTestViewModel.questions.isEmpty {
                         bottomNavigationBar
@@ -54,10 +56,12 @@ struct PracticeTestView: View {
             await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID)
         }
         .navigationTitle("Practice Test")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .navigationBarBackButtonHidden(true)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .cancellationAction) {
                 Button(action: { dismiss() }) {
                     Image(systemName: "arrow.left")
                         .font(.system(size: 16, weight: .bold))

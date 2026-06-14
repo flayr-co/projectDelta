@@ -31,7 +31,9 @@ struct TestContent: View {
                             .font(.system(size: 23))
                         
                         TextField("Answer", text: $userInput)
+                            #if os(iOS)
                             .keyboardType(.decimalPad)
+                            #endif
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .padding()
                         

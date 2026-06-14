@@ -59,12 +59,16 @@ struct QuizSnapshotsHistoryView: View {
                         .listRowBackground(colorScheme == .dark ? Color.customDarkGray : Color.white)
                     }
                 }
+                #if os(iOS)
                 .listStyle(.insetGrouped)
+                #endif
                 .scrollContentBackground(.hidden)
             }
         }
         .navigationTitle("Your Progress")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             await fetchSnapshots()
         }

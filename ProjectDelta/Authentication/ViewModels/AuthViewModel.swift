@@ -11,7 +11,7 @@ import FirebaseFirestore
 import FirebaseStorage
 import FirebaseAuth
 import Observation
-import UIKit
+//import UIKit
 
 protocol AuthenticationFormProtocol {
     var formIsValid: Bool { get }
@@ -87,10 +87,10 @@ class AuthViewModel {
         return try snapshot.data(as: UserProgress.self)
     }
 
-    func uploadProfileImage(_ image: UIImage, for user: User) async {
+    func uploadProfileImage(_ imageData: Data, for user: User) async {
         guard let userId = user.id else { return }
         
-        guard let imageData = image.jpegData(compressionQuality: 0.5) else { return }
+        // We directly use the Data provided by the PhotosPicker Transferable
         let storageRef = Storage.storage().reference().child("profile_images/\(userId).jpg")
         
         do {

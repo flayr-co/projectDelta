@@ -33,7 +33,9 @@ struct RegistrationView: View {
                 InputView(text: $email,
                           title: "Email Address",
                           placeholder: "name@example.com")
-                    .autocapitalization(.none)
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
                 
                 InputView(text: $fullname,
                           title: "Full Name",
@@ -88,7 +90,7 @@ struct RegistrationView: View {
                     Image(systemName: "arrow.right")
                 }
                 .foregroundColor(.white)
-                .frame(width: UIScreen.main.bounds.width - 32, height: 48)
+                .frame(maxWidth: .infinity, minHeight: 48)
             }
             .background(Color.blue)
             .disabled(!formIsValid)

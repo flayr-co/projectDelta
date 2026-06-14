@@ -18,9 +18,31 @@ struct MainTabView: View {
     @State private var profileRefreshKey = UUID()
     
     var body: some View {
+        #if os(macOS)
+        // Native TabView for macOS desktop UX
+        TabView(selection: $selectedTab) {
+            HomeView()
+                .id(homeRefreshKey)
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(0)
+            
+            CardView()
+                .id(cardRefreshKey)
+                .tabItem { Label("Practice", systemImage: "pencil.line") }
+                .tag(1)
+            
+            ProfileView()
+                .id(profileRefreshKey)
+                .tabItem { Label("Profile", systemImage: "person.fill") }
+                .tag(2)
+        }
+        .onChange(of: selectedTab) { oldValue, newValue in
+            handleMacTabSelection(index: newValue, refreshKey: getRefreshKey(for: newValue))
+        }
+        #else
         ZStack(alignment: .bottom) {
-            // Establishes a concrete background to prevent system-drawn white safe area rectangles
-            Color(UIColor.systemBackground)
+            // Cross-platform dynamic background color resolution
+            Color(uiColor: .systemBackground)
                 .ignoresSafeArea()
             
             // Native TabView preserves view state automatically instead of destroying inactive views
@@ -67,8 +89,10 @@ struct MainTabView: View {
             .padding(.bottom, 8)
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        #endif
     }
     
+    #if os(iOS)
     private func handleTabSelection(index: Int, refreshKey: inout UUID) {
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
@@ -83,6 +107,25 @@ struct MainTabView: View {
             }
         }
     }
+    #endif
+    
+    #if os(macOS)
+    private func handleMacTabSelection(index: Int, refreshKey: Binding<UUID>) {
+        if selectedTab == index {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                refreshKey.wrappedValue = UUID()
+            }
+        }
+    }
+    
+    private func getRefreshKey(for index: Int) -> Binding<UUID> {
+        switch index {
+        case 0: return $homeRefreshKey
+        case 1: return $cardRefreshKey
+        default: return $profileRefreshKey
+        }
+    }
+    #endif
 }
 
 struct TabBarButton: View {

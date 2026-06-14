@@ -57,7 +57,9 @@ struct LessonView: View {
                             .tag(index)
                         }
                     }
+                    #if os(iOS)
                     .tabViewStyle(.page(indexDisplayMode: .never))
+                    #endif
                     .id(lessonVM.currentLessonId)
                     .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                         if lessonVM.lessonPages.indices.contains(newPageIndex) {
@@ -93,7 +95,9 @@ struct LessonView: View {
                     .transition(.opacity)
             }
         }
+        #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
+        #endif
         .task {
             lessonVM.subjectName = subjectName
             await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)

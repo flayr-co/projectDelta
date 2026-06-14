@@ -223,13 +223,15 @@ struct AdminTestManagerView: View {
             }
             // Protects the layout from colliding with the floating tab bar
             .safeAreaPadding(.bottom, 120)
-            .background(Color(UIColor.systemGroupedBackground).ignoresSafeArea())
+            .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
             .navigationTitle(viewModel.existingTest != nil ? "Edit Test" : "Test Generator")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .scrollDismissesKeyboard(.interactively)
             .task { await viewModel.fetchDropdownData() }
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                 }
             }
@@ -283,7 +285,7 @@ struct AdminTestManagerView: View {
                     if viewModel.subjectName == "+ Add New Subject" {
                         TextField("New Subject Name", text: $viewModel.customSubjectName)
                             .padding(10)
-                            .background(Color(UIColor.systemBackground))
+                            .background(Color.platformSystemBackground)
                             .cornerRadius(8)
                     }
                     
@@ -304,7 +306,7 @@ struct AdminTestManagerView: View {
                     if viewModel.lessonName == "+ Add New Lesson" {
                         TextField("New Lesson Name", text: $viewModel.customLessonName)
                             .padding(10)
-                            .background(Color(UIColor.systemBackground))
+                            .background(Color.platformSystemBackground)
                             .cornerRadius(8)
                     }
                     
@@ -326,11 +328,11 @@ struct AdminTestManagerView: View {
                     }
                 }
                 .padding()
-                .background(Color(UIColor.secondarySystemGroupedBackground))
+                .background(Color.platformSecondarySystemGroupedBackground)
                 .cornerRadius(12)
             }
             .padding()
-            .background(Color(UIColor.systemBackground))
+            .background(Color.platformSystemBackground)
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
             
@@ -415,7 +417,7 @@ struct AdminTestManagerView: View {
                     }
                 )
                 .padding()
-                .background(Color(UIColor.systemBackground))
+                .background(Color.platformSystemBackground)
                 .cornerRadius(16)
                 .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
             }
