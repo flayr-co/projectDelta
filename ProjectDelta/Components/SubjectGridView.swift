@@ -23,13 +23,111 @@ struct SubjectGridView: View {
     let warmTan = Color(red: 0.97, green: 0.96, blue: 0.94)
     let emeraldAccent = Color(red: 0.18, green: 0.80, blue: 0.44)
     
+    var body: some View {
+        Group {
+            #if os(macOS)
+            macOSLayout
+            #else
+            iOSLayout
+            #endif
+        }
+        .navigationBarBackButtonHidden(true)
+        .task {
+            do {
+                quizViewModel.subjects = try await quizViewModel.fetchSubjectsFromFirestore()
+            } catch {
+                print("Error fetching subjects in SubjectGridView: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    // MARK: - DESKTOP LAYOUT (macOS)
+    #if os(macOS)
+    private var macOSLayout: some View {
+        ZStack {
+            Color.platformSystemGroupedBackground
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header Bar
+                HStack {
+                    Button(action: { dismiss() }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 14, weight: .bold))
+                            Text("Back")
+                                .font(.system(.body, design: .rounded, weight: .semibold))
+                        }
+                        .foregroundColor(.secondary)
+                        .padding(12)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 40)
+                .padding(.top, 24)
+                
+                // Dashboard Title Block
+                VStack(alignment: .center, spacing: 8) {
+                    Text("Curriculum")
+                        .font(.system(.subheadline, design: .rounded, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                        .tracking(2)
+                    
+                    Text("Choose a Subject")
+                        .font(.system(size: 42, weight: .black, design: .rounded))
+                        .foregroundColor(.primary)
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 40)
+                
+                // Grid Content Scroll
+                ScrollView(showsIndicators: false) {
+                    let desktopColumns = [
+                        GridItem(.adaptive(minimum: 280, maximum: 340), spacing: 24)
+                    ]
+                    
+                    LazyVGrid(columns: desktopColumns, spacing: 24) {
+                        ForEach(quizViewModel.subjects, id: \.self) { subject in
+                            NavigationLink {
+                                switch navigationSource {
+                                case .homeView:
+                                    LessonView(subjectName: subject)
+                                        .environment(lessonVM)
+                                case .testView:
+                                    LessonSelectionView(subjectName: subject)
+                                        .environment(quizViewModel)
+                                case .cardView:
+                                    QuickTestView(subject: subject)
+                                        .environment(quizViewModel)
+                                }
+                            } label: {
+                                subjectCard(for: subject)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 40)
+                    .padding(.bottom, 40)
+                    .frame(maxWidth: 1200) // Constrain width on ultrawide monitors
+                }
+            }
+        }
+    }
+    #endif
+
+    // MARK: - MOBILE LAYOUT (iOS)
+    #if os(iOS)
     private let columns = [
         GridItem(.flexible(), spacing: 16),
         GridItem(.flexible(), spacing: 16)
     ]
     
-    var body: some View {
-        // Redundant NavigationStack removed to prevent double-back arrows
+    private var iOSLayout: some View {
         ZStack {
             (colorScheme == .dark ? Color(red: 0.10, green: 0.10, blue: 0.12) : warmTan)
                 .ignoresSafeArea()
@@ -91,15 +189,8 @@ struct SubjectGridView: View {
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
-        .task {
-            do {
-                quizViewModel.subjects = try await quizViewModel.fetchSubjectsFromFirestore()
-            } catch {
-                print("Error fetching subjects in SubjectGridView: \(error.localizedDescription)")
-            }
-        }
     }
+    #endif
     
     // MARK: - Card Component View Builder
     
@@ -136,7 +227,11 @@ struct SubjectGridView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
+                #if os(macOS)
+                .fill(Color.platformSystemBackground)
+                #else
                 .fill(colorScheme == .dark ? Color(red: 0.16, green: 0.16, blue: 0.19) : .white)
+                #endif
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -173,7 +268,100 @@ struct LessonSelectionView: View {
     let emeraldAccent = Color(red: 0.18, green: 0.80, blue: 0.44)
     
     var body: some View {
-        // Redundant NavigationStack removed
+        Group {
+            #if os(macOS)
+            macOSLayout
+            #else
+            iOSLayout
+            #endif
+        }
+        .navigationBarBackButtonHidden(true)
+        .task {
+            await fetchLessonsWithTests()
+        }
+    }
+    
+    // MARK: - DESKTOP LAYOUT (macOS)
+    #if os(macOS)
+    private var macOSLayout: some View {
+        ZStack {
+            Color.platformSystemGroupedBackground
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                HStack {
+                    Button(action: { dismiss() }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 14, weight: .bold))
+                            Text("Back")
+                                .font(.system(.body, design: .rounded, weight: .semibold))
+                        }
+                        .foregroundColor(.secondary)
+                        .padding(12)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
+                .padding(.horizontal, 40)
+                .padding(.top, 24)
+                
+                VStack(alignment: .center, spacing: 8) {
+                    Text(subjectName)
+                        .font(.system(.subheadline, design: .rounded, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                        .tracking(2)
+                    
+                    Text("Select a Lesson")
+                        .font(.system(size: 42, weight: .black, design: .rounded))
+                        .foregroundColor(.primary)
+                }
+                .padding(.top, 16)
+                .padding(.bottom, 40)
+                
+                if isLoading {
+                    Spacer()
+                    ProgressView("Finding practice material...")
+                        .tint(emeraldAccent)
+                    Spacer()
+                } else if lessons.isEmpty {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No Practice Available",
+                        systemImage: "book.closed.fill",
+                        description: Text("There are currently no generated tests available for this subject.")
+                    )
+                    Spacer()
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        let desktopColumns = [
+                            GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
+                        ]
+                        
+                        LazyVGrid(columns: desktopColumns, spacing: 24) {
+                            ForEach(lessons, id: \.self) { lessonName in
+                                NavigationLink(destination: QuickTestView(subject: subjectName, subtopic: lessonName).environment(quizViewModel)) {
+                                    lessonCard(for: lessonName)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 40)
+                        .padding(.bottom, 40)
+                        .frame(maxWidth: 1000)
+                    }
+                }
+            }
+        }
+    }
+    #endif
+
+    // MARK: - MOBILE LAYOUT (iOS)
+    #if os(iOS)
+    private var iOSLayout: some View {
         ZStack {
             (colorScheme == .dark ? Color(red: 0.10, green: 0.10, blue: 0.12) : warmTan)
                 .ignoresSafeArea()
@@ -233,18 +421,14 @@ struct LessonSelectionView: View {
                 }
             }
         }
-        .navigationBarBackButtonHidden(true)
-        .task {
-            await fetchLessonsWithTests()
-        }
     }
+    #endif
     
     private func fetchLessonsWithTests() async {
         isLoading = true
         do {
             let db = Firestore.firestore()
             
-            // Correctly mirroring the hierarchical architecture
             let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
             var testLessons: [String] = []
             
@@ -289,12 +473,19 @@ struct LessonSelectionView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
+                #if os(macOS)
+                .fill(Color.platformSystemBackground)
+                #else
                 .fill(colorScheme == .dark ? Color(red: 0.16, green: 0.16, blue: 0.19) : .white)
+                #endif
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.05), lineWidth: 1)
         )
+        #if os(macOS)
+        .shadow(color: Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
+        #endif
     }
 }
 

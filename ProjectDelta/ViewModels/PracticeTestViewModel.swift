@@ -40,6 +40,7 @@ class PracticeTestViewModel {
         do {
             var lessonName = ""
             var subjectName = ""
+            var subjectID = ""
             
             // Query subject structure configuration map to parse lesson location parameters
             let lessonDoc = try await db.collection("Lessons").document(lessonID).getDocument()
@@ -52,20 +53,29 @@ class PracticeTestViewModel {
                     let lDoc = try? await db.collection("Subjects").document(subDoc.documentID).collection("Lessons").document(lessonID).getDocument()
                     if let lData = lDoc?.data(), lDoc?.exists == true {
                         lessonName = lData["name"] as? String ?? ""
-                        subjectName = subDoc.data()["name"] as? String ?? subDoc.documentID
+                        subjectID = subDoc.documentID
+                        
+                        // Prevent the 20-character fallback bug to ensure correct queries
+                        if let sName = subDoc.data()["name"] as? String, !sName.isEmpty {
+                            subjectName = sName
+                        } else if subDoc.documentID.count != 20 {
+                            subjectName = subDoc.documentID
+                        } else {
+                            subjectName = ""
+                        }
                         break
                     }
                 }
             }
             
-            await fetchPracticeTestCore(for: lessonID, practiceTestID: practiceTestID, subjectName: subjectName, lessonName: lessonName)
+            await fetchPracticeTestCore(for: lessonID, practiceTestID: practiceTestID, subjectID: subjectID, subjectName: subjectName, lessonName: lessonName)
         } catch {
             print("Error mapping lesson contextual fields for practice tests: \(error.localizedDescription)")
             self.isGeneratingQuiz = false
         }
     }
     
-    private func fetchPracticeTestCore(for lessonID: String, practiceTestID: String, subjectName: String, lessonName: String) async {
+    private func fetchPracticeTestCore(for lessonID: String, practiceTestID: String, subjectID: String, subjectName: String, lessonName: String) async {
         guard let userId = authViewModel.currentUser?.id else { return }
         
         do {
@@ -79,10 +89,20 @@ class PracticeTestViewModel {
             let attemptCount = countSnap.count.intValue
             
             // Strategy A: Evaluate specific discrete Lesson Subcollections if generated
-            let practiceTestsSnap = try await db.collection("Lessons")
-                .document(lessonID)
-                .collection("PracticeTests")
-                .getDocuments()
+            let practiceTestsSnap: QuerySnapshot
+            if !subjectID.isEmpty {
+                practiceTestsSnap = try await db.collection("Subjects")
+                    .document(subjectID)
+                    .collection("Lessons")
+                    .document(lessonID)
+                    .collection("PracticeTests")
+                    .getDocuments()
+            } else {
+                practiceTestsSnap = try await db.collection("Lessons")
+                    .document(lessonID)
+                    .collection("PracticeTests")
+                    .getDocuments()
+            }
             
             if !practiceTestsSnap.documents.isEmpty {
                 let sortedTests = practiceTestsSnap.documents.sorted { $0.documentID < $1.documentID }
@@ -102,6 +122,13 @@ class PracticeTestViewModel {
                         }
                     }
                 }
+                
+                for i in 0..<fetched.count {
+                    if fetched[i].id == nil || fetched[i].id!.isEmpty {
+                        fetched[i].id = UUID().uuidString
+                    }
+                }
+                
                 self.questions = fetched
             } else {
                 // Strategy B: General Subject Question-Pool slicing fallback (Guarantees 10 unique iterations)
@@ -134,6 +161,13 @@ class PracticeTestViewModel {
                     if uniqueBatch.isEmpty {
                         uniqueBatch = Array(sortedPool.prefix(10))
                     }
+                    
+                    for i in 0..<uniqueBatch.count {
+                        if uniqueBatch[i].id == nil || uniqueBatch[i].id!.isEmpty {
+                            uniqueBatch[i].id = UUID().uuidString
+                        }
+                    }
+                    
                     self.questions = uniqueBatch
                 }
             }
@@ -157,7 +191,7 @@ class PracticeTestViewModel {
         var results: [QuestionResult] = []
         
         for question in questions {
-            let questionId = question.id ?? UUID().uuidString
+            let questionId = question.id ?? ""
             let selectedIndex = userAnswers[questionId]
             let isCorrect = (selectedIndex == question.correctOptionIndex)
             

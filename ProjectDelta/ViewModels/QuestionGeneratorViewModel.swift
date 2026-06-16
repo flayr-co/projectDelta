@@ -90,7 +90,8 @@ class QuestionGeneratorViewModel {
         4. Feedback & Rationale: Provide a detailed, step-by-step mathematical explanation proving the correct answer and explaining why the common pitfalls leading to the distractors are incorrect.
 
         Return the result EXCLUSIVELY as a JSON array of objects with the following keys:
-        - "questionText": The exact string of the question.
+        - "questionText": A fallback plain-text version of the question.
+        - "parsedBlocks": An array of content blocks to be rendered in order for the question body. Each block MUST contain a "type" (strictly either "Text", "Math", or "Graph") and "content" (the corresponding string text, LaTeX string, or graph logic). This array is mandatory.
         - "options": An array of 4 strings representing the choices.
         - "correctOptionIndex": The integer index (0-3) of the correct answer in the options array.
         - "feedback": Step-by-step mathematical explanation.

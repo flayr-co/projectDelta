@@ -25,6 +25,9 @@ struct LatexView: View {
         ZStack {
             LatexWebView(latex: latex, dynamicHeight: $dynamicHeight, isLoading: $isLoading)
                 .frame(height: max(dynamicHeight, 60))
+                #if os(macOS)
+                .allowsHitTesting(false) // Prevents the WKWebView from intercepting scroll wheel events on Mac
+                #endif
             
             if isLoading {
                 ProgressView()
@@ -116,6 +119,7 @@ struct LatexWebView: PlatformViewRepresentable {
                     display: flex;
                     align-items: center;
                     justify-content: flex-start;
+                    overflow: hidden; /* Added to stop internal element scrolling */
                 }
                 #math-container {
                     display: inline-block;

@@ -115,6 +115,12 @@ class QuizViewModel {
                 
                 fetchedQuestions.sort { ($0.id ?? "") < ($1.id ?? "") }
                 
+                for i in 0..<fetchedQuestions.count {
+                    if fetchedQuestions[i].id == nil || fetchedQuestions[i].id!.isEmpty {
+                        fetchedQuestions[i].id = UUID().uuidString
+                    }
+                }
+                
                 if fetchedQuestions.isEmpty {
                     print("No questions found for \(subjectName) - \(subtopic ?? "All").")
                     self.questions = []
@@ -171,7 +177,7 @@ class QuizViewModel {
         var results: [QuestionResult] = []
         
         for question in questions {
-            let questionId = question.id ?? UUID().uuidString
+            let questionId = question.id ?? ""
             let selectedIndex = userAnswers[questionId]
             let isCorrect = (selectedIndex == question.correctOptionIndex)
             

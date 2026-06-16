@@ -19,7 +19,11 @@ struct AdminView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                #if os(macOS)
+                Color.platformSystemGroupedBackground.ignoresSafeArea()
+                #else
                 themeBackground.ignoresSafeArea()
+                #endif
                 
                 if viewModel.isProcessing && viewModel.subjects.isEmpty {
                     VStack(spacing: 16) {
@@ -37,7 +41,13 @@ struct AdminView: View {
                         description: Text("Get started by creating a new subject for your students.")
                     )
                 } else {
-                    mainListContent
+                    Group {
+                        #if os(macOS)
+                        macOSMainContent
+                        #else
+                        iOSMainContent
+                        #endif
+                    }
                 }
             }
             .navigationTitle("Instructor Panel")
@@ -52,8 +62,76 @@ struct AdminView: View {
         .tint(emeraldAccent)
     }
     
+    // MARK: - DESKTOP MAIN LAYOUT (macOS)
+    #if os(macOS)
     @ViewBuilder
-    private var mainListContent: some View {
+    private var macOSMainContent: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 32) {
+                // Header Welcome Block
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Welcome to your dashboard.")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                    Text("Select a subject below to manage its curriculum, generate new practice tests, or review analytics.")
+                        .font(.system(.title3, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.bottom, 16)
+                
+                // Subjects Grid
+                Text("Your Subjects")
+                    .font(.system(.title2, design: .rounded, weight: .semibold))
+                
+                let desktopColumns = [
+                    GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
+                ]
+                
+                LazyVGrid(columns: desktopColumns, spacing: 24) {
+                    ForEach(viewModel.subjects) { subject in
+                        NavigationLink(destination: AdminSubjectDetailView(subject: subject, viewModel: viewModel)) {
+                            HStack(spacing: 16) {
+                                ZStack {
+                                    Circle()
+                                        .fill(emeraldAccent.opacity(0.15))
+                                        .frame(width: 50, height: 50)
+                                    
+                                    Image(systemName: "folder.fill")
+                                        .foregroundColor(emeraldAccent)
+                                        .font(.title2)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(subject.name)
+                                        .font(.system(.title3, design: .rounded, weight: .semibold))
+                                        .foregroundColor(.primary)
+                                    Text(subject.description)
+                                        .font(.system(.body, design: .rounded))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                            }
+                            .padding(20)
+                            .background(Color.platformSystemBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+                            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(40)
+            .frame(maxWidth: 1200)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+    #endif
+
+    // MARK: - MOBILE MAIN LAYOUT (iOS)
+    #if os(iOS)
+    @ViewBuilder
+    private var iOSMainContent: some View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 8) {
@@ -101,9 +179,10 @@ struct AdminView: View {
         .scrollContentBackground(.hidden)
         .padding(.bottom, 100)
     }
+    #endif
 }
 
-// MARK: - Subject Detail View (Restored Slider Tab)
+// MARK: - Subject Detail View
 
 struct AdminSubjectDetailView: View {
     let subject: Subject
@@ -119,6 +198,153 @@ struct AdminSubjectDetailView: View {
     }
     
     var body: some View {
+        Group {
+            #if os(macOS)
+            macOSDetailLayout
+            #else
+            iOSDetailLayout
+            #endif
+        }
+        .navigationTitle(subject.name)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .task {
+            if let id = subject.id {
+                await viewModel.fetchLessons(for: id)
+                await viewModel.fetchTests(for: id)
+            }
+        }
+    }
+    
+    // MARK: - DESKTOP DETAIL LAYOUT (macOS)
+    #if os(macOS)
+    private var macOSDetailLayout: some View {
+        VStack(spacing: 0) {
+            Picker("Curriculum", selection: $selectedTab) {
+                Text("Lessons").tag(0)
+                Text("Tests").tag(1)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 40)
+            .padding(.vertical, 24)
+            .background(Color.platformSystemBackground)
+            
+            Divider()
+            
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    if selectedTab == 0 {
+                        macOSLessonsSection
+                    } else {
+                        macOSTestsSection
+                    }
+                }
+                .padding(40)
+                .frame(maxWidth: 1000)
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .background(Color.platformSystemGroupedBackground)
+        }
+    }
+    
+    private var macOSLessonsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Curriculum Content")
+                .font(.system(.title2, design: .rounded, weight: .semibold))
+            
+            NavigationLink(destination: LessonEditorView()) {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(emeraldAccent)
+                        .font(.title2)
+                    Text("Create New Lesson")
+                        .font(.system(.title3, design: .rounded, weight: .semibold))
+                        .foregroundColor(emeraldAccent)
+                    Spacer()
+                }
+                .padding(20)
+                .background(Color.platformSystemBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            
+            ForEach(viewModel.lessons) { lesson in
+                NavigationLink(destination: LessonEditorView(lesson: lesson)) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(lesson.name)
+                            .font(.system(.title3, design: .rounded, weight: .bold))
+                            .foregroundColor(.primary)
+                        Text(lesson.description)
+                            .font(.system(.body, design: .rounded))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.platformSystemBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+    
+    private var macOSTestsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Assessments")
+                .font(.system(.title2, design: .rounded, weight: .semibold))
+            
+            NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: viewModel.lessons.first?.name ?? "New Lesson")) {
+                HStack {
+                    Image(systemName: "pencil.and.list.clipboard")
+                        .foregroundColor(emeraldAccent)
+                        .font(.title2)
+                    Text("Build Manual Assessment")
+                        .font(.system(.title3, design: .rounded, weight: .semibold))
+                        .foregroundColor(emeraldAccent)
+                    Spacer()
+                }
+                .padding(20)
+                .background(Color.platformSystemBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            
+            ForEach(viewModel.tests) { test in
+                NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(test.subtopic ?? "Untitled") Test")
+                            .font(.system(.title3, design: .rounded, weight: .bold))
+                            .foregroundColor(.primary)
+                        
+                        HStack {
+                            Label("\(test.questionAmount) Qs", systemImage: "list.bullet.clipboard")
+                        }
+                        .font(.system(.body, design: .rounded))
+                        .foregroundColor(.secondary)
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.platformSystemBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+    #endif
+
+    // MARK: - MOBILE DETAIL LAYOUT (iOS)
+    #if os(iOS)
+    private var iOSDetailLayout: some View {
         VStack(spacing: 0) {
             Picker("Curriculum", selection: $selectedTab) {
                 Text("Lessons").tag(0)
@@ -137,16 +363,6 @@ struct AdminSubjectDetailView: View {
             }
             .scrollContentBackground(.hidden)
             .background(themeBackground)
-        }
-        .navigationTitle(subject.name)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .task {
-            if let id = subject.id {
-                await viewModel.fetchLessons(for: id)
-                await viewModel.fetchTests(for: id)
-            }
         }
     }
     
@@ -212,4 +428,5 @@ struct AdminSubjectDetailView: View {
             }
         }
     }
+    #endif
 }
