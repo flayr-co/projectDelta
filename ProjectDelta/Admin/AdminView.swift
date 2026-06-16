@@ -253,7 +253,7 @@ struct AdminSubjectDetailView: View {
             Text("Curriculum Content")
                 .font(.system(.title2, design: .rounded, weight: .semibold))
             
-            NavigationLink(destination: LessonEditorView()) {
+            NavigationLink(destination: LessonEditorView(subject: subject)) {
                 HStack {
                     Image(systemName: "plus.circle.fill")
                         .foregroundColor(emeraldAccent)
@@ -272,7 +272,7 @@ struct AdminSubjectDetailView: View {
             .buttonStyle(.plain)
             
             ForEach(viewModel.lessons) { lesson in
-                NavigationLink(destination: LessonEditorView(lesson: lesson)) {
+                NavigationLink(destination: LessonEditorView(lesson: lesson, subject: subject)) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(lesson.name)
                             .font(.system(.title3, design: .rounded, weight: .bold))
@@ -298,7 +298,7 @@ struct AdminSubjectDetailView: View {
             Text("Assessments")
                 .font(.system(.title2, design: .rounded, weight: .semibold))
             
-            NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: viewModel.lessons.first?.name ?? "New Lesson")) {
+            NavigationLink(destination: AddTestView(subject: subject, lessonName: viewModel.lessons.first?.name ?? "New Lesson")) {
                 HStack {
                     Image(systemName: "pencil.and.list.clipboard")
                         .foregroundColor(emeraldAccent)
@@ -317,7 +317,7 @@ struct AdminSubjectDetailView: View {
             .buttonStyle(.plain)
             
             ForEach(viewModel.tests) { test in
-                NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
+                NavigationLink(destination: AddTestView(subject: subject, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("\(test.subtopic ?? "Untitled") Test")
                             .font(.system(.title3, design: .rounded, weight: .bold))
@@ -368,7 +368,7 @@ struct AdminSubjectDetailView: View {
     
     private var lessonsSection: some View {
         Section(header: Text("Curriculum Content").font(.headline)) {
-            NavigationLink(destination: LessonEditorView()) {
+            NavigationLink(destination: LessonEditorView(subject: subject)) {
                 HStack {
                     Image(systemName: "plus.circle.fill")
                         .foregroundColor(emeraldAccent)
@@ -381,7 +381,7 @@ struct AdminSubjectDetailView: View {
             }
             
             ForEach(viewModel.lessons) { lesson in
-                NavigationLink(destination: LessonEditorView(lesson: lesson)) {
+                NavigationLink(destination: LessonEditorView(lesson: lesson, subject: subject)) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(lesson.name)
                             .font(.body)
@@ -398,7 +398,7 @@ struct AdminSubjectDetailView: View {
     
     private var testsSection: some View {
         Section(header: Text("Assessments").font(.headline)) {
-            NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: viewModel.lessons.first?.name ?? "New Lesson")) {
+            NavigationLink(destination: AddTestView(subject: subject, lessonName: viewModel.lessons.first?.name ?? "New Lesson")) {
                 HStack {
                     Image(systemName: "pencil.and.list.clipboard")
                         .foregroundColor(emeraldAccent)
@@ -411,7 +411,7 @@ struct AdminSubjectDetailView: View {
             }
             
             ForEach(viewModel.tests) { test in
-                NavigationLink(destination: AddTestView(subjectName: subject.name, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
+                NavigationLink(destination: AddTestView(subject: subject, lessonName: test.subtopic ?? "Unknown Lesson", existingTest: test)) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(test.subtopic ?? "Untitled") Test")
                             .font(.body)

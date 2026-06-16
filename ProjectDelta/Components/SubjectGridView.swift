@@ -347,7 +347,7 @@ struct LessonSelectionView: View {
                         
                         LazyVGrid(columns: desktopColumns, spacing: 24) {
                             ForEach(lessons, id: \.id) { lesson in
-                                NavigationLink(destination: PracticeTestView(practiceTestViewModel: practiceTestViewModel, lessonID: lesson.id, practiceTestID: "default").environment(quizViewModel)) {
+                                NavigationLink(destination: PracticeTestView(practiceTestViewModel: practiceTestViewModel, lessonID: lesson.id, practiceTestID: "default", subjectName: subjectName).environment(quizViewModel)) {
                                     lessonCard(for: lesson.name)
                                 }
                                 .buttonStyle(.plain)
@@ -413,7 +413,7 @@ struct LessonSelectionView: View {
                     ScrollView {
                         LazyVStack(spacing: 16) {
                             ForEach(lessons, id: \.id) { lesson in
-                                NavigationLink(destination: PracticeTestView(practiceTestViewModel: practiceTestViewModel, lessonID: lesson.id, practiceTestID: "default").environment(quizViewModel)) {
+                                NavigationLink(destination: PracticeTestView(practiceTestViewModel: practiceTestViewModel, lessonID: lesson.id, practiceTestID: "default", subjectName: subjectName).environment(quizViewModel)) {
                                     lessonCard(for: lesson.name)
                                 }
                                 .buttonStyle(SubjectCardButtonStyle())

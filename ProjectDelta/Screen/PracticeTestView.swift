@@ -20,6 +20,7 @@ struct PracticeTestView: View {
     
     var lessonID: String
     var practiceTestID: String
+    var subjectName: String
 
     var body: some View {
         Group {
@@ -31,7 +32,7 @@ struct PracticeTestView: View {
         }
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
         .task {
-            await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID)
+            await practiceTestViewModel.fetchPracticeTest(for: lessonID, practiceTestID: practiceTestID, subjectName: subjectName)
         }
         .navigationTitle("Practice Test")
         .navigationBarBackButtonHidden(true)

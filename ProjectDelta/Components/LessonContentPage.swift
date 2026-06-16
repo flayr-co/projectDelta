@@ -181,7 +181,8 @@ struct LessonContentPage: View {
                             PracticeTestView(
                                 practiceTestViewModel: PracticeTestViewModel(authViewModel: AuthViewModel()),
                                 lessonID: lessonVM.currentLessonId,
-                                practiceTestID: "VYccqY1rjXETQOdMm4ap"
+                                practiceTestID: "VYccqY1rjXETQOdMm4ap",
+                                subjectName: lessonVM.subjectName
                             )
                         } label: {
                             Text("Go to test")

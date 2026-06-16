@@ -206,12 +206,14 @@ struct AddQuestionView: View {
         newQuestion.updateWith(blocks: questionBlocks)
         
         Task {
-            await viewModel.saveQuestion(question: newQuestion)
-            withAnimation {
-                questionBlocks = []
-                options = ["", "", "", ""]
-                hint = ""
-                correctIndex = 0
+            if let subjectId = subject.id, let testId = test.id {
+                await viewModel.saveQuestionToTest(subjectId: subjectId, testId: testId, question: newQuestion)
+                withAnimation {
+                    questionBlocks = []
+                    options = ["", "", "", ""]
+                    hint = ""
+                    correctIndex = 0
+                }
             }
         }
     }

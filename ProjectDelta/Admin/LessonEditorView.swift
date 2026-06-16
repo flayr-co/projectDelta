@@ -10,17 +10,16 @@ import Observation
 struct LessonEditorView: View {
     @Environment(\.dismiss) var dismiss
     @State private var lessonTitle: String
-    @State private var subjectName: String
     @State private var showTestBuilder: Bool = false
-    
     @State private var lessonBlocks: [QuestionBlockModel] = []
     
     var lesson: Lesson
+    var subject: Subject
     
-    init(lesson: Lesson = Lesson(id: nil, name: "", description: "", completed: false, lessonNumber: 1, pages: nil), subjectName: String = "") {
+    init(lesson: Lesson = Lesson(id: nil, name: "", description: "", completed: false, lessonNumber: 1, pages: nil), subject: Subject) {
         self.lesson = lesson
+        self.subject = subject
         _lessonTitle = State(initialValue: lesson.name)
-        _subjectName = State(initialValue: subjectName)
     }
 
     var body: some View {
@@ -28,7 +27,14 @@ struct LessonEditorView: View {
             Form {
                 Section(header: Text("Lesson Details")) {
                     TextField("Lesson Title", text: $lessonTitle)
-                    TextField("Subject (e.g. Algebra)", text: $subjectName)
+                    
+                    HStack {
+                        Text("Subject Architecture")
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(subject.name)
+                            .fontWeight(.semibold)
+                    }
                 }
                 
                 Section(header: Text("Lesson Content")) {
@@ -65,14 +71,16 @@ struct LessonEditorView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { saveLesson() }
                         .fontWeight(.bold)
-                        .disabled(lessonTitle.isEmpty || subjectName.isEmpty)
+                        .disabled(lessonTitle.isEmpty)
                 }
             }
             .onAppear {
                 loadLessonBlocks()
             }
             .sheet(isPresented: $showTestBuilder) {
-                AdminTestManagerView(subjectName: subjectName, lessonName: lessonTitle)
+                NavigationStack {
+                    AddTestView(subject: subject, lessonName: lessonTitle)
+                }
             }
         }
     }
@@ -89,8 +97,11 @@ struct LessonEditorView: View {
     private func saveLesson() {
         Task {
             let db = Firestore.firestore()
+            guard let subjectId = subject.id, !subjectId.isEmpty else {
+                print("Error: Immutable Subject ID missing.")
+                return
+            }
             
-            // Encode blocks to JSON string to store in description
             let finalDescription: String
             if let data = try? JSONEncoder().encode(lessonBlocks),
                let jsonString = String(data: data, encoding: .utf8) {
@@ -101,7 +112,7 @@ struct LessonEditorView: View {
             
             var lessonData: [String: Any] = [
                 "name": lessonTitle,
-                "subject": subjectName,
+                "subject": subject.name,
                 "description": finalDescription,
                 "completed": lesson.completed,
                 "lessonNumber": lesson.lessonNumber,
@@ -110,9 +121,9 @@ struct LessonEditorView: View {
             
             do {
                 if let existingId = lesson.id, !existingId.isEmpty {
-                    try await db.collection("Lessons").document(existingId).setData(lessonData, merge: true)
+                    try await db.collection("Subjects").document(subjectId).collection("Lessons").document(existingId).setData(lessonData, merge: true)
                 } else {
-                    let newDocRef = db.collection("Lessons").document()
+                    let newDocRef = db.collection("Subjects").document(subjectId).collection("Lessons").document()
                     lessonData["id"] = newDocRef.documentID
                     try await newDocRef.setData(lessonData)
                 }

@@ -30,7 +30,7 @@ class PracticeTestViewModel {
     }
     
     /// Fetches a dynamic lesson practice test, automatically calculating the active 10-quiz rotation sequence.
-    func fetchPracticeTest(for lessonID: String, practiceTestID: String) async {
+    func fetchPracticeTest(for lessonID: String, practiceTestID: String, subjectName: String) async {
         self.isGeneratingQuiz = true
         self.questions = []
         self.userAnswers = [:]
@@ -38,37 +38,17 @@ class PracticeTestViewModel {
         self.currentSnapshot = nil
         
         do {
-            var lessonName = ""
-            var subjectName = ""
-            var subjectID = ""
+            let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
             
-            // Query subject structure configuration map to parse lesson location parameters
-            let lessonDoc = try await db.collection("Lessons").document(lessonID).getDocument()
-            if lessonDoc.exists, let data = lessonDoc.data() {
-                lessonName = data["name"] as? String ?? ""
-                subjectName = data["subjectName"] as? String ?? ""
+            if let subjectDoc = subjectQuery.documents.first {
+                let subjectID = subjectDoc.documentID
+                let lessonDoc = try await db.collection("Subjects").document(subjectID).collection("Lessons").document(lessonID).getDocument()
+                let lessonName = lessonDoc.data()?["name"] as? String ?? ""
+                
+                await fetchPracticeTestCore(for: lessonID, practiceTestID: practiceTestID, subjectID: subjectID, subjectName: subjectName, lessonName: lessonName)
             } else {
-                let subjectsSnap = try await db.collection("Subjects").getDocuments()
-                for subDoc in subjectsSnap.documents {
-                    let lDoc = try? await db.collection("Subjects").document(subDoc.documentID).collection("Lessons").document(lessonID).getDocument()
-                    if let lData = lDoc?.data(), lDoc?.exists == true {
-                        lessonName = lData["name"] as? String ?? ""
-                        subjectID = subDoc.documentID
-                        
-                        // Prevent the 20-character fallback bug to ensure correct queries
-                        if let sName = subDoc.data()["name"] as? String, !sName.isEmpty {
-                            subjectName = sName
-                        } else if subDoc.documentID.count != 20 {
-                            subjectName = subDoc.documentID
-                        } else {
-                            subjectName = ""
-                        }
-                        break
-                    }
-                }
+                self.isGeneratingQuiz = false
             }
-            
-            await fetchPracticeTestCore(for: lessonID, practiceTestID: practiceTestID, subjectID: subjectID, subjectName: subjectName, lessonName: lessonName)
         } catch {
             print("Error mapping lesson contextual fields for practice tests: \(error.localizedDescription)")
             self.isGeneratingQuiz = false
@@ -88,24 +68,15 @@ class PracticeTestViewModel {
             let countSnap = try await snapshotQuery.count.getAggregation(source: .server)
             let attemptCount = countSnap.count.intValue
             
-            // Strategy A: Evaluate specific discrete Lesson Subcollections if generated
-            let practiceTestsSnap: QuerySnapshot
-            if !subjectID.isEmpty {
-                practiceTestsSnap = try await db.collection("Subjects")
-                    .document(subjectID)
-                    .collection("Lessons")
-                    .document(lessonID)
-                    .collection("PracticeTests")
-                    .getDocuments()
-            } else {
-                practiceTestsSnap = try await db.collection("Lessons")
-                    .document(lessonID)
-                    .collection("PracticeTests")
-                    .getDocuments()
-            }
+            // Strategy A: Evaluate specific Subject Tests explicitly built in Admin panel
+            let testsSnap = try await db.collection("Subjects")
+                .document(subjectID)
+                .collection("Tests")
+                .whereField("subtopic", isEqualTo: lessonName)
+                .getDocuments()
             
-            if !practiceTestsSnap.documents.isEmpty {
-                let sortedTests = practiceTestsSnap.documents.sorted { $0.documentID < $1.documentID }
+            if !testsSnap.documents.isEmpty {
+                let sortedTests = testsSnap.documents.sorted { $0.documentID < $1.documentID }
                 let testIndex = attemptCount % sortedTests.count
                 let selectedTestDoc = sortedTests[testIndex]
                 

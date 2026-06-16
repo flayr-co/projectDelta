@@ -217,6 +217,27 @@ class AdminViewModel {
         }
     }
 
+    func saveQuestionToTest(subjectId: String, testId: String, question: Question) async {
+        isProcessing = true
+        defer { isProcessing = false }
+        
+        do {
+            let docRef = db.collection("Subjects").document(subjectId).collection("Tests").document(testId).collection("Questions").document()
+            var targetedQuestion = question
+            targetedQuestion.id = docRef.documentID
+            
+            try await docRef.setData(from: targetedQuestion)
+            
+            // Backup replication sync to global questions bank
+            try await db.collection("questions").document(docRef.documentID).setData(from: targetedQuestion)
+            
+            showSubmissionSuccessAlert = true
+            await fetchAllQuestions()
+        } catch {
+            print("Error strictly saving targeted question: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Migrations
     
     func rescueLegacyAlgebraLessons(defaultSubtopic: String = "Linear Equations") async {

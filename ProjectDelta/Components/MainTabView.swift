@@ -2,8 +2,6 @@
 //  MainTabView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/31/23.
-//
 
 import SwiftUI
 
@@ -19,33 +17,57 @@ struct MainTabView: View {
     
     var body: some View {
         #if os(macOS)
-        // Native TabView for macOS desktop UX
-        TabView(selection: $selectedTab) {
-            HomeView()
-                .id(homeRefreshKey)
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(0)
+        HStack(spacing: 0) {
+            // Native Custom Sidebar for macOS intercepting tap events
+            VStack(alignment: .leading, spacing: 16) {
+                Text("ProjectDelta")
+                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
+                    .padding(.top, 40)
+                
+                SidebarButton(icon: "house.fill", label: "Home", isSelected: selectedTab == 0) {
+                    handleMacTabSelection(index: 0, refreshKey: $homeRefreshKey)
+                }
+                
+                SidebarButton(icon: "pencil.line", label: "Practice", isSelected: selectedTab == 1) {
+                    handleMacTabSelection(index: 1, refreshKey: $cardRefreshKey)
+                }
+                
+                SidebarButton(icon: "person.fill", label: "Profile", isSelected: selectedTab == 2) {
+                    handleMacTabSelection(index: 2, refreshKey: $profileRefreshKey)
+                }
+                Spacer()
+            }
+            .frame(width: 220)
+            .background(Color(NSColor.windowBackgroundColor))
             
-            CardView()
-                .id(cardRefreshKey)
-                .tabItem { Label("Practice", systemImage: "pencil.line") }
-                .tag(1)
+            Divider()
             
-            ProfileView()
-                .id(profileRefreshKey)
-                .tabItem { Label("Profile", systemImage: "person.fill") }
-                .tag(2)
+            // Content View
+            ZStack {
+                Color(NSColor.controlBackgroundColor).ignoresSafeArea()
+                
+                if selectedTab == 0 {
+                    HomeView()
+                        .id(homeRefreshKey)
+                } else if selectedTab == 1 {
+                    CardView()
+                        .id(cardRefreshKey)
+                } else if selectedTab == 2 {
+                    ProfileView()
+                        .id(profileRefreshKey)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onChange(of: selectedTab) { oldValue, newValue in
-            handleMacTabSelection(index: newValue, refreshKey: getRefreshKey(for: newValue))
-        }
+        .ignoresSafeArea(.all, edges: .top)
         #else
         ZStack(alignment: .bottom) {
-            // Cross-platform dynamic background color resolution
             Color(uiColor: .systemBackground)
                 .ignoresSafeArea()
             
-            // Native TabView preserves view state automatically instead of destroying inactive views
             TabView(selection: $selectedTab) {
                 HomeView()
                     .id(homeRefreshKey)
@@ -112,17 +134,14 @@ struct MainTabView: View {
     #if os(macOS)
     private func handleMacTabSelection(index: Int, refreshKey: Binding<UUID>) {
         if selectedTab == index {
+            // Absolute reset trigger
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 refreshKey.wrappedValue = UUID()
             }
-        }
-    }
-    
-    private func getRefreshKey(for index: Int) -> Binding<UUID> {
-        switch index {
-        case 0: return $homeRefreshKey
-        case 1: return $cardRefreshKey
-        default: return $profileRefreshKey
+        } else {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                selectedTab = index
+            }
         }
     }
     #endif
@@ -154,3 +173,35 @@ struct TabBarButton: View {
         .buttonStyle(.plain)
     }
 }
+
+#if os(macOS)
+struct SidebarButton: View {
+    let icon: String
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
+                    .frame(width: 24)
+                
+                Text(label)
+                    .font(.system(.body, design: .rounded, weight: isSelected ? .bold : .medium))
+                
+                Spacer()
+            }
+            .foregroundColor(isSelected ? .white : .primary)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 16)
+            .background(isSelected ? Color.accentColor : Color.clear)
+            .cornerRadius(8)
+            .padding(.horizontal, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+#endif

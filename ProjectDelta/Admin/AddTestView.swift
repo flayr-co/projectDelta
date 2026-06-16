@@ -10,7 +10,7 @@ import Observation
 @MainActor
 @Observable
 class TestBuilderViewModel {
-    var subjectName: String = ""
+    var subject: Subject?
     var lessonName: String = ""
     var testTitle: String = ""
     
@@ -24,8 +24,8 @@ class TestBuilderViewModel {
     
     private let db = Firestore.firestore()
     
-    func initialize(subject: String, lesson: String, testId: String?) async {
-        self.subjectName = subject
+    func initialize(subject: Subject, lesson: String, testId: String?) async {
+        self.subject = subject
         self.lessonName = lesson
         self.existingTestId = testId
         
@@ -36,10 +36,9 @@ class TestBuilderViewModel {
     
     private func loadExistingTest(testId: String) async {
         isGenerating = true
+        guard let subjectId = subject?.id else { return }
+        
         do {
-            let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
-            let subjectId = subjectQuery.documents.first?.documentID ?? subjectName
-            
             let snapshot = try await db.collection("Subjects").document(subjectId).collection("Tests").document(testId).collection("Questions").getDocuments()
             let rawQuestions = snapshot.documents.compactMap { try? $0.data(as: Question.self) }
             self.generatedQuestions = rawQuestions.map { QuestionWrapper(question: $0) }
@@ -63,7 +62,7 @@ class TestBuilderViewModel {
                 points: 10,
                 questionText: "",
                 type: "multiple_choice",
-                subject: subjectName,
+                subject: subject?.name ?? "",
                 subtopic: lessonName,
                 hint: "",
                 feedback: "",
@@ -77,11 +76,12 @@ class TestBuilderViewModel {
     
     func saveTestToDatabase() async {
         isSaving = true
+        guard let subject = subject, let subjectId = subject.id else {
+            isSaving = false
+            return
+        }
         
         do {
-            let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
-            let subjectId = subjectQuery.documents.first?.documentID ?? subjectName
-            
             let batch = db.batch()
             
             let testId = existingTestId ?? UUID().uuidString
@@ -89,7 +89,7 @@ class TestBuilderViewModel {
             
             let testData: [String: Any] = [
                 "questionAmount": generatedQuestions.count,
-                "subject": subjectName,
+                "subject": subject.name,
                 "subtopic": lessonName,
                 "testIdentifier": Int.random(in: 1000...9999),
                 "timeLimit": 60,
@@ -119,7 +119,7 @@ class TestBuilderViewModel {
                     "points": question.points,
                     "questionText": question.questionText,
                     "type": question.type,
-                    "subject": subjectName,
+                    "subject": subject.name,
                     "subtopic": lessonName,
                     "hint": question.hint ?? "",
                     "feedback": question.feedback ?? "",
@@ -143,7 +143,7 @@ class TestBuilderViewModel {
 }
 
 struct AddTestView: View {
-    let subjectName: String
+    let subject: Subject
     let lessonName: String
     var existingTest: Test? = nil
     
@@ -165,9 +165,9 @@ struct AddTestView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .task {
-            await viewModel.initialize(subject: subjectName, lesson: lessonName, testId: existingTest?.id)
+            await viewModel.initialize(subject: subject, lesson: lessonName, testId: existingTest?.id)
             if existingTest != nil {
-                viewModel.testTitle = existingTest?.subject ?? "Untitled Test"
+                viewModel.testTitle = existingTest?.title ?? existingTest?.subject ?? "Untitled Test"
             }
         }
     }
@@ -175,7 +175,7 @@ struct AddTestView: View {
     @ViewBuilder
     private var generatorContent: some View {
         VStack(spacing: 20) {
-            Text("Create Test for \(subjectName)")
+            Text("Create Test for \(subject.name)")
                 .font(.title2)
                 .fontWeight(.bold)
             
@@ -260,8 +260,8 @@ struct AddTestView: View {
                         points: 10,
                         questionText: "",
                         type: "multiple_choice",
-                        subject: viewModel.subjectName,
-                        subtopic: viewModel.lessonName,
+                        subject: subject.name,
+                        subtopic: lessonName,
                         hint: "",
                         feedback: "",
                         testId: viewModel.existingTestId
@@ -278,7 +278,6 @@ struct AddTestView: View {
         #endif
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom) {
-            // Absolute lock for the bottom button overlay
             VStack(spacing: 0) {
                 Divider()
                 Button(action: {
