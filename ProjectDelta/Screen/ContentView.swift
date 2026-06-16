@@ -27,7 +27,9 @@ struct ContentView: View {
 
 // Upgraded to iOS 17 #Preview macro
 #Preview {
-    ContentView()
-        .environment(AuthViewModel())
+    let dummyAuth = AuthViewModel()
+    return ContentView()
+        .environment(dummyAuth)
         .environment(LessonViewModel())
+        .environment(PracticeTestViewModel(authViewModel: dummyAuth))
 }

@@ -41,6 +41,7 @@ struct ProjectDeltaApp: App {
     @State var viewModel: AuthViewModel
     @State var quizViewModel: QuizViewModel
     @State var lessonVM: LessonViewModel
+    @State var practiceTestViewModel: PracticeTestViewModel
     
     init() {
         // 1. Force Firebase to configure absolutely first
@@ -51,6 +52,7 @@ struct ProjectDeltaApp: App {
         _viewModel = State(initialValue: auth)
         _quizViewModel = State(initialValue: QuizViewModel(authViewModel: auth))
         _lessonVM = State(initialValue: LessonViewModel())
+        _practiceTestViewModel = State(initialValue: PracticeTestViewModel(authViewModel: auth))
     }
     
     var body: some Scene {
@@ -59,6 +61,7 @@ struct ProjectDeltaApp: App {
                 .environment(viewModel)
                 .environment(quizViewModel)
                 .environment(lessonVM)
+                .environment(practiceTestViewModel)
         }
     }
 }

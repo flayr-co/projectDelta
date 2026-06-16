@@ -15,6 +15,7 @@ enum NavigationSource {
 struct SubjectGridView: View {
     @Environment(QuizViewModel.self) var quizViewModel
     @Environment(LessonViewModel.self) var lessonVM
+    @Environment(PracticeTestViewModel.self) var practiceTestViewModel
 
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
@@ -101,6 +102,7 @@ struct SubjectGridView: View {
                                 case .testView:
                                     LessonSelectionView(subjectName: subject)
                                         .environment(quizViewModel)
+                                        .environment(practiceTestViewModel)
                                 case .cardView:
                                     QuickTestView(subject: subject)
                                         .environment(quizViewModel)
@@ -174,6 +176,7 @@ struct SubjectGridView: View {
                                 case .testView:
                                     LessonSelectionView(subjectName: subject)
                                         .environment(quizViewModel)
+                                        .environment(practiceTestViewModel)
                                 case .cardView:
                                     QuickTestView(subject: subject)
                                         .environment(quizViewModel)
@@ -258,10 +261,11 @@ struct SubjectGridView: View {
 struct LessonSelectionView: View {
     var subjectName: String
     @Environment(QuizViewModel.self) var quizViewModel
+    @Environment(PracticeTestViewModel.self) var practiceTestViewModel
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
     
-    @State private var lessons: [String] = []
+    @State private var lessons: [(id: String, name: String)] = []
     @State private var isLoading = true
     
     let warmTan = Color(red: 0.97, green: 0.96, blue: 0.94)
@@ -342,9 +346,9 @@ struct LessonSelectionView: View {
                         ]
                         
                         LazyVGrid(columns: desktopColumns, spacing: 24) {
-                            ForEach(lessons, id: \.self) { lessonName in
-                                NavigationLink(destination: QuickTestView(subject: subjectName, subtopic: lessonName).environment(quizViewModel)) {
-                                    lessonCard(for: lessonName)
+                            ForEach(lessons, id: \.id) { lesson in
+                                NavigationLink(destination: PracticeTestView(practiceTestViewModel: practiceTestViewModel, lessonID: lesson.id, practiceTestID: "default").environment(quizViewModel)) {
+                                    lessonCard(for: lesson.name)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -408,9 +412,9 @@ struct LessonSelectionView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(lessons, id: \.self) { lessonName in
-                                NavigationLink(destination: QuickTestView(subject: subjectName, subtopic: lessonName).environment(quizViewModel)) {
-                                    lessonCard(for: lessonName)
+                            ForEach(lessons, id: \.id) { lesson in
+                                NavigationLink(destination: PracticeTestView(practiceTestViewModel: practiceTestViewModel, lessonID: lesson.id, practiceTestID: "default").environment(quizViewModel)) {
+                                    lessonCard(for: lesson.name)
                                 }
                                 .buttonStyle(SubjectCardButtonStyle())
                             }
@@ -430,18 +434,28 @@ struct LessonSelectionView: View {
             let db = Firestore.firestore()
             
             let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
-            var testLessons: [String] = []
+            var lessonTuples: [(String, String)] = []
             
             if let subjectId = subjectQuery.documents.first?.documentID {
-                let testsSnap = try await db.collection("Subjects").document(subjectId).collection("Tests").getDocuments()
-                testLessons = testsSnap.documents.compactMap { $0.data()["subtopic"] as? String }
+                let lessonsSnap = try await db.collection("Subjects").document(subjectId).collection("Lessons").getDocuments()
+                for doc in lessonsSnap.documents {
+                    if let name = doc.data()["name"] as? String {
+                        lessonTuples.append((doc.documentID, name))
+                    }
+                }
             }
             
-            let flatSnap = try await db.collection("questions").whereField("subject", isEqualTo: subjectName).getDocuments()
-            let flatLessons = flatSnap.documents.compactMap { $0.data()["subtopic"] as? String }
+            var uniqueLessons: [(id: String, name: String)] = []
+            var seenNames = Set<String>()
             
-            let combined = Array(Set(testLessons + flatLessons)).filter { !$0.isEmpty }.sorted()
-            self.lessons = combined
+            for tuple in lessonTuples {
+                if !seenNames.contains(tuple.1) {
+                    seenNames.insert(tuple.1)
+                    uniqueLessons.append((id: tuple.0, name: tuple.1))
+                }
+            }
+            
+            self.lessons = uniqueLessons.sorted { $0.name < $1.name }
         } catch {
             print("Error parsing practice lessons: \(error)")
         }
