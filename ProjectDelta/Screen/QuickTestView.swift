@@ -322,8 +322,30 @@ struct QuickTestView: View {
                     VStack(spacing: 16) {
                         ForEach(snapshot.questionResults) { result in
                             VStack(alignment: .leading, spacing: 12) {
-                                Text(result.questionText)
-                                    .font(.headline)
+                                
+                                // Adaptive rendering matching the main testing UI
+                                if let matchedQuestion = quizViewModel.questions.first(where: { $0.questionText == result.questionText }), !matchedQuestion.parsedBlocks.isEmpty {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(matchedQuestion.parsedBlocks) { block in
+                                            if block.type == QuestionBlockType.text.rawValue {
+                                                Text(block.content)
+                                                    .font(.headline)
+                                                    .multilineTextAlignment(.leading)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            } else if block.type == QuestionBlockType.math.rawValue {
+                                                LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
+                                                    .padding(.vertical, 4)
+                                            } else if block.type == QuestionBlockType.graph.rawValue {
+                                                InlineGraphRenderer(graphString: block.content)
+                                                    .padding(.vertical, 4)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text(result.questionText)
+                                        .font(.headline)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                                 
                                 HStack {
                                     let userAnswerString = result.userSelectedOptionIndex != nil ? result.options[result.userSelectedOptionIndex!] : "No Answer"
