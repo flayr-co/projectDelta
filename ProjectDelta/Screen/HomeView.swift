@@ -129,6 +129,11 @@ struct HomeView: View {
                             }
                             .buttonStyle(.plain)
                             
+                            NavigationLink(destination: PracticeView().navigationBarBackButtonHidden(true)) {
+                                DisplayCards(imageName: "pencil", title: "Practice", tintColor: .orange)
+                            }
+                            .buttonStyle(.plain)
+                            
                             NavigationLink(destination: LeaderboardView().navigationBarBackButtonHidden(true)) {
                                 DisplayCards(imageName: "trophy", title: "Leaderboard", tintColor: .yellow)
                             }
@@ -202,6 +207,11 @@ struct HomeView: View {
                     LazyVGrid(columns: columns, spacing: 16) {
                         NavigationLink(destination: SubjectGridView(navigationSource: .learn).navigationBarBackButtonHidden(true)) {
                             DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        NavigationLink(destination: PracticeView().navigationBarBackButtonHidden(true)) {
+                            DisplayCards(imageName: "pencil", title: "Practice", tintColor: .orange)
                         }
                         .buttonStyle(.plain)
                         
