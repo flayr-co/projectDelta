@@ -2,135 +2,124 @@
 //  CardView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/10/23.
-//
 
 import SwiftUI
 
 struct CardView: View {
-    // MARK: - PROPERTIES
-    @Environment(AuthViewModel.self) var viewModel
+    @Environment(TestSessionViewModel.self) var testViewModel
     @Environment(\.colorScheme) var colorScheme
-    @Environment(QuizViewModel.self) var quizViewModel
+    
+    let warmTan = Color(red: 0.97, green: 0.96, blue: 0.94)
     
     var body: some View {
         NavigationStack {
-            Group {
+            ZStack {
+                (colorScheme == .dark ? Color(red: 0.10, green: 0.10, blue: 0.12) : warmTan)
+                    .ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    // Header Area
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Assessments")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+                            .tracking(1.5)
+                        
+                        Text("Testing Hub")
+                            .font(.largeTitle)
+                            .fontWeight(.black)
+                            .foregroundColor(.primary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 24)
+                    .padding(.bottom, 24)
+                    
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 20) {
+                            NavigationLink(destination: SubjectGridView(navigationSource: .quickTest).navigationBarBackButtonHidden(true)) {
+                                assessmentCard(
+                                    title: "Quick Test",
+                                    description: "Jump straight into a 10-question randomized test for a subject.",
+                                    icon: "bolt.fill",
+                                    color: .orange
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            
+                            NavigationLink(destination: SubjectGridView(navigationSource: .timedExam).navigationBarBackButtonHidden(true)) {
+                                assessmentCard(
+                                    title: "Timed Exam",
+                                    description: "Take a focused, timed assessment with a dedicated interface.",
+                                    icon: "timer",
+                                    color: .red
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            
+                            NavigationLink(destination: SubjectGridView(navigationSource: .practice).navigationBarBackButtonHidden(true)) {
+                                assessmentCard(
+                                    title: "Lesson Practice",
+                                    description: "Focus your testing on a specific lesson and subtopic.",
+                                    icon: "book.pages.fill",
+                                    color: .cyan
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 40)
+                    }
+                }
                 #if os(macOS)
-                macOSCardLayout
-                #else
-                iOSCardLayout
+                .frame(maxWidth: 800)
                 #endif
             }
-            .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
         }
     }
     
-    // MARK: - DESKTOP LAYOUT (macOS)
-    #if os(macOS)
-    private var macOSCardLayout: some View {
-        VStack {
-            // Header
-            if let user = viewModel.currentUser {
-                HStack {
-                    Text("Hello, \(user.fullname)!")
-                        .font(.system(.title, design: .rounded, weight: .bold))
-                        .foregroundColor(.primary)
-                    Spacer()
-                }
-                .padding(.horizontal, 40)
-                .padding(.top, 30)
+    @ViewBuilder
+    private func assessmentCard(title: String, description: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 20) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.15))
+                    .frame(width: 60, height: 60)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(color)
             }
             
-            Spacer()
-            
-            // Centered Glassmorphic Card
-            VStack(spacing: 24) {
-                Text("Quick Math Quiz")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.title3)
+                    .fontWeight(.bold)
                     .foregroundColor(.primary)
                 
-                NavigationLink {
-                    SubjectGridView(navigationSource: .cardView)
-                        .navigationBarBackButtonHidden(true)
-                } label: {
-                    VStack(spacing: 16) {
-                        Image(systemName: "cross.fill")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 80, height: 80)
-                            .foregroundColor(colorScheme == .dark ? Color.pink : Color.cyan)
-                        
-                        Text("Start Practice")
-                            .font(.system(.title3, design: .rounded, weight: .semibold))
-                            .foregroundColor(.primary)
-                    }
-                    .padding(40)
-                    .frame(width: 280, height: 280)
-                    .background(Color.platformSecondarySystemBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-                    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.08), radius: 20, x: 0, y: 10)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 32, style: .continuous)
-                            .stroke(Color.primary.opacity(0.05), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.leading)
             }
             
-            Spacer()
+            Spacer(minLength: 0)
+            
+            Image(systemName: "chevron.right")
+                .foregroundColor(.secondary.opacity(0.5))
+                .font(.system(size: 14, weight: .bold))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.platformSystemGroupedBackground)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(colorScheme == .dark ? Color(red: 0.16, green: 0.16, blue: 0.19) : .white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.05), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.04), radius: 10, x: 0, y: 5)
     }
-    #endif
-
-    // MARK: - MOBILE LAYOUT (iOS)
-    #if os(iOS)
-    private var iOSCardLayout: some View {
-        VStack {
-            // MARK: - HEADER
-            VStack {
-                if let user = viewModel.currentUser {
-                    Text("Hello, \(user.fullname)!")
-                        .greetingStyle()
-                }
-            }
-            .padding(.leading, 15)
-            .padding(.top, 20)
-            
-            Spacer()
-            
-            // MARK: - MAIN CONTENT
-            VStack(alignment: .leading) {
-                Text("Quick Math Quiz")
-                    .font(.system(size: 34, weight: .bold, design: .default))
-                    .foregroundColor(colorScheme == .dark ? Color.white : Color.black)
-                    .padding(.bottom, 10)
-                
-                NavigationLink {
-                    SubjectGridView(navigationSource: .cardView)
-                        .navigationBarBackButtonHidden(true)
-                } label: {
-                    Image(systemName: "cross.fill")
-                        .resizable()
-                        .frame(width: 60, height: 60)
-                        .foregroundColor(colorScheme == .dark ? Color.pink : Color.cyan)
-                        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 5)
-                }
-                .buttonStyle(.plain) // Add plain style to prevent macOS highlighting oddities on pure images
-                .padding(.top, 20)
-            }
-                
-            // MARK: - FOOTER
-            Spacer()
-        }
-    }
-    #endif
-}
-
-#Preview {
-    CardView()
-        .environment(AuthViewModel())
-        .environment(QuizViewModel(authViewModel: AuthViewModel()))
 }

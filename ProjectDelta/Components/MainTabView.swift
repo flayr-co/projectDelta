@@ -7,7 +7,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @Environment(AuthViewModel.self) var viewModel
-    @Environment(QuizViewModel.self) var quizViewModel
+    @Environment(TestSessionViewModel.self) var testViewModel
     @Environment(LessonViewModel.self) var lessonVM
     
     @State private var selectedTab = 0
@@ -31,7 +31,7 @@ struct MainTabView: View {
                     handleMacTabSelection(index: 0, refreshKey: $homeRefreshKey)
                 }
                 
-                SidebarButton(icon: "pencil.line", label: "Practice", isSelected: selectedTab == 1) {
+                SidebarButton(icon: "pencil.line", label: "Assessments", isSelected: selectedTab == 1) {
                     handleMacTabSelection(index: 1, refreshKey: $cardRefreshKey)
                 }
                 
@@ -93,7 +93,7 @@ struct MainTabView: View {
                     handleTabSelection(index: 0, refreshKey: &homeRefreshKey)
                 }
                 
-                TabBarButton(icon: "pencil.line", label: "Practice", isSelected: selectedTab == 1) {
+                TabBarButton(icon: "pencil.line", label: "Assessments", isSelected: selectedTab == 1) {
                     handleTabSelection(index: 1, refreshKey: &cardRefreshKey)
                 }
                 

@@ -1,0 +1,522 @@
+//
+//  UniversalTestView.swift
+//  ProjectDelta
+//
+//  Created by Jake Meissner on 6/17/26.
+//
+
+
+//
+//  UniversalTestView.swift
+//  ProjectDelta
+//
+
+import SwiftUI
+import FirebaseFirestore
+
+struct UniversalTestView: View {
+    @Environment(AuthViewModel.self) var authViewModel
+    @Environment(TestSessionViewModel.self) var testViewModel
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var buttonTapped = false
+    @State private var currentQuestionIndex = 0
+    @State private var selectedQuestionIndex = 0
+    @State private var isSubmitting: Bool = false
+    @State private var isHintExpanded: Bool = false
+    
+    var mode: TestMode
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                #if os(macOS)
+                macOSLayout
+                #else
+                iOSLayout
+                #endif
+            }
+            .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
+            .navigationTitle(mode.subtopicName ?? mode.subjectName)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                    }
+                }
+            }
+            .task {
+                if !mode.isTimed {
+                    buttonTapped = true
+                    testViewModel.fetchTest(mode: mode)
+                }
+                await fetchUserProgress()
+            }
+        }
+    }
+
+    // MARK: - DESKTOP LAYOUT (macOS)
+    #if os(macOS)
+    private var macOSLayout: some View {
+        ZStack {
+            Color.platformSystemGroupedBackground.ignoresSafeArea()
+            
+            if mode.isTimed && !buttonTapped {
+                macOSIntroView
+            } else if testViewModel.isGeneratingQuiz {
+                VStack(spacing: 16) {
+                    ProgressView()
+                    Text("Analyzing curriculum...")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
+            } else if testViewModel.isQuizComplete {
+                quizEndView
+            } else if !testViewModel.questions.isEmpty {
+                VStack(spacing: 0) {
+                    // Header Status Bar
+                    HStack {
+                        Text(mode.subtopicName ?? mode.subjectName)
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("Question \(currentQuestionIndex + 1) / \(testViewModel.questions.count)")
+                            .font(.system(.body, design: .rounded, weight: .bold))
+                    }
+                    .padding(24)
+                    .background(Color.platformSystemBackground)
+                    .overlay(Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.1)), alignment: .bottom)
+                    
+                    ScrollView(showsIndicators: false) {
+                        questionContentPage(for: currentQuestionIndex)
+                            .padding(.top, 40)
+                            .padding(.bottom, 100)
+                    }
+                    
+                    // Desktop Navigation Bar
+                    HStack {
+                        Button("Previous") { withAnimation { currentQuestionIndex -= 1 } }
+                            .disabled(currentQuestionIndex == 0)
+                            .controlSize(.large)
+                        
+                        Spacer()
+                        
+                        if currentQuestionIndex < testViewModel.questions.count - 1 {
+                            Button("Next") { withAnimation { currentQuestionIndex += 1 } }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                        } else {
+                            Button("Submit Test") {
+                                isSubmitting = true
+                                Task {
+                                    await testViewModel.finishTest(mode: mode)
+                                    isSubmitting = false
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.green)
+                            .controlSize(.large)
+                            .disabled(isSubmitting)
+                        }
+                    }
+                    .padding(24)
+                    .background(Color.platformSystemBackground)
+                    .overlay(Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.1)), alignment: .top)
+                }
+            } else {
+                Text("No questions found.")
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+    
+    private var macOSIntroView: some View {
+        VStack(spacing: 32) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 64))
+                .foregroundColor(.accentColor)
+            
+            VStack(spacing: 8) {
+                Text(mode.subtopicName ?? "General \(mode.subjectName)")
+                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .foregroundColor(.secondary)
+                
+                Text("Ready to test your knowledge?")
+                    .font(.system(size: 42, weight: .black, design: .rounded))
+                
+                Text("Timed Session • Challenging Questions")
+                    .font(.system(.title3, design: .rounded))
+                    .foregroundColor(.secondary)
+            }
+            
+            Button {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    buttonTapped = true
+                }
+                testViewModel.fetchTest(mode: mode)
+            } label: {
+                Text("Start Assessment")
+                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .padding(.horizontal, 40)
+                    .padding(.vertical, 16)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+        }
+    }
+    #endif
+
+    // MARK: - MOBILE LAYOUT (iOS)
+    #if os(iOS)
+    private var iOSLayout: some View {
+        VStack(spacing: 0) {
+            if mode.isTimed && !buttonTapped {
+                introView
+            } else if testViewModel.isGeneratingQuiz {
+                Spacer()
+                ProgressView("Analyzing curriculum...")
+                    .tint(colorScheme == .dark ? .cyan : .blue)
+                Spacer()
+            } else if testViewModel.isQuizComplete {
+                quizEndView
+            } else if !testViewModel.questions.isEmpty {
+                ZStack(alignment: .bottom) {
+                    TabView(selection: $currentQuestionIndex) {
+                        ForEach(0..<testViewModel.questions.count, id: \.self) { index in
+                            questionContentPage(for: index)
+                                .tag(index)
+                                .padding(.bottom, 180)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .onChange(of: currentQuestionIndex) { _, newValue in
+                        if selectedQuestionIndex != newValue {
+                            selectedQuestionIndex = newValue
+                        }
+                    }
+                    
+                    bottomNavigationBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            } else {
+                Spacer()
+                Text("No questions found for this test.")
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+        }
+    }
+    
+    private var introView: some View {
+        VStack {
+            Spacer()
+            
+            VStack(spacing: 12) {
+                Text(mode.subtopicName ?? "General \(mode.subjectName)")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                
+                Text("Take the quiz in the time given")
+                    .font(.system(size: 32, weight: .bold))
+                    .multilineTextAlignment(.center)
+                Text("Timed Session")
+                    .font(.system(size: 20, weight: .semibold))
+            }
+            .foregroundStyle(LinearGradient(colors: [.cyan, .teal, .mint], startPoint: .top, endPoint: .bottom))
+            .padding(.bottom, 30)
+            
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    buttonTapped = true
+                }
+                testViewModel.fetchTest(mode: mode)
+            }) {
+                ZStack {
+                    LinearGradient(colors: [.cyan, .teal, .mint], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 50)
+                        .cornerRadius(10)
+                    Text("Start Now")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
+            
+            Spacer()
+        }
+    }
+    
+    private var bottomNavigationBar: some View {
+        HStack {
+            Button(action: {
+                if currentQuestionIndex > 0 {
+                    withAnimation { currentQuestionIndex -= 1 }
+                }
+            }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(currentQuestionIndex == 0 ? .gray.opacity(0.3) : (colorScheme == .dark ? .cyan : .blue))
+                    .frame(width: 44, height: 44)
+            }
+            .disabled(currentQuestionIndex == 0)
+
+            Spacer()
+
+            Menu {
+                Picker("Jump to Question", selection: Binding(
+                    get: { currentQuestionIndex },
+                    set: { newValue in withAnimation { currentQuestionIndex = newValue } }
+                )) {
+                    ForEach(0..<testViewModel.questions.count, id: \.self) { index in
+                        Text("Question \(index + 1)").tag(index)
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text("\(currentQuestionIndex + 1) of \(testViewModel.questions.count)")
+                        .font(.subheadline.monospacedDigit())
+                        .fontWeight(.medium)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.gray.opacity(0.15))
+                .clipShape(Capsule())
+            }
+
+            Spacer()
+
+            let isLastQuestion = currentQuestionIndex == testViewModel.questions.count - 1
+            
+            if !isLastQuestion {
+                Button(action: {
+                    withAnimation { currentQuestionIndex += 1 }
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(colorScheme == .dark ? .cyan : .blue)
+                        .frame(width: 44, height: 44)
+                }
+            } else {
+                Button(action: {
+                    isSubmitting = true
+                    Task {
+                        await testViewModel.finishTest(mode: mode)
+                        isSubmitting = false
+                    }
+                }) {
+                    Text("Turn In")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(colorScheme == .dark ? Color.cyan : Color.blue)
+                        .clipShape(Capsule())
+                        .shadow(color: (colorScheme == .dark ? Color.cyan : Color.blue).opacity(0.3), radius: 4, y: 2)
+                }
+                .disabled(isSubmitting)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+        )
+        .padding(.horizontal, 20)
+        .padding(.bottom, 110)
+    }
+    #endif
+
+    // MARK: - SHARED COMPONENTS
+    
+    @ViewBuilder
+    private func questionContentPage(for index: Int) -> some View {
+        ScrollView {
+            if index < testViewModel.questions.count {
+                let question = testViewModel.questions[index]
+                let qId = question.id ?? UUID().uuidString
+                
+                // Adaptive LaTeX / Graph rendering
+                if !question.parsedBlocks.isEmpty {
+                    VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            ForEach(question.parsedBlocks) { block in
+                                if block.type == QuestionBlockType.text.rawValue {
+                                    Text(block.content)
+                                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                        .foregroundColor(.primary)
+                                        .multilineTextAlignment(.leading)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                } else if block.type == QuestionBlockType.math.rawValue {
+                                    LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.secondary.opacity(0.05))
+                                        .cornerRadius(12)
+                                } else if block.type == QuestionBlockType.graph.rawValue {
+                                    InlineGraphRenderer(graphString: block.content)
+                                        .padding(.vertical, 8)
+                                }
+                            }
+                        }
+                        .padding(32)
+                        .background(Color.platformSystemBackground)
+                        .cornerRadius(24)
+                        .shadow(color: .black.opacity(0.03), radius: 10, x: 0, y: 5)
+                        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                        .padding(.horizontal, 20)
+                        
+                        if let hint = question.hint, !hint.isEmpty {
+                            DisclosureGroup("Hint", isExpanded: $isHintExpanded) {
+                                Text(hint)
+                                    .font(.callout)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 8)
+                            }
+                            .tint(.cyan)
+                            .padding(.horizontal, 20)
+                        }
+                        
+                        VStack(spacing: 16) {
+                            let currentOptions = question.options
+                            let selectedIndex = testViewModel.userAnswers[qId]
+                            
+                            ForEach(currentOptions.indices, id: \.self) { optIndex in
+                                Button {
+                                    testViewModel.selectAnswer(for: qId, optionIndex: optIndex)
+                                } label: {
+                                    HStack {
+                                        Text(currentOptions[optIndex])
+                                            .multilineTextAlignment(.leading)
+                                            .foregroundColor(selectedIndex == optIndex ? .white : .primary)
+                                            .font(.system(.body, design: .rounded))
+                                        Spacer()
+                                        if selectedIndex == optIndex {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.white)
+                                        } else {
+                                            Circle()
+                                                .stroke(Color.secondary.opacity(0.5), lineWidth: 1)
+                                                .frame(width: 20, height: 20)
+                                        }
+                                    }
+                                    .padding()
+                                    .background(selectedIndex == optIndex ? Color.accentColor : Color.secondary.opacity(0.1))
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(selectedIndex == optIndex ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        
+                        Spacer(minLength: 40)
+                    }
+                    #if os(macOS)
+                    .frame(maxWidth: 800)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    #endif
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var quizEndView: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 64))
+                    .foregroundColor(.green)
+                
+                Text("Test Result")
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                
+                if let snapshot = testViewModel.currentSnapshot {
+                    Text("\(snapshot.score) / \(snapshot.totalQuestions)")
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .foregroundColor(snapshot.score > (snapshot.totalQuestions / 2) ? .green : .orange)
+                    
+                    VStack(spacing: 16) {
+                        ForEach(snapshot.questionResults) { result in
+                            VStack(alignment: .leading, spacing: 12) {
+                                
+                                // Adaptive rendering matching the main testing UI
+                                if let matchedQuestion = testViewModel.questions.first(where: { $0.questionText == result.questionText }), !matchedQuestion.parsedBlocks.isEmpty {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(matchedQuestion.parsedBlocks) { block in
+                                            if block.type == QuestionBlockType.text.rawValue {
+                                                Text(block.content)
+                                                    .font(.headline)
+                                                    .multilineTextAlignment(.leading)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            } else if block.type == QuestionBlockType.math.rawValue {
+                                                LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
+                                                    .padding(.vertical, 4)
+                                            } else if block.type == QuestionBlockType.graph.rawValue {
+                                                InlineGraphRenderer(graphString: block.content)
+                                                    .padding(.vertical, 4)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text(result.questionText)
+                                        .font(.headline)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                
+                                HStack {
+                                    let userAnswerString = result.userSelectedOptionIndex != nil ? result.options[result.userSelectedOptionIndex!] : "No Answer"
+                                    Text("Your Answer: \(userAnswerString)")
+                                        .foregroundColor(result.isCorrect ? .green : .red)
+                                    Spacer()
+                                }
+                                .font(.subheadline)
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
+                Button("Return to Subjects") { dismiss() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+            }
+            .padding(.top)
+            .padding(.bottom, 110)
+        }
+    }
+    
+    private func fetchUserProgress() async {
+        guard let userId = authViewModel.currentUser?.id, !userId.isEmpty else { return }
+        let db = Firestore.firestore()
+        
+        do {
+            let document = try await db.collection("UserProgress").document(userId).getDocument()
+            if let progress = try? document.data(as: UserProgress.self) {
+                testViewModel.userProgress = progress
+            }
+        } catch {
+            print("Failed to fetch user progress: \(error.localizedDescription)")
+        }
+    }
+}

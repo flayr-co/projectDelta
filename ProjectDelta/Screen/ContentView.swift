@@ -31,5 +31,5 @@ struct ContentView: View {
     return ContentView()
         .environment(dummyAuth)
         .environment(LessonViewModel())
-        .environment(PracticeTestViewModel(authViewModel: dummyAuth))
+        .environment(TestSessionViewModel(authViewModel: dummyAuth))
 }

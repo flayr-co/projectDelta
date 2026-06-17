@@ -4,18 +4,18 @@
 //
 
 import SwiftUI
-import Firebase
+import FirebaseFirestore
 
 enum NavigationSource {
-    case homeView
-    case cardView
-    case testView
+    case learn
+    case quickTest
+    case timedExam
+    case practice
 }
 
 struct SubjectGridView: View {
-    @Environment(QuizViewModel.self) var quizViewModel
+    @Environment(TestSessionViewModel.self) var testViewModel
     @Environment(LessonViewModel.self) var lessonVM
-    @Environment(PracticeTestViewModel.self) var practiceTestViewModel
 
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
@@ -35,7 +35,7 @@ struct SubjectGridView: View {
         .navigationBarBackButtonHidden(true)
         .task {
             do {
-                quizViewModel.subjects = try await quizViewModel.fetchSubjectsFromFirestore()
+                testViewModel.subjects = try await testViewModel.fetchSubjectsFromFirestore()
             } catch {
                 print("Error fetching subjects in SubjectGridView: \(error.localizedDescription)")
             }
@@ -93,20 +93,9 @@ struct SubjectGridView: View {
                     ]
                     
                     LazyVGrid(columns: desktopColumns, spacing: 24) {
-                        ForEach(quizViewModel.subjects, id: \.self) { subject in
+                        ForEach(testViewModel.subjects, id: \.self) { subject in
                             NavigationLink {
-                                switch navigationSource {
-                                case .homeView:
-                                    LessonView(subjectName: subject)
-                                        .environment(lessonVM)
-                                case .testView:
-                                    LessonSelectionView(subjectName: subject)
-                                        .environment(quizViewModel)
-                                        .environment(practiceTestViewModel)
-                                case .cardView:
-                                    QuickTestView(subject: subject)
-                                        .environment(quizViewModel)
-                                }
+                                destinationView(for: subject)
                             } label: {
                                 subjectCard(for: subject)
                             }
@@ -115,7 +104,7 @@ struct SubjectGridView: View {
                     }
                     .padding(.horizontal, 40)
                     .padding(.bottom, 40)
-                    .frame(maxWidth: 1200) // Constrain width on ultrawide monitors
+                    .frame(maxWidth: 1200)
                 }
             }
         }
@@ -167,20 +156,9 @@ struct SubjectGridView: View {
                 // Grid Content Scroll
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(quizViewModel.subjects, id: \.self) { subject in
+                        ForEach(testViewModel.subjects, id: \.self) { subject in
                             NavigationLink {
-                                switch navigationSource {
-                                case .homeView:
-                                    LessonView(subjectName: subject)
-                                        .environment(lessonVM)
-                                case .testView:
-                                    LessonSelectionView(subjectName: subject)
-                                        .environment(quizViewModel)
-                                        .environment(practiceTestViewModel)
-                                case .cardView:
-                                    QuickTestView(subject: subject)
-                                        .environment(quizViewModel)
-                                }
+                                destinationView(for: subject)
                             } label: {
                                 subjectCard(for: subject)
                             }
@@ -195,7 +173,23 @@ struct SubjectGridView: View {
     }
     #endif
     
-    // MARK: - Card Component View Builder
+    @ViewBuilder
+    private func destinationView(for subject: String) -> some View {
+        switch navigationSource {
+        case .learn:
+            LessonView(subjectName: subject)
+                .environment(lessonVM)
+        case .quickTest:
+            UniversalTestView(mode: .quick(subject: subject, subtopic: nil))
+                .environment(testViewModel)
+        case .timedExam:
+            UniversalTestView(mode: .timed(subject: subject, subtopic: nil))
+                .environment(testViewModel)
+        case .practice:
+            LessonSelectionView(subjectName: subject)
+                .environment(testViewModel)
+        }
+    }
     
     @ViewBuilder
     private func subjectCard(for subject: String) -> some View {
@@ -243,8 +237,6 @@ struct SubjectGridView: View {
         .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.04), radius: 8, x: 0, y: 4)
     }
     
-    // MARK: - Helpers
-    
     private func iconForSubject(_ subject: String) -> String {
         let lower = subject.lowercased()
         if lower.contains("algebra") { return "function" }
@@ -260,8 +252,7 @@ struct SubjectGridView: View {
 
 struct LessonSelectionView: View {
     var subjectName: String
-    @Environment(QuizViewModel.self) var quizViewModel
-    @Environment(PracticeTestViewModel.self) var practiceTestViewModel
+    @Environment(TestSessionViewModel.self) var testViewModel
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
     
@@ -289,8 +280,7 @@ struct LessonSelectionView: View {
     #if os(macOS)
     private var macOSLayout: some View {
         ZStack {
-            Color.platformSystemGroupedBackground
-                .ignoresSafeArea()
+            Color.platformSystemGroupedBackground.ignoresSafeArea()
             
             VStack(spacing: 0) {
                 HStack {
@@ -347,7 +337,7 @@ struct LessonSelectionView: View {
                         
                         LazyVGrid(columns: desktopColumns, spacing: 24) {
                             ForEach(lessons, id: \.id) { lesson in
-                                NavigationLink(destination: PracticeTestView(practiceTestViewModel: practiceTestViewModel, lessonID: lesson.id, practiceTestID: "default", subjectName: subjectName).environment(quizViewModel)) {
+                                NavigationLink(destination: UniversalTestView(mode: .practice(subject: subjectName, lessonName: lesson.name, lessonId: lesson.id)).environment(testViewModel)) {
                                     lessonCard(for: lesson.name)
                                 }
                                 .buttonStyle(.plain)
@@ -413,7 +403,7 @@ struct LessonSelectionView: View {
                     ScrollView {
                         LazyVStack(spacing: 16) {
                             ForEach(lessons, id: \.id) { lesson in
-                                NavigationLink(destination: PracticeTestView(practiceTestViewModel: practiceTestViewModel, lessonID: lesson.id, practiceTestID: "default", subjectName: subjectName).environment(quizViewModel)) {
+                                NavigationLink(destination: UniversalTestView(mode: .practice(subject: subjectName, lessonName: lesson.name, lessonId: lesson.id)).environment(testViewModel)) {
                                     lessonCard(for: lesson.name)
                                 }
                                 .buttonStyle(SubjectCardButtonStyle())
@@ -432,7 +422,6 @@ struct LessonSelectionView: View {
         isLoading = true
         do {
             let db = Firestore.firestore()
-            
             let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
             var lessonTuples: [(String, String)] = []
             

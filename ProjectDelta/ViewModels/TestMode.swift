@@ -1,5 +1,13 @@
 //
-//  QuizViewModel.swift
+//  TestMode.swift
+//  ProjectDelta
+//
+//  Created by Jake Meissner on 6/17/26.
+//
+
+
+//
+//  TestSessionViewModel.swift
 //  ProjectDelta
 //
 
@@ -8,20 +16,41 @@ import FirebaseFirestore
 import Observation
 import SwiftUI
 
+enum TestMode: Equatable {
+    case timed(subject: String, subtopic: String?)
+    case quick(subject: String, subtopic: String?)
+    case practice(subject: String, lessonName: String, lessonId: String)
+    
+    var subjectName: String {
+        switch self {
+        case .timed(let s, _), .quick(let s, _), .practice(let s, _, _): return s
+        }
+    }
+    
+    var subtopicName: String? {
+        switch self {
+        case .timed(_, let s), .quick(_, let s): return s
+        case .practice(_, let l, _): return l
+        }
+    }
+    
+    var isTimed: Bool {
+        if case .timed = self { return true }
+        return false
+    }
+}
+
 @MainActor
 @Observable
-class QuizViewModel {
+class TestSessionViewModel {
     var questions: [Question] = []
-    var currentSubject: Subject?
-    var currentQuestionDocId: String?
-    var userProgress: UserProgress?
-    var testsForSelectedSubject: [Test] = []
     var isGeneratingQuiz: Bool = false
     
     // Snapshot & Evaluation State
     var userAnswers: [String: Int] = [:]
     var isQuizComplete: Bool = false
     var currentSnapshot: QuizSnapshot?
+    var userProgress: UserProgress?
     
     var subjects: [String] = [
         "Algebra",
@@ -32,7 +61,6 @@ class QuizViewModel {
     
     var authViewModel: AuthViewModel
     private let db = Firestore.firestore()
-    private let firestoreManager = FirestoreManager()
 
     init(authViewModel: AuthViewModel) {
         self.authViewModel = authViewModel
@@ -40,7 +68,6 @@ class QuizViewModel {
     
     func fetchSubjectsFromFirestore() async throws -> [String] {
         let snapshot = try await db.collection("Subjects").getDocuments()
-        
         let fetchedNames = snapshot.documents.compactMap { doc -> String? in
             if let name = doc.data()["name"] as? String, !name.isEmpty {
                 return name
@@ -55,7 +82,7 @@ class QuizViewModel {
         userAnswers[questionId] = optionIndex
     }
     
-    func fetchSubtopicTest(for subjectName: String, subtopic: String? = nil) {
+    func fetchTest(mode: TestMode) {
         Task {
             self.isGeneratingQuiz = true
             self.questions = []
@@ -64,8 +91,9 @@ class QuizViewModel {
             self.currentSnapshot = nil
             
             do {
+                let subjectName = mode.subjectName
+                let activeSubtopic = mode.subtopicName
                 var fetchedQuestions: [Question] = []
-                let activeSubtopic = (subtopic != nil && subtopic != "All" && subtopic?.isEmpty == false) ? subtopic : nil
                 
                 // 1. Primary Architecture Check: Hierarchical Tests
                 let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
@@ -112,7 +140,6 @@ class QuizViewModel {
                 }
                 
                 if fetchedQuestions.isEmpty {
-                    print("No questions found for \(subjectName) - \(subtopic ?? "All").")
                     self.questions = []
                 } else {
                     let attemptCount = await fetchAttemptCount(for: subjectName, subtopic: activeSubtopic)
@@ -157,8 +184,8 @@ class QuizViewModel {
         }
     }
     
-    func finishQuiz(subjectId: String, subtopic: String) async {
-        guard let userId = authViewModel.currentUser?.id else { return }
+    func finishTest(mode: TestMode) async {
+        guard let userId = authViewModel.currentUser?.id, !questions.isEmpty else { return }
         
         var correctCount = 0
         var results: [QuestionResult] = []
@@ -186,8 +213,8 @@ class QuizViewModel {
         let snapshot = QuizSnapshot(
             id: UUID().uuidString,
             userId: userId,
-            subjectId: subjectId,
-            subtopic: subtopic,
+            subjectId: mode.subjectName,
+            subtopic: mode.subtopicName ?? "All",
             score: correctCount,
             totalQuestions: questions.count,
             dateTaken: Date(),
@@ -202,46 +229,65 @@ class QuizViewModel {
             print("Failed to save snapshot: \(error.localizedDescription)")
         }
         
+        await applyPointsAndProgress(mode: mode, correctCount: correctCount, results: results)
+        self.isQuizComplete = true
+    }
+    
+    private func applyPointsAndProgress(mode: TestMode, correctCount: Int, results: [QuestionResult]) async {
+        guard let userId = authViewModel.currentUser?.id else { return }
+        
+        // Point allocation mechanics
+        let totalPointsChange = correctCount * 10 - (questions.count - correctCount) * 5
+        await authViewModel.updateUserPointsInFirestore(newPoints: (authViewModel.currentUser?.points ?? 0) + totalPointsChange)
+        await authViewModel.storeTodaysPoints(pointsGainedToday: totalPointsChange)
+        
+        // Progress mechanics
         let area: SubjectArea
-        let lower = subjectId.lowercased()
+        let lower = mode.subjectName.lowercased()
         if lower.contains("algebra") { area = .algebra }
         else if lower.contains("advanced") { area = .advancedMath }
         else if lower.contains("problem") || lower.contains("data") { area = .problemSolvingDataAnalysis }
         else { area = .geometryTrigonometry }
         
-        if var progressObj = self.userProgress {
-            progressObj.questionsAttempted += questions.count
-            var subjectProgress = progressObj.progress[area] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
-            subjectProgress.questionsAttempted += questions.count
-            subjectProgress.questionsCorrect += correctCount
-            
-            if progressObj.answeredQuestions == nil {
-                progressObj.answeredQuestions = [:]
+        let userProgressRef = db.collection("UserProgress").document(userId)
+        
+        do {
+            try await db.runTransaction { (transaction, errorPointer) -> Any? in
+                let docSnapshot: DocumentSnapshot
+                do {
+                    docSnapshot = try transaction.getDocument(userProgressRef)
+                } catch {
+                    return nil
+                }
+                
+                var totalAttempted = docSnapshot.data()?["questionsAttempted"] as? Int ?? 0
+                totalAttempted += self.questions.count
+                
+                var progressDict = docSnapshot.data()?["progress"] as? [String: [String: Any]] ?? [:]
+                var subjectData = progressDict[area.rawValue] ?? ["questionsAttempted": 0, "questionsCorrect": 0]
+                
+                let subAttempted = (subjectData["questionsAttempted"] as? Int ?? 0) + self.questions.count
+                let subCorrect = (subjectData["questionsCorrect"] as? Int ?? 0) + correctCount
+                
+                subjectData["questionsAttempted"] = subAttempted
+                subjectData["questionsCorrect"] = subCorrect
+                progressDict[area.rawValue] = subjectData
+                
+                var answeredMap = docSnapshot.data()?["answeredQuestions"] as? [String: Bool] ?? [:]
+                for res in results {
+                    answeredMap[res.questionId] = res.isCorrect
+                }
+                
+                transaction.updateData([
+                    "questionsAttempted": totalAttempted,
+                    "answeredQuestions": answeredMap,
+                    "progress": progressDict
+                ], forDocument: userProgressRef)
+                
+                return nil
             }
-            for res in results {
-                progressObj.answeredQuestions?[res.questionId] = res.isCorrect
-            }
-            
-            progressObj.progress[area] = subjectProgress
-            self.userProgress = progressObj
-            
-            let userProgressRef = db.collection("UserProgress").document(userId)
-            let progressMapData = progressObj.progress.reduce(into: [String: Any]()) { result, entry in
-                result[entry.key.rawValue] = [
-                    "questionsAttempted": entry.value.questionsAttempted,
-                    "questionsCorrect": entry.value.questionsCorrect
-                ]
-            }
-            
-            let firestoreData: [String: Any] = [
-                "userId": userId,
-                "questionsAttempted": progressObj.questionsAttempted,
-                "answeredQuestions": progressObj.answeredQuestions ?? [:],
-                "progress": progressMapData
-            ]
-            
-            try? await userProgressRef.setData(firestoreData, merge: true)
+        } catch {
+            print("Transaction error processing progress values: \(error.localizedDescription)")
         }
-        self.isQuizComplete = true
     }
 }

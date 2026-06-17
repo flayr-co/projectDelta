@@ -177,13 +177,13 @@ struct LessonContentPage: View {
                         }
                         .buttonStyle(.plain)
 
+                        // MARK: Routing updated to UniversalTestView
                         NavigationLink {
-                            PracticeTestView(
-                                practiceTestViewModel: PracticeTestViewModel(authViewModel: AuthViewModel()),
-                                lessonID: lessonVM.currentLessonId,
-                                practiceTestID: "VYccqY1rjXETQOdMm4ap",
-                                subjectName: lessonVM.subjectName
-                            )
+                            UniversalTestView(mode: .practice(
+                                subject: lessonVM.subjectName,
+                                lessonName: lessonVM.currentLessonName,
+                                lessonId: lessonVM.currentLessonId
+                            ))
                         } label: {
                             Text("Go to test")
                                 .font(.title3)

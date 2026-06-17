@@ -58,6 +58,8 @@
 		5297E43E2AD64F4F00220FC6 /* TestContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5297E43D2AD64F4F00220FC6 /* TestContent.swift */; };
 		5297E4792AD7AA2800220FC6 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 5297E4782AD7AA2800220FC6 /* GoogleService-Info.plist */; };
 		52AFCA0A2BBF381B0081A309 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AFCA092BBF381B0081A309 /* ProgressBar.swift */; };
+		52BB1A502FE28C6D00A5800A /* TestMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52BB1A4F2FE28C6D00A5800A /* TestMode.swift */; };
+		52BB1A522FE28C8200A5800A /* UniversalTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52BB1A512FE28C8200A5800A /* UniversalTestView.swift */; };
 		52C68AC32FB64BBF001CD906 /* LessonEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */; };
 		52C72D682AFB014800BDC77E /* BarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C72D672AFB014800BDC77E /* BarChartView.swift */; };
 		52C8ACFE2FDCFBF60015BABE /* Color+Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C8ACFD2FDCFBEC0015BABE /* Color+Platform.swift */; };
@@ -129,6 +131,8 @@
 		5297E43D2AD64F4F00220FC6 /* TestContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestContent.swift; sourceTree = "<group>"; };
 		5297E4782AD7AA2800220FC6 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		52AFCA092BBF381B0081A309 /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
+		52BB1A4F2FE28C6D00A5800A /* TestMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestMode.swift; sourceTree = "<group>"; };
+		52BB1A512FE28C8200A5800A /* UniversalTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalTestView.swift; sourceTree = "<group>"; };
 		52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonEditorView.swift; sourceTree = "<group>"; };
 		52C72D672AFB014800BDC77E /* BarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartView.swift; sourceTree = "<group>"; };
 		52C8ACFD2FDCFBEC0015BABE /* Color+Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Platform.swift"; sourceTree = "<group>"; };
@@ -278,6 +282,7 @@
 		5297E4362AD63C6000220FC6 /* Screen */ = {
 			isa = PBXGroup;
 			children = (
+				52BB1A512FE28C8200A5800A /* UniversalTestView.swift */,
 				521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */,
 				5297E4372AD63C8B00220FC6 /* CardView.swift */,
 				5229BB092AD0CC8A0094395D /* ContentView.swift */,
@@ -311,6 +316,7 @@
 		52D998ED2ADB300F007F90A6 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				52BB1A4F2FE28C6D00A5800A /* TestMode.swift */,
 				527F98732AEB33590031F9E6 /* TestViewModel.swift */,
 				527F98752AEC4E080031F9E6 /* QuizViewModel.swift */,
 				52920AE62B155B7700B60A14 /* QuestionGeneratorViewModel.swift */,
@@ -457,6 +463,7 @@
 				52D998F02ADB3120007F90A6 /* Test.swift in Sources */,
 				52CB38B72C0C050200B15F63 /* PracticeTestViewModel.swift in Sources */,
 				527F98782AEC518E0031F9E6 /* Subject.swift in Sources */,
+				52BB1A502FE28C6D00A5800A /* TestMode.swift in Sources */,
 				52C68AC32FB64BBF001CD906 /* LessonEditorView.swift in Sources */,
 				52DAF6922BED5EF2006EE19F /* TextStylingUtility.swift in Sources */,
 				52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */,
@@ -470,6 +477,7 @@
 				5254A5D32AF1D40300AAAA72 /* LessonView.swift in Sources */,
 				5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */,
 				527F98742AEB33590031F9E6 /* TestViewModel.swift in Sources */,
+				52BB1A522FE28C8200A5800A /* UniversalTestView.swift in Sources */,
 				521887BB2FB5131300D97803 /* QuizSnapshotsHistoryView.swift in Sources */,
 				5258BD612AE4858300F21A50 /* AuthViewModel.swift in Sources */,
 				5258BD5E2AE4753F00F21A50 /* User.swift in Sources */,

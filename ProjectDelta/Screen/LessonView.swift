@@ -218,7 +218,8 @@ struct LessonView: View {
     private var macOSNavigationControls: some View {
         VStack(spacing: 16) {
             if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 && hasQuiz {
-                NavigationLink(destination: QuickTestView(subject: subjectName, subtopic: lessonVM.currentLessonName)) {
+                // MARK: Routing updated to UniversalTestView
+                NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
                     Text("Take Practice Quiz")
                         .font(.system(.title3, design: .rounded, weight: .bold))
                         .frame(maxWidth: 300)
@@ -420,7 +421,8 @@ struct LessonView: View {
     private var lessonNavigationControls: some View {
         VStack {
             if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 && hasQuiz {
-                NavigationLink(destination: QuickTestView(subject: subjectName, subtopic: lessonVM.currentLessonName)) {
+                // MARK: Routing updated to UniversalTestView
+                NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
                     Text("Take Quiz")
                         .font(.headline)
                         .bold()
@@ -483,7 +485,9 @@ struct LessonView: View {
 }
 
 #Preview {
+    let auth = AuthViewModel()
     LessonView(subjectName: "Algebra")
     .environment(LessonViewModel())
-    .environment(AuthViewModel())
+    .environment(auth)
+    .environment(TestSessionViewModel(authViewModel: auth))
 }

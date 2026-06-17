@@ -2,15 +2,13 @@
 //  HomeView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/31/23.
-//
 
 import SwiftUI
 
 struct HomeView: View {
     // MARK: - PROPERTIES
     @Environment(AuthViewModel.self) var viewModel
-    @Environment(QuizViewModel.self) var quizViewModel
+    @Environment(TestSessionViewModel.self) var testViewModel
     @Environment(LessonViewModel.self) var lessonVM
     
     @State private var refreshKey = UUID()
@@ -45,7 +43,7 @@ struct HomeView: View {
         guard let userId = viewModel.userSession?.uid else { return }
         do {
             if let fetchedProgress = try await viewModel.fetchUserProgress(forUserID: userId) {
-                quizViewModel.userProgress = fetchedProgress
+                testViewModel.userProgress = fetchedProgress
             }
         } catch {
             print("Error running background progress load sync on HomeView: \(error.localizedDescription)")
@@ -114,7 +112,7 @@ struct HomeView: View {
                             .font(.system(.title2, design: .rounded, weight: .semibold))
                             .foregroundColor(.primary)
                         
-                        MetricsCarouselView(progress: quizViewModel.userProgress)
+                        MetricsCarouselView(progress: testViewModel.userProgress)
                             .frame(height: 380)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -126,13 +124,8 @@ struct HomeView: View {
                             .foregroundColor(.primary)
                         
                         VStack(spacing: 16) {
-                            NavigationLink(destination: SubjectGridView(navigationSource: .homeView).navigationBarBackButtonHidden(true)) {
+                            NavigationLink(destination: SubjectGridView(navigationSource: .learn).navigationBarBackButtonHidden(true)) {
                                 DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
-                            }
-                            .buttonStyle(.plain)
-                            
-                            NavigationLink(destination: SubjectGridView(navigationSource: .testView).navigationBarBackButtonHidden(true)) {
-                                DisplayCards(imageName: "eyeglasses", title: "Practice", tintColor: .purple)
                             }
                             .buttonStyle(.plain)
                             
@@ -202,18 +195,13 @@ struct HomeView: View {
                         .padding(.top, 24)
                     
                     // Expanded Metrics Carousel Slider
-                    MetricsCarouselView(progress: quizViewModel.userProgress)
+                    MetricsCarouselView(progress: testViewModel.userProgress)
                         .frame(height: 240) // Increased vertical footprint for better presence
                         .padding(.horizontal, 24)
 
                     LazyVGrid(columns: columns, spacing: 16) {
-                        NavigationLink(destination: SubjectGridView(navigationSource: .homeView).navigationBarBackButtonHidden(true)) {
+                        NavigationLink(destination: SubjectGridView(navigationSource: .learn).navigationBarBackButtonHidden(true)) {
                             DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
-                        }
-                        .buttonStyle(.plain)
-                        
-                        NavigationLink(destination: SubjectGridView(navigationSource: .testView).navigationBarBackButtonHidden(true)) {
-                            DisplayCards(imageName: "eyeglasses", title: "Practice", tintColor: .purple)
                         }
                         .buttonStyle(.plain)
                         

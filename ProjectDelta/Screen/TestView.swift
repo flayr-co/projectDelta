@@ -320,83 +320,154 @@ struct TestView: View {
 
     // MARK: - SHARED COMPONENTS
     
+    @ViewBuilder
     private func questionContentPage(for index: Int) -> some View {
         ScrollView {
             if index < quizViewModel.questions.count {
                 let question = quizViewModel.questions[index]
                 let qId = question.id ?? UUID().uuidString
                 
-                VStack(alignment: .leading, spacing: 24) {
-                    Text(question.questionText)
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    
-                    if let hint = question.hint, !hint.isEmpty {
-                        DisclosureGroup("Hint", isExpanded: $isHintExpanded) {
-                            Text(hint)
-                                .font(.callout)
-                                .foregroundColor(.secondary)
-                                .padding(.top, 8)
-                        }
-                        .tint(.cyan)
-                    }
-                    
-                    VStack(spacing: 12) {
-                        ForEach(Array(question.options.enumerated()), id: \.offset) { optionIndex, optionText in
-                            let isSelected = quizViewModel.userAnswers[qId] == optionIndex
-                            
-                            Button(action: {
-                                quizViewModel.selectAnswer(for: qId, optionIndex: optionIndex)
-                            }) {
-                                HStack {
-                                    Text(optionText)
-                                        .font(.system(.body, design: .rounded))
-                                        .foregroundColor(isSelected ? .white : .primary)
-                                    Spacer()
-                                    if isSelected {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.white)
-                                    } else {
-                                        Circle()
-                                            .stroke(Color.secondary, lineWidth: 1)
-                                            .frame(width: 20, height: 20)
-                                    }
+                // Adaptive LaTeX / Graph rendering
+                if !question.parsedBlocks.isEmpty {
+                    VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            ForEach(question.parsedBlocks) { block in
+                                if block.type == QuestionBlockType.text.rawValue {
+                                    Text(block.content)
+                                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                        .foregroundColor(.primary)
+                                        .multilineTextAlignment(.leading)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                } else if block.type == QuestionBlockType.math.rawValue {
+                                    LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.secondary.opacity(0.05))
+                                        .cornerRadius(12)
+                                } else if block.type == QuestionBlockType.graph.rawValue {
+                                    InlineGraphRenderer(graphString: block.content)
+                                        .padding(.vertical, 8)
                                 }
-                                .padding()
-                                .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.1))
-                                .cornerRadius(12)
                             }
-                            .buttonStyle(.plain)
+                        }
+                        
+                        if let hint = question.hint, !hint.isEmpty {
+                            DisclosureGroup("Hint", isExpanded: $isHintExpanded) {
+                                Text(hint)
+                                    .font(.callout)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 8)
+                            }
+                            .tint(.cyan)
+                        }
+                        
+                        VStack(spacing: 12) {
+                            ForEach(Array(question.options.enumerated()), id: \.offset) { optionIndex, optionText in
+                                let isSelected = quizViewModel.userAnswers[qId] == optionIndex
+                                
+                                Button(action: {
+                                    quizViewModel.selectAnswer(for: qId, optionIndex: optionIndex)
+                                }) {
+                                    HStack {
+                                        Text(optionText)
+                                            .font(.system(.body, design: .rounded))
+                                            .multilineTextAlignment(.leading)
+                                            .foregroundColor(isSelected ? .white : .primary)
+                                        Spacer()
+                                        if isSelected {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.white)
+                                        } else {
+                                            Circle()
+                                                .stroke(Color.secondary, lineWidth: 1)
+                                                .frame(width: 20, height: 20)
+                                        }
+                                    }
+                                    .padding()
+                                    .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.1))
+                                    .cornerRadius(12)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
+                    .padding(24)
+                    #if os(macOS)
+                    .frame(maxWidth: 800)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    #endif
                 }
-                .padding(24)
-                #if os(macOS)
-                .frame(maxWidth: 800)
-                .frame(maxWidth: .infinity, alignment: .center)
-                #endif
             }
         }
+        .scrollIndicators(.hidden)
     }
 
     private var quizEndView: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 64))
-                .foregroundColor(.green)
-            
-            Text("Quiz Complete!")
-                .font(.system(.title, design: .rounded, weight: .bold))
-            
-            if let snapshot = quizViewModel.currentSnapshot {
-                Text("Score: \(snapshot.score) / \(snapshot.totalQuestions)")
-                    .font(.system(.title2, design: .rounded))
+        ScrollView {
+            VStack(spacing: 24) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 64))
+                    .foregroundColor(.green)
                 
-                Button("Done") {
-                    dismiss()
+                Text("Quiz Complete!")
+                    .font(.system(.title, design: .rounded, weight: .bold))
+                
+                if let snapshot = quizViewModel.currentSnapshot {
+                    Text("Score: \(snapshot.score) / \(snapshot.totalQuestions)")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                    
+                    VStack(spacing: 16) {
+                        ForEach(snapshot.questionResults) { result in
+                            VStack(alignment: .leading, spacing: 12) {
+                                
+                                // Adaptive rendering matching the main testing UI
+                                if let matchedQuestion = quizViewModel.questions.first(where: { $0.questionText == result.questionText }), !matchedQuestion.parsedBlocks.isEmpty {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(matchedQuestion.parsedBlocks) { block in
+                                            if block.type == QuestionBlockType.text.rawValue {
+                                                Text(block.content)
+                                                    .font(.headline)
+                                                    .multilineTextAlignment(.leading)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            } else if block.type == QuestionBlockType.math.rawValue {
+                                                LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
+                                                    .padding(.vertical, 4)
+                                            } else if block.type == QuestionBlockType.graph.rawValue {
+                                                InlineGraphRenderer(graphString: block.content)
+                                                    .padding(.vertical, 4)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text(result.questionText)
+                                        .font(.headline)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                
+                                HStack {
+                                    let userAnswerString = result.userSelectedOptionIndex != nil ? result.options[result.userSelectedOptionIndex!] : "No Answer"
+                                    Text("Your Answer: \(userAnswerString)")
+                                        .foregroundColor(result.isCorrect ? .green : .red)
+                                    Spacer()
+                                }
+                                .font(.subheadline)
+                            }
+                            .padding()
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
+            .padding(.top)
+            .padding(.bottom, 110)
         }
     }
     
@@ -412,5 +483,13 @@ struct TestView: View {
         } catch {
             print("Failed to fetch user progress: \(error.localizedDescription)")
         }
+    }
+    
+    private var showUIControls: Bool {
+        #if os(iOS)
+        return true
+        #else
+        return false
+        #endif
     }
 }
