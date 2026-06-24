@@ -17,47 +17,45 @@ struct AdminView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                #if os(macOS)
-                Color.platformSystemGroupedBackground.ignoresSafeArea()
-                #else
-                themeBackground.ignoresSafeArea()
-                #endif
-                
-                if viewModel.isProcessing && viewModel.subjects.isEmpty {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                            .tint(emeraldAccent)
-                        Text("Loading Classroom Data...")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                    }
-                } else if viewModel.subjects.isEmpty {
-                    ContentUnavailableView(
-                        "No Subjects Found",
-                        systemImage: "books.vertical.fill",
-                        description: Text("Get started by creating a new subject for your students.")
-                    )
-                } else {
-                    Group {
-                        #if os(macOS)
-                        macOSMainContent
-                        #else
-                        iOSMainContent
-                        #endif
-                    }
+        ZStack {
+#if os(macOS)
+            Color.platformSystemGroupedBackground.ignoresSafeArea()
+#else
+            themeBackground.ignoresSafeArea()
+#endif
+            
+            if viewModel.isProcessing && viewModel.subjects.isEmpty {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .tint(emeraldAccent)
+                    Text("Loading Classroom Data...")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
+            } else if viewModel.subjects.isEmpty {
+                ContentUnavailableView(
+                    "No Subjects Found",
+                    systemImage: "books.vertical.fill",
+                    description: Text("Get started by creating a new subject for your students.")
+                )
+            } else {
+                Group {
+#if os(macOS)
+                    macOSMainContent
+#else
+                    iOSMainContent
+#endif
                 }
             }
-            .navigationTitle("Instructor Panel")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-            #endif
-            .task {
-                await viewModel.fetchSubjects()
-                await viewModel.fetchAllQuestions()
-            }
+        }
+        .navigationTitle("Instructor Panel")
+#if os(iOS)
+        .navigationBarTitleDisplayMode(.large)
+#endif
+        .task {
+            await viewModel.fetchSubjects()
+            await viewModel.fetchAllQuestions()
         }
         .tint(emeraldAccent)
     }
@@ -364,6 +362,7 @@ struct AdminSubjectDetailView: View {
             .scrollContentBackground(.hidden)
             .background(themeBackground)
         }
+        .background(themeBackground.ignoresSafeArea())
     }
     
     private var lessonsSection: some View {

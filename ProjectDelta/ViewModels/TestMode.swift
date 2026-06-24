@@ -7,7 +7,7 @@
 
 
 //
-//  TestSessionViewModel.swift
+//  TestMode.swift
 //  ProjectDelta
 //
 
@@ -234,6 +234,11 @@ class TestSessionViewModel {
     }
     
     private func applyPointsAndProgress(mode: TestMode, correctCount: Int, results: [QuestionResult]) async {
+        // Core Practice Modification: Cease point generation or progress calculation for practice sessions
+        if case .practice = mode {
+            return
+        }
+        
         guard let userId = authViewModel.currentUser?.id else { return }
         
         // Point allocation mechanics

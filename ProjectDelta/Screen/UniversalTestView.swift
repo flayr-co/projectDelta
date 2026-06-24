@@ -25,39 +25,38 @@ struct UniversalTestView: View {
     @State private var selectedQuestionIndex = 0
     @State private var isSubmitting: Bool = false
     @State private var isHintExpanded: Bool = false
+    @State private var breakdownStates: [String: Bool] = [:] // Map to handle independent practice breakdown drops
     
     var mode: TestMode
 
     var body: some View {
-        NavigationStack {
-            Group {
-                #if os(macOS)
-                macOSLayout
-                #else
-                iOSLayout
-                #endif
-            }
-            .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
-            .navigationTitle(mode.subtopicName ?? mode.subjectName)
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .bold))
-                    }
+        Group {
+#if os(macOS)
+            macOSLayout
+#else
+            iOSLayout
+#endif
+        }
+        .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
+        .navigationTitle(mode.subtopicName ?? mode.subjectName)
+#if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+#endif
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
                 }
             }
-            .task {
-                if !mode.isTimed {
-                    buttonTapped = true
-                    testViewModel.fetchTest(mode: mode)
-                }
-                await fetchUserProgress()
+        }
+        .task {
+            if !mode.isTimed {
+                buttonTapped = true
+                testViewModel.fetchTest(mode: mode)
             }
+            await fetchUserProgress()
         }
     }
 
@@ -390,6 +389,37 @@ struct UniversalTestView: View {
                             .padding(.horizontal, 20)
                         }
                         
+                        // New Practice Component: Real-time, collapsible Step-by-Step Breakdown without Point Penalty
+                        if case .practice = mode, let feedback = question.feedback, !feedback.isEmpty {
+                            DisclosureGroup(
+                                isExpanded: Binding(
+                                    get: { self.breakdownStates[qId, default: false] },
+                                    set: { self.breakdownStates[qId] = $0 }
+                                )
+                            ) {
+                                Text(feedback)
+                                    .font(.callout)
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "lightbulb.fill")
+                                        .foregroundColor(.yellow)
+                                    Text("Step-by-Step Breakdown")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                }
+                            }
+                            .tint(colorScheme == .dark ? .cyan : .blue)
+                            .padding(16)
+                            .background(Color.platformSystemBackground)
+                            .cornerRadius(16)
+                            .shadow(color: .black.opacity(0.03), radius: 8, x: 0, y: 4)
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                            .padding(.horizontal, 20)
+                        }
+                        
                         VStack(spacing: 16) {
                             let currentOptions = question.options
                             let selectedIndex = testViewModel.userAnswers[qId]
@@ -445,8 +475,13 @@ struct UniversalTestView: View {
                     .font(.system(size: 64))
                     .foregroundColor(.green)
                 
-                Text("Test Result")
-                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                if case .practice(_, _, _) = mode {
+                    Text("Practice Completed")
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                } else {
+                    Text("Test Result")
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                }
                 
                 if let snapshot = testViewModel.currentSnapshot {
                     Text("\(snapshot.score) / \(snapshot.totalQuestions)")

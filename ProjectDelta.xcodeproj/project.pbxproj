@@ -282,8 +282,6 @@
 		5297E4362AD63C6000220FC6 /* Screen */ = {
 			isa = PBXGroup;
 			children = (
-				52BB1A512FE28C8200A5800A /* UniversalTestView.swift */,
-				521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */,
 				5297E4372AD63C8B00220FC6 /* CardView.swift */,
 				5229BB092AD0CC8A0094395D /* ContentView.swift */,
 				5254A5CE2AF1ABAC00AAAA72 /* HomeView.swift */,
@@ -294,7 +292,9 @@
 				5258BD592AE340D700F21A50 /* ProfileView.swift */,
 				5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */,
 				5258BD422ADF382600F21A50 /* QuickTestView.swift */,
+				521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */,
 				5297E43B2AD6473500220FC6 /* TestView.swift */,
+				52BB1A512FE28C8200A5800A /* UniversalTestView.swift */,
 				5284D28A2B212C0800409048 /* UserStatsView.swift */,
 			);
 			path = Screen;
