@@ -70,13 +70,24 @@ struct DynamicGraphView: View {
             return "Secondary Line"
         }
     }
+    
+    private var sortedPrimaryIndices: [Int] {
+        let validCount = min(data.xValues.count, data.yValues.count)
+        return (0..<validCount).sorted { data.xValues[$0] < data.xValues[$1] }
+    }
+        
+    private var sortedSecondaryIndices: [Int]? {
+        guard let secondaryY = data.secondaryYValues else { return nil }
+        let validCount = min(data.xValues.count, secondaryY.count)
+        return (0..<validCount).sorted { data.xValues[$0] < data.xValues[$1] }
+    }
 
     var body: some View {
         VStack(spacing: 16) {
             Chart {
                 if let inequality = data.inequality {
-                    ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
-                        let xValue = data.xValues[xIndex]
+                    ForEach(sortedPrimaryIndices, id: \.self) { index in
+                        let xValue = data.xValues[index]
                         let yLineValue = inequality.slope * xValue + inequality.intercept
                         let yStartValue = inequality.shadeAbove ? yLineValue : data.yValues.min() ?? yLineValue
                         let yEndValue = inequality.shadeAbove ? data.yValues.max() ?? yLineValue : yLineValue
@@ -84,24 +95,27 @@ struct DynamicGraphView: View {
                         AreaMark(
                             x: .value("X Value", xValue),
                             yStart: .value("Y Start", yStartValue),
-                            yEnd: .value("Y End", yEndValue)
+                            yEnd: .value("Y End", yEndValue),
+                            series: .value("Dataset", "Area") // Isolates the area shading
                         )
                         .foregroundStyle(primaryColor.opacity(0.15))
                     }
                 }
                 
                 // Primary data
-                ForEach(Array(zip(data.xValues.indices, data.yValues.indices)), id: \.self.0) { (xIndex, yIndex) in
-                    let xValue = data.xValues[xIndex]
-                    let yValue = data.yValues[yIndex]
+                ForEach(sortedPrimaryIndices, id: \.self) { index in
+                    let xValue = data.xValues[index]
+                    let yValue = data.yValues[index]
+                    
                     LineMark(
                         x: .value("X Value", xValue),
-                        y: .value("Y Value", yValue)
+                        y: .value("Y Value", yValue),
+                        series: .value("Dataset", "Primary") // Isolates the primary equation
                     )
                     .interpolationMethod(.catmullRom)
                     .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     .foregroundStyle(primaryColor)
-
+                    
                     PointMark(
                         x: .value("X Value", xValue),
                         y: .value("Y Value", yValue)
@@ -110,20 +124,22 @@ struct DynamicGraphView: View {
                     .symbolSize(60)
                     .foregroundStyle(primaryColor)
                 }
-
+                
                 // Secondary data (if exists)
-                if let secondaryYValues = data.secondaryYValues {
-                    ForEach(Array(zip(data.xValues.indices, secondaryYValues.indices)), id: \.self.0) { (xIndex, yIndex) in
-                        let xValue = data.xValues[xIndex]
-                        let yValue = secondaryYValues[yIndex]
+                if let secondaryYValues = data.secondaryYValues, let secIndices = sortedSecondaryIndices {
+                    ForEach(secIndices, id: \.self) { index in
+                        let xValue = data.xValues[index]
+                        let yValue = secondaryYValues[index]
+                        
                         LineMark(
                             x: .value("X Value", xValue),
-                            y: .value("Secondary Y Value", yValue)
+                            y: .value("Secondary Y Value", yValue),
+                            series: .value("Dataset", "Secondary") // Isolates the secondary equation
                         )
                         .interpolationMethod(.catmullRom)
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                         .foregroundStyle(secondaryColor)
-
+                        
                         PointMark(
                             x: .value("X Value", xValue),
                             y: .value("Secondary Y Value", yValue)

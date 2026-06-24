@@ -29,7 +29,8 @@ struct MetricsCarouselView: View {
                     .padding(16) // Minimized padding to maximize internal space for text
             }
             .frame(width: 460) // Significantly expanded to prevent text crushing
-            .frame(maxHeight: .infinity)
+            // Ensure the left panel matches the height of the dynamically expanding right grid
+            .frame(minHeight: 380, maxHeight: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(Color.platformSystemBackground)
@@ -41,7 +42,8 @@ struct MetricsCarouselView: View {
             )
 
             // Right: Strict 2-Column Responsive Grid
-            ScrollView(.vertical, showsIndicators: false) {
+            // Removed nested ScrollView so it sizes natively and allows the parent scroll view in HomeView to manage overflow.
+            VStack(spacing: 24) {
                 let desktopColumns = [
                     GridItem(.flexible(), spacing: 24),
                     GridItem(.flexible(), spacing: 24)
@@ -49,10 +51,10 @@ struct MetricsCarouselView: View {
                 
                 LazyVGrid(columns: desktopColumns, spacing: 24) {
                     MetricCard(title: "Total Volume", value: "\(progress?.questionsAttempted ?? 0)", icon: "bolt.fill", color: .orange)
-                        .frame(height: 160)
+                        .frame(minHeight: 140)
                     
                     MetricCard(title: "Accuracy", value: accuracyPercentage, icon: "target", color: .green)
-                        .frame(height: 160)
+                        .frame(minHeight: 140)
                     
                     if let prog = progress {
                         ForEach(Array(prog.progress.sorted(by: { $0.key.rawValue < $1.key.rawValue })), id: \.key) { key, value in
@@ -62,11 +64,10 @@ struct MetricsCarouselView: View {
                                 icon: "book.fill",
                                 color: .cyan
                             )
-                            .frame(height: 160)
+                            .frame(minHeight: 140)
                         }
                     }
                 }
-                .padding(.trailing, 12) // Native scrollbar clearance
                 .padding(.bottom, 24)
             }
             .frame(maxWidth: .infinity)
@@ -149,6 +150,7 @@ struct MetricCard: View {
                 Text(title)
                     .font(.system(.title3, design: .rounded, weight: .bold))
                     .foregroundColor(.secondary)
+                    .minimumScaleFactor(0.75) // Ensure strings like "Advanced Math" scale appropriately instead of cutting off
                     .fixedSize(horizontal: false, vertical: true)
                     .lineLimit(2)
             }

@@ -166,7 +166,7 @@ struct SubjectGridView: View {
                         }
                     }
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 120) // Ensure the bottom content is not obscured by fixed UI elements
                 }
             }
         }
@@ -213,6 +213,7 @@ struct SubjectGridView: View {
                 .font(.headline)
                 .fontWeight(.bold)
                 .foregroundColor(.primary)
+                .minimumScaleFactor(0.75) // Adaptive scaling ensures multi-word strings fit gracefully
                 .multilineTextAlignment(.leading)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -220,7 +221,7 @@ struct SubjectGridView: View {
             Spacer(minLength: 0)
         }
         .padding(16)
-        .frame(height: 135)
+        .frame(minHeight: 135) // Converted to minimum height bound to allow organic expansion
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -410,7 +411,7 @@ struct LessonSelectionView: View {
                             }
                         }
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 32)
+                        .padding(.bottom, 120) // Navigation elements protection
                     }
                 }
             }

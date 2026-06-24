@@ -113,7 +113,8 @@ struct HomeView: View {
                             .foregroundColor(.primary)
                         
                         MetricsCarouselView(progress: testViewModel.userProgress)
-                            .frame(height: 380)
+                            // Removed the rigid .frame(height: 380) constraint so the component can expand natively.
+                            .frame(minHeight: 380)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     
@@ -222,7 +223,7 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 24)
                     
-                    Spacer(minLength: 120)
+                    Spacer(minLength: 120) // Retained explicit bottom space for navigation bar clearance
                 }
             }
             .background(colorScheme == .dark ? Color.customDarkGray : Color.gray.opacity(0.05))
