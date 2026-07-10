@@ -18,6 +18,15 @@ struct ProfileView: View {
     @State private var isProcessingImage = false
     
     @AppStorage("isDarkMode") private var isDarkMode = false
+        
+    // NEW: Super Admin State & Flayr LLC Auth Check
+    @State private var showSuperAdminConsole = false
+        
+    private var isFlayrOwner: Bool {
+        guard let email = viewModel.currentUser?.email.lowercased() else { return false }
+        // Add your active test email here
+        return email.hasSuffix("@flayr.co") || email == "jakemeissner9@gmail.com" || email == "jakecmeissner@gmail.com" || email == "your.test.account@gmail.com"
+    }
     
     var body: some View {
         NavigationStack {
@@ -30,6 +39,15 @@ struct ProfileView: View {
                     #endif
                 }
                 .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
+                #if os(macOS)
+                .sheet(isPresented: $showSuperAdminConsole) {
+                    SuperAdminConsoleView()
+                }
+                #else
+                .fullScreenCover(isPresented: $showSuperAdminConsole) {
+                    SuperAdminConsoleView()
+                }
+                #endif
             }
         }
     }
@@ -76,16 +94,31 @@ struct ProfileView: View {
                 .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
 
                 // Settings Grid
-                                LazyVGrid(columns: [GridItem(.flexible(), spacing: 32, alignment: .top), GridItem(.flexible(), spacing: 32, alignment: .top)], spacing: 32) {
-                    
-                    if user.role == .teacher {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 32, alignment: .top), GridItem(.flexible(), spacing: 32, alignment: .top)], spacing: 32) {
+    
+                    if user.role == .teacher || isFlayrOwner {
                         macOSSectionCard(title: "Administrative") {
-                            NavigationLink {
-                                AdminView()
-                            } label: {
-                                macOSSettingRow(icon: "lock.shield.fill", title: "Admin Panel", color: .purple)
+                            if user.role == .teacher {
+                                NavigationLink {
+                                    AdminView()
+                                } label: {
+                                    macOSSettingRow(icon: "lock.shield.fill", title: "Admin Panel", color: .purple)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
+                            
+                            if user.role == .teacher && isFlayrOwner {
+                                Divider().opacity(0.5)
+                            }
+                            
+                            if isFlayrOwner {
+                                Button {
+                                    showSuperAdminConsole = true
+                                } label: {
+                                    macOSSettingRow(icon: "server.rack", title: "Flayr Console", color: .cyan)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                     
@@ -188,7 +221,7 @@ struct ProfileView: View {
         }
         .contentShape(Rectangle())
     }
-    #endif
+    #endif // os(macOS)
 
     // MARK: - MOBILE LAYOUT (iOS)
     #if os(iOS)
@@ -227,14 +260,24 @@ struct ProfileView: View {
             }
             .listRowBackground(Color.clear)
             
-            if user.role == .teacher {
+            if user.role == .teacher || isFlayrOwner {
                 Section("Administrative") {
-                    NavigationLink {
-                        AdminView()
-                    } label: {
-                        SettingsRowView(imageName: "lock.shield.fill",
-                                        title: "Admin Panel",
-                                        tintColor: .purple)
+                    if user.role == .teacher {
+                        NavigationLink {
+                            AdminView()
+                        } label: {
+                            SettingsRowView(imageName: "lock.shield.fill",
+                                            title: "Admin Panel",
+                                            tintColor: .purple)
+                        }
+                    }
+                    
+                    if isFlayrOwner {
+                        Button(action: { showSuperAdminConsole = true }) {
+                            SettingsRowView(imageName: "server.rack",
+                                            title: "Flayr Console",
+                                            tintColor: .cyan)
+                        }
                     }
                 }
             }
@@ -289,7 +332,7 @@ struct ProfileView: View {
         }
         .padding(.bottom, 100) // Padding to clear floating tab bar only on mobile where tabbar exists
     }
-    #endif
+    #endif // os(iOS)
     
     // MARK: - SHARED LOGIC & SUBVIEWS
     private func handleImageSelection(newValue: PhotosPickerItem?, user: User) {

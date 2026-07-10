@@ -67,6 +67,7 @@
 		52C90ED82FB3D1EB0088A60F /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED72FB3D1EB0088A60F /* FirebaseFirestore */; };
 		52C90EDA2FB3D1EB0088A60F /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED92FB3D1EB0088A60F /* FirebaseStorage */; };
 		52CB38B72C0C050200B15F63 /* PracticeTestViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */; };
+		52CDD6553000BF0600705307 /* SuperAdminConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CDD6543000BEFE00705307 /* SuperAdminConsoleView.swift */; };
 		52CF267C2B1BCD6B00E7C99D /* AddTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */; };
 		52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */; };
 		52D998F02ADB3120007F90A6 /* Test.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D998EF2ADB3120007F90A6 /* Test.swift */; };
@@ -137,6 +138,7 @@
 		52C72D672AFB014800BDC77E /* BarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartView.swift; sourceTree = "<group>"; };
 		52C8ACFD2FDCFBEC0015BABE /* Color+Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Platform.swift"; sourceTree = "<group>"; };
 		52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeTestViewModel.swift; sourceTree = "<group>"; };
+		52CDD6543000BEFE00705307 /* SuperAdminConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuperAdminConsoleView.swift; sourceTree = "<group>"; };
 		52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTestView.swift; sourceTree = "<group>"; };
 		52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicGraphView.swift; sourceTree = "<group>"; };
 		52D998EF2ADB3120007F90A6 /* Test.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Test.swift; sourceTree = "<group>"; };
@@ -166,6 +168,7 @@
 		520B96822BA5372600332AF3 /* Admin */ = {
 			isa = PBXGroup;
 			children = (
+				52CDD6543000BEFE00705307 /* SuperAdminConsoleView.swift */,
 				526284042FC6C93500EED886 /* AdminTestManagerViewModel.swift */,
 				52920AE82B15662900B60A14 /* AddQuestionView.swift */,
 				52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */,
@@ -474,6 +477,7 @@
 				5297E43A2AD6434A00220FC6 /* CustomButtonView.swift in Sources */,
 				5258BD562AE3264400F21A50 /* InputView.swift in Sources */,
 				52668ED12BFD06FA0019965F /* LatexView.swift in Sources */,
+				52CDD6553000BF0600705307 /* SuperAdminConsoleView.swift in Sources */,
 				5254A5D32AF1D40300AAAA72 /* LessonView.swift in Sources */,
 				5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */,
 				527F98742AEB33590031F9E6 /* TestViewModel.swift in Sources */,

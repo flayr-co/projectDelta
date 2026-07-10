@@ -57,7 +57,21 @@ struct UniversalTestView: View {
                 }
             }
             
-            // NEW: Admin Direct Access Portal
+            // Admin Direct Access Portal
+            #if os(macOS)
+            ToolbarItem(placement: .primaryAction) {
+                if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
+                    Button(action: {
+                        targetTestId = testViewModel.questions.first?.testId
+                        showAdminEditor = true
+                    }) {
+                        Image(systemName: "pencil.and.list.clipboard")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color(red: 0.12, green: 0.65, blue: 0.65)) // Teal Accent
+                    }
+                }
+            }
+            #else
             ToolbarItem(placement: .navigationBarTrailing) {
                 if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
                     Button(action: {
@@ -71,7 +85,17 @@ struct UniversalTestView: View {
                     }
                 }
             }
+            #endif
         }
+        #if os(macOS)
+        .sheet(isPresented: $showAdminEditor) {
+            AdminTestManagerView(
+                subjectName: mode.subjectName,
+                lessonName: mode.subtopicName ?? "",
+                existingTestId: targetTestId
+            )
+        }
+        #else
         .fullScreenCover(isPresented: $showAdminEditor) {
             AdminTestManagerView(
                 subjectName: mode.subjectName,
@@ -79,6 +103,7 @@ struct UniversalTestView: View {
                 existingTestId: targetTestId
             )
         }
+        #endif
         .task {
             if !mode.isTimed {
                 buttonTapped = true

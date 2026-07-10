@@ -33,15 +33,24 @@ class AdminTestManagerViewModel {
     
     private let db = Firestore.firestore()
     
-    init(subject: String, lesson: String, existingTestId: String? = nil) {
+    init() {
+        // Empty init decouples from strict SwiftUI State caching
+    }
+    
+    // Asynchronous Injector guarantees fresh data on every launch
+    func initialize(subject: String, lesson: String, testId: String?) async {
+        guard self.subjectName.isEmpty else { return } // Prevent double-fire
+        
         self.subjectName = subject
         self.lessonName = lesson
-        self.existingTestId = existingTestId
+        self.existingTestId = testId
         
-        if let testId = existingTestId, !testId.isEmpty {
+        if let tId = testId, !tId.isEmpty {
             self.showEditor = true
-            Task { await loadExistingTest(testId: testId, subjectName: subject) }
+            await loadExistingTest(testId: tId, subjectName: subject)
         }
+        
+        await fetchDropdownData()
     }
     
     private func loadExistingTest(testId: String, subjectName: String) async {
@@ -204,17 +213,58 @@ class AdminTestManagerViewModel {
         }
         isSaving = false
     }
+    
+    // Secure Destructive Deletion
+    func deleteTest() async {
+        guard let testId = existingTestId else { return }
+        isSaving = true
+        
+        do {
+            let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: finalSubject).getDocuments()
+            guard let subjectId = subjectQuery.documents.first?.documentID else {
+                isSaving = false
+                return
+            }
+            
+            let batch = db.batch()
+            let testRef = db.collection("Subjects").document(subjectId).collection("Tests").document(testId)
+            
+            let questionsSnap = try await testRef.collection("Questions").getDocuments()
+            
+            for doc in questionsSnap.documents {
+                batch.deleteDocument(doc.reference)
+                batch.deleteDocument(db.collection("questions").document(doc.documentID))
+            }
+            
+            batch.deleteDocument(testRef)
+            try await batch.commit()
+            
+            self.generatedQuestions.removeAll()
+            withAnimation { self.showEditor = false }
+        } catch {
+            print("Failed to delete test architecture: \(error.localizedDescription)")
+        }
+        
+        isSaving = false
+    }
 }
 
 // MARK: - Main UI View
 
 struct AdminTestManagerView: View {
-    @State private var viewModel: AdminTestManagerViewModel
+    @State private var viewModel = AdminTestManagerViewModel()
     @State private var expandedQuestionId: UUID? = nil
+    @State private var showDeleteAlert: Bool = false
     @Environment(\.dismiss) var dismiss
 
+    let subjectName: String
+    let lessonName: String
+    let existingTestId: String?
+
     init(subjectName: String, lessonName: String, existingTestId: String? = nil) {
-        _viewModel = State(wrappedValue: AdminTestManagerViewModel(subject: subjectName, lesson: lessonName, existingTestId: existingTestId))
+        self.subjectName = subjectName
+        self.lessonName = lessonName
+        self.existingTestId = existingTestId
     }
 
     var body: some View {
@@ -237,7 +287,10 @@ struct AdminTestManagerView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .scrollDismissesKeyboard(.interactively)
-            .task { await viewModel.fetchDropdownData() }
+            .task {
+                // Instantly initializes the view model with the freshest parameters possible
+                await viewModel.initialize(subject: subjectName, lesson: lessonName, testId: existingTestId)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
@@ -411,10 +464,10 @@ struct AdminTestManagerView: View {
                     }
                     
                     // The Expanded Editor (Pushes content down perfectly)
-                    if expandedQuestionId == viewModel.generatedQuestions[index1].id {
+                    if expandedQuestionId == UUID(uuidString: viewModel.generatedQuestions[index1].id.uuidString) {
                         expandedEditor(for: index1)
                             .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
-                    } else if index2 < viewModel.generatedQuestions.count, expandedQuestionId == viewModel.generatedQuestions[index2].id {
+                    } else if index2 < viewModel.generatedQuestions.count, expandedQuestionId == UUID(uuidString: viewModel.generatedQuestions[index2].id.uuidString) {
                         expandedEditor(for: index2)
                             .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
                     }
@@ -480,6 +533,36 @@ struct AdminTestManagerView: View {
                 }
             }
             .disabled(viewModel.isSaving || viewModel.generatedQuestions.isEmpty)
+            
+            // Destructive Delete Action
+            if viewModel.existingTestId != nil {
+                Button(action: {
+                    showDeleteAlert = true
+                }) {
+                    HStack {
+                        Image(systemName: "trash.fill")
+                        Text("Delete Entire Exam")
+                            .fontWeight(.bold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.red.opacity(0.1))
+                    .foregroundColor(.red)
+                    .cornerRadius(14)
+                }
+                .alert("Delete Exam", isPresented: $showDeleteAlert) {
+                    Button("Cancel", role: .cancel) { }
+                    Button("Delete", role: .destructive) {
+                        Task {
+                            await viewModel.deleteTest()
+                            dismiss()
+                        }
+                    }
+                } message: {
+                    Text("Are you sure you want to permanently delete this exam and all associated questions? This action cannot be undone.")
+                }
+                .disabled(viewModel.isSaving)
+            }
         }
     }
     
