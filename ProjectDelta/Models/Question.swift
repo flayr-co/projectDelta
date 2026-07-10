@@ -124,10 +124,49 @@ enum QuestionGraphType: String, CaseIterable {
 }
 
 struct QuestionBlockModel: Identifiable, Codable, Equatable {
-    var id = UUID()
+    var id: String
     var type: String
     var content: String
     var graphType: String?
+    
+    init(id: String = UUID().uuidString, type: String, content: String, graphType: String? = nil) {
+        self.id = id
+        self.type = type
+        self.content = content
+        self.graphType = graphType
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, type, content, graphType
+    }
+    
+    // Indestructible Decoder with Auto-Healing Math Logic
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Safely extract ID whether it's a String, a strict UUID, or completely missing
+        if let idString = try? container.decode(String.self, forKey: .id) {
+            self.id = idString
+        } else if let idUUID = try? container.decode(UUID.self, forKey: .id) {
+            self.id = idUUID.uuidString
+        } else {
+            self.id = UUID().uuidString
+        }
+        
+        self.type = try container.decodeIfPresent(String.self, forKey: .type) ?? QuestionBlockType.text.rawValue
+        
+        var rawContent = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
+        
+        // Auto-Heal stripped backslashes from Firestore corruption
+        if self.type == QuestionBlockType.math.rawValue {
+            let commands = ["frac", "sqrt", "sin", "cos", "tan", "csc", "sec", "cot", "ln", "log", "pi", "theta", "alpha", "beta", "int", "sum", "infty", "leq", "geq", "neq", "approx", "times", "div", "pm"]
+            for cmd in commands {
+                rawContent = rawContent.replacingOccurrences(of: "(?<!\\\\)\(cmd)", with: "\\\\\(cmd)", options: .regularExpression)
+            }
+        }
+        self.content = rawContent
+        self.graphType = try container.decodeIfPresent(String.self, forKey: .graphType)
+    }
 }
 
 extension Question {
@@ -139,12 +178,15 @@ extension Question {
         if questionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return []
         }
+        // Intercept broken JSON strings and display a clean admin warning instead of crashing UI
+        if questionText.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[") {
+            return [QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: "⚠️ Rendering Error: Data corrupted. Please open and re-save this question in the Admin portal to automatically heal the JSON.")]
+        }
         return [QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: questionText)]
     }
     
     mutating func updateWith(blocks: [QuestionBlockModel]) {
         // Save the raw blocks exactly as the user typed them.
-        // We no longer permanently overwrite the raw content with parsed LaTeX here.
         if let data = try? JSONEncoder().encode(blocks),
            let jsonString = String(data: data, encoding: .utf8) {
             self.questionText = jsonString

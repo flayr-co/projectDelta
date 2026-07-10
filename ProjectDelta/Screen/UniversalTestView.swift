@@ -5,14 +5,9 @@
 //  Created by Jake Meissner on 6/17/26.
 //
 
-
-//
-//  UniversalTestView.swift
-//  ProjectDelta
-//
-
 import SwiftUI
 import FirebaseFirestore
+import Combine // Required for Timer
 
 struct UniversalTestView: View {
     @Environment(AuthViewModel.self) var authViewModel
@@ -25,23 +20,34 @@ struct UniversalTestView: View {
     @State private var selectedQuestionIndex = 0
     @State private var isSubmitting: Bool = false
     @State private var isHintExpanded: Bool = false
-    @State private var breakdownStates: [String: Bool] = [:] // Map to handle independent practice breakdown drops
+    @State private var breakdownStates: [String: Bool] = [:]
+    
+    @State private var showAdminEditor = false
+    @State private var targetTestId: String? = nil
+    
+    // macOS Hover States: Maps Question ID to currently hovered Option Index
+    @State private var hoveredOptions: [String: Int] = [:]
+    
+    // Timer State
+    @State private var timeRemaining: Int = 300 // Default 5 minutes (300 seconds)
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     var mode: TestMode
 
     var body: some View {
         Group {
-#if os(macOS)
+            #if os(macOS)
             macOSLayout
-#else
+            #else
             iOSLayout
-#endif
+            #endif
         }
         .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
         .navigationTitle(mode.subtopicName ?? mode.subjectName)
-#if os(iOS)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-#endif
+        .toolbar(.hidden, for: .tabBar)
+        #endif
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -50,6 +56,28 @@ struct UniversalTestView: View {
                         .font(.system(size: 14, weight: .bold))
                 }
             }
+            
+            // NEW: Admin Direct Access Portal
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
+                    Button(action: {
+                        // Capture the testId from the first loaded question to ensure we edit this exact exam
+                        targetTestId = testViewModel.questions.first?.testId
+                        showAdminEditor = true
+                    }) {
+                        Image(systemName: "pencil.and.list.clipboard")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color(red: 0.12, green: 0.65, blue: 0.65)) // Teal Accent
+                    }
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showAdminEditor) {
+            AdminTestManagerView(
+                subjectName: mode.subjectName,
+                lessonName: mode.subtopicName ?? "",
+                existingTestId: targetTestId
+            )
         }
         .task {
             if !mode.isTimed {
@@ -58,6 +86,31 @@ struct UniversalTestView: View {
             }
             await fetchUserProgress()
         }
+        .onReceive(timer) { _ in
+            handleTimerTick()
+        }
+    }
+    
+    // MARK: - TIMER LOGIC
+    private func handleTimerTick() {
+        guard mode.isTimed, buttonTapped, !testViewModel.isQuizComplete, !testViewModel.isGeneratingQuiz, !testViewModel.questions.isEmpty else { return }
+        
+        if timeRemaining > 0 {
+            timeRemaining -= 1
+        } else if !isSubmitting {
+            // Force auto-submit when time expires
+            isSubmitting = true
+            Task {
+                await testViewModel.finishTest(mode: mode)
+                isSubmitting = false
+            }
+        }
+    }
+    
+    private var timeString: String {
+        let minutes = timeRemaining / 60
+        let seconds = timeRemaining % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 
     // MARK: - DESKTOP LAYOUT (macOS)
@@ -84,9 +137,25 @@ struct UniversalTestView: View {
                         Text(mode.subtopicName ?? mode.subjectName)
                             .font(.system(.subheadline, design: .rounded, weight: .semibold))
                             .foregroundColor(.secondary)
+                        
                         Spacer()
+                        
+                        // Active Timer Display
+                        if mode.isTimed {
+                            HStack(spacing: 6) {
+                                Image(systemName: "timer")
+                                Text(timeString)
+                                    .font(.system(.body, design: .monospaced, weight: .bold))
+                            }
+                            .foregroundColor(timeRemaining <= 60 ? .red : .primary)
+                            .padding(.trailing, 16)
+                            
+                            Divider().frame(height: 20)
+                        }
+                        
                         Text("Question \(currentQuestionIndex + 1) / \(testViewModel.questions.count)")
                             .font(.system(.body, design: .rounded, weight: .bold))
+                            .padding(.leading, mode.isTimed ? 16 : 0)
                     }
                     .padding(24)
                     .background(Color.platformSystemBackground)
@@ -103,6 +172,7 @@ struct UniversalTestView: View {
                         Button("Previous") { withAnimation { currentQuestionIndex -= 1 } }
                             .disabled(currentQuestionIndex == 0)
                             .controlSize(.large)
+                            .keyboardShortcut(.leftArrow, modifiers: [])
                         
                         Spacer()
                         
@@ -110,8 +180,9 @@ struct UniversalTestView: View {
                             Button("Next") { withAnimation { currentQuestionIndex += 1 } }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.large)
+                                .keyboardShortcut(.rightArrow, modifiers: [])
                         } else {
-                            Button("Submit Test") {
+                            Button(isSubmitting ? "Submitting..." : "Submit Test") {
                                 isSubmitting = true
                                 Task {
                                     await testViewModel.finishTest(mode: mode)
@@ -137,7 +208,7 @@ struct UniversalTestView: View {
     
     private var macOSIntroView: some View {
         VStack(spacing: 32) {
-            Image(systemName: "doc.text.magnifyingglass")
+            Image(systemName: "timer")
                 .font(.system(size: 64))
                 .foregroundColor(.accentColor)
             
@@ -149,7 +220,7 @@ struct UniversalTestView: View {
                 Text("Ready to test your knowledge?")
                     .font(.system(size: 42, weight: .black, design: .rounded))
                 
-                Text("Timed Session • Challenging Questions")
+                Text("5 Minute Timed Session • Challenging Questions")
                     .font(.system(.title3, design: .rounded))
                     .foregroundColor(.secondary)
             }
@@ -157,6 +228,7 @@ struct UniversalTestView: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.5)) {
                     buttonTapped = true
+                    timeRemaining = 300 // Reset timer strictly on start
                 }
                 testViewModel.fetchTest(mode: mode)
             } label: {
@@ -185,6 +257,27 @@ struct UniversalTestView: View {
             } else if testViewModel.isQuizComplete {
                 quizEndView
             } else if !testViewModel.questions.isEmpty {
+                
+                // iOS Mobile Header Timer
+                if mode.isTimed {
+                    HStack {
+                        Spacer()
+                        HStack(spacing: 4) {
+                            Image(systemName: "timer")
+                            Text(timeString)
+                                .monospacedDigit()
+                        }
+                        .font(.subheadline.bold())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(timeRemaining <= 60 ? Color.red.opacity(0.1) : Color.primary.opacity(0.05))
+                        .foregroundColor(timeRemaining <= 60 ? .red : .primary)
+                        .clipShape(Capsule())
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                }
+
                 ZStack(alignment: .bottom) {
                     TabView(selection: $currentQuestionIndex) {
                         ForEach(0..<testViewModel.questions.count, id: \.self) { index in
@@ -224,7 +317,7 @@ struct UniversalTestView: View {
                 Text("Take the quiz in the time given")
                     .font(.system(size: 32, weight: .bold))
                     .multilineTextAlignment(.center)
-                Text("Timed Session")
+                Text("5 Minute Session")
                     .font(.system(size: 20, weight: .semibold))
             }
             .foregroundStyle(LinearGradient(colors: [.cyan, .teal, .mint], startPoint: .top, endPoint: .bottom))
@@ -233,6 +326,7 @@ struct UniversalTestView: View {
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.5)) {
                     buttonTapped = true
+                    timeRemaining = 300
                 }
                 testViewModel.fetchTest(mode: mode)
             }) {
@@ -314,7 +408,7 @@ struct UniversalTestView: View {
                         isSubmitting = false
                     }
                 }) {
-                    Text("Turn In")
+                    Text(isSubmitting ? "..." : "Turn In")
                         .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
@@ -348,7 +442,6 @@ struct UniversalTestView: View {
                 let question = testViewModel.questions[index]
                 let qId = question.id ?? UUID().uuidString
                 
-                // Adaptive LaTeX / Graph rendering
                 if !question.parsedBlocks.isEmpty {
                     VStack(alignment: .leading, spacing: 24) {
                         VStack(alignment: .leading, spacing: 16) {
@@ -389,7 +482,7 @@ struct UniversalTestView: View {
                             .padding(.horizontal, 20)
                         }
                         
-                        // New Practice Component: Real-time, collapsible Step-by-Step Breakdown without Point Penalty
+                        // Practice Mode Feedback Expansion
                         if case .practice = mode, let feedback = question.feedback, !feedback.isEmpty {
                             DisclosureGroup(
                                 isExpanded: Binding(
@@ -420,6 +513,7 @@ struct UniversalTestView: View {
                             .padding(.horizontal, 20)
                         }
                         
+                        // Interactive Options with Native macOS Hover states
                         VStack(spacing: 16) {
                             let currentOptions = question.options
                             let selectedIndex = testViewModel.userAnswers[qId]
@@ -444,7 +538,12 @@ struct UniversalTestView: View {
                                         }
                                     }
                                     .padding()
-                                    .background(selectedIndex == optIndex ? Color.accentColor : Color.secondary.opacity(0.1))
+                                    .contentShape(Rectangle())
+                                    // Complex background state to handle macOS hover seamlessly
+                                    .background(
+                                        selectedIndex == optIndex ? Color.accentColor :
+                                        (hoveredOptions[qId] == optIndex ? Color.secondary.opacity(0.15) : Color.secondary.opacity(0.05))
+                                    )
                                     .cornerRadius(12)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
@@ -452,6 +551,15 @@ struct UniversalTestView: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
+                                #if os(macOS)
+                                .onHover { isHovered in
+                                    if isHovered {
+                                        hoveredOptions[qId] = optIndex
+                                    } else if hoveredOptions[qId] == optIndex {
+                                        hoveredOptions[qId] = nil
+                                    }
+                                }
+                                #endif
                             }
                         }
                         .padding(.horizontal, 20)
@@ -492,7 +600,6 @@ struct UniversalTestView: View {
                         ForEach(snapshot.questionResults) { result in
                             VStack(alignment: .leading, spacing: 12) {
                                 
-                                // Adaptive rendering matching the main testing UI
                                 if let matchedQuestion = testViewModel.questions.first(where: { $0.questionText == result.questionText }), !matchedQuestion.parsedBlocks.isEmpty {
                                     VStack(alignment: .leading, spacing: 8) {
                                         ForEach(matchedQuestion.parsedBlocks) { block in

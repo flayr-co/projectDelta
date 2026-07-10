@@ -70,7 +70,7 @@ struct LatexWebView: PlatformViewRepresentable {
         let js = """
         const resizeObserver = new ResizeObserver(entries => {
             for (let entry of entries) {
-                window.webkit.messageHandlers.heightHandler.postMessage(entry.target.offsetHeight);
+                window.webkit.messageHandlers.heightHandler.postMessage(entry.target.scrollHeight);
             }
         });
         resizeObserver.observe(document.getElementById('math-container'));
@@ -96,70 +96,70 @@ struct LatexWebView: PlatformViewRepresentable {
     private func updateWebView(_ webView: WKWebView, context: Context) {
         let textColor = colorScheme == .dark ? "white" : "black"
         let latexTextColor = colorScheme == .dark ? "cyan" : "red"
-
-        // Old Regex for *blue* highlighting
+        
         let processedLatex = latex
             .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(latexTextColor)}{$1}", options: .regularExpression)
-            .replacingOccurrences(of: "\\n", with: "\\\\\\")
+            .replacingOccurrences(of: "\n", with: " \\\\ ")
+            .replacingOccurrences(of: "\\n", with: " \\\\ ")
         
         let htmlString = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-            <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-            <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-            <style>
-                body {
-                    font-size: 110%;
-                    color: \(textColor);
-                    background-color: transparent;
-                    margin: 0;
-                    padding: 8px 0px; /* Padding to prevent vertical clipping */
-                    display: flex;
-                    align-items: center;
-                    justify-content: flex-start;
-                    overflow: hidden; /* Added to stop internal element scrolling */
-                }
-                #math-container {
-                    display: inline-block;
-                    width: 100%;
-                }
-            </style>
-            <script>
-                window.MathJax = {
-                    tex: {
-                        inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
-                        displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
-                        processEscapes: true,
-                        tags: 'none'
-                    },
-                    options: {
-                        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
-                        ignoreHtmlClass: 'tex2jax_ignore',
-                        processHtmlClass: 'tex2jax_process'
-                    },
-                    svg: {
-                        fontCache: 'global'
-                    },
-                    startup: {
-                        pageReady: () => {
-                            return MathJax.startup.defaultPageReady().then(() => {
-                                let container = document.getElementById('math-container');
-                                window.webkit.messageHandlers.heightHandler.postMessage(container.offsetHeight);
-                            });
-                        }
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+                <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+                <style>
+                    body {
+                        font-size: 110%;
+                        color: \(textColor);
+                        background-color: transparent;
+                        margin: 0;
+                        padding: 12px 4px; /* Improved padding to prevent vertical and horizontal clipping */
+                        display: flex;
+                        align-items: center;
+                        justify-content: flex-start;
+                        overflow: visible; /* Prevents fraction truncation */
                     }
-                };
-            </script>
-        </head>
-        <body>
-            <div id="math-container">
-                \(processedLatex)
-            </div>
-        </body>
-        </html>
-        """
+                    #math-container {
+                        display: inline-block;
+                        width: 100%;
+                    }
+                </style>
+                <script>
+                    window.MathJax = {
+                        tex: {
+                            inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                            displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+                            processEscapes: true,
+                            tags: 'none'
+                        },
+                        options: {
+                            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+                            ignoreHtmlClass: 'tex2jax_ignore',
+                            processHtmlClass: 'tex2jax_process'
+                        },
+                        svg: {
+                            fontCache: 'global'
+                        },
+                        startup: {
+                            pageReady: () => {
+                                return MathJax.startup.defaultPageReady().then(() => {
+                                    let container = document.getElementById('math-container');
+                                    window.webkit.messageHandlers.heightHandler.postMessage(container.scrollHeight);
+                                });
+                            }
+                        }
+                    };
+                </script>
+            </head>
+            <body>
+                <div id="math-container">
+                    \(processedLatex)
+                </div>
+            </body>
+            </html>
+            """
         webView.loadHTMLString(htmlString, baseURL: nil)
     }
     
