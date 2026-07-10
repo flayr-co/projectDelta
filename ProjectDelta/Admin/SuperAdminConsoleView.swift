@@ -132,6 +132,9 @@ struct SuperAdminConsoleView: View {
                                 Text(doc.id).font(.system(.body, design: .monospaced)).fontWeight(.bold)
                             }
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) { docToDelete = doc.id; showDeleteAlert = true } label: { Label("Delete", systemImage: "trash") }
+                        }
                     }
                 }
             }
@@ -140,14 +143,12 @@ struct SuperAdminConsoleView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showNewDocAlert = true }) { Image(systemName: "plus") }.disabled(viewModel.collectionPath.isEmpty)
-                }
                 #if os(macOS)
                 ToolbarItem(placement: .navigation) { if viewModel.collectionPath.count > 1 { backButton } }
                 #else
                 ToolbarItem(placement: .navigationBarLeading) { if viewModel.collectionPath.count > 1 { backButton } }
                 #endif
+                ToolbarItem(placement: .primaryAction) { Button(action: { showNewDocAlert = true }) { Image(systemName: "plus") }.disabled(viewModel.collectionPath.isEmpty) }
             }
         } detail: {
             if let doc = viewModel.selectedDocument {
@@ -155,12 +156,20 @@ struct SuperAdminConsoleView: View {
             } else { ContentUnavailableView("Select a Document", systemImage: "server.rack") }
         }
         .preferredColorScheme(.dark)
+        .alert("Delete Document", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) { docToDelete = nil }
+            Button("Delete", role: .destructive) { if let id = docToDelete { Task { await viewModel.deleteDocument(id: id) } } }
+        } message: { Text("Permanently eradicate from Firestore?") }
+        .alert("New Document", isPresented: $showNewDocAlert) {
+            TextField("Document ID (Leave blank for Auto-ID)", text: $newDocId)
+            Button("Cancel", role: .cancel) { newDocId = "" }
+            Button("Create") { let idToUse = newDocId.isEmpty ? UUID().uuidString : newDocId; Task { await viewModel.createNewDocument(with: idToUse); newDocId = "" } }
+        }
     }
     
-    // BACK BUTTON IS NOW PROPERLY NESTED
     private var backButton: some View {
         Button(action: { Task { await viewModel.navigateBack() } }) {
-            HStack { Image(systemName: "chevron.left"); Text("Back") }
+            HStack { Image(systemName: "chevron.left"); Text("Back") }.fontWeight(.bold).foregroundStyle(accentTeal)
         }
     }
 }
@@ -194,7 +203,7 @@ struct DocumentEditorPanel: View {
             #else
             .listStyle(.inset)
             #endif
-            Button("Commit Mutation") { onSave() }.padding()
+            Button("Commit Mutation") { onSave() }.padding().disabled(isSaving)
         }
     }
 }
@@ -206,7 +215,7 @@ struct DynamicFieldRow: View {
         HStack {
             Text(key).frame(width: 100, alignment: .leading)
             if let str = value as? String { TextField("Value", text: Binding(get: { str }, set: { onUpdate($0) })) }
-            else { Text("Complex Data") }
+            else { Text("Complex Data").foregroundStyle(.secondary) }
         }
         .swipeActions { Button("Delete", role: .destructive, action: onDelete) }
     }
