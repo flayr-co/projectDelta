@@ -13,15 +13,17 @@ struct HomeView: View {
     @State private var algebraTotal: Int = 18
     
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 32) {
-                headerSection
-                contentSection
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 32) {
+                    headerSection
+                    contentSection
+                }
+                .padding(32)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(32)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(red: 0.1, green: 0.1, blue: 0.1))
         }
-        .background(Color(red: 0.1, green: 0.1, blue: 0.1))
         .task {
             await fetchDashboardMetrics()
         }
@@ -165,17 +167,26 @@ struct HomeView: View {
     
     private var quickActionsList: some View {
         VStack(spacing: 24) {
-            ActionCardButton(title: "Learn", icon: "desktopcomputer", color: .cyan) {
-                // Route to Learn
-            }
-            ActionCardButton(title: "Practice", icon: "pencil", color: .orange) {
-                // Route to Practice
-            }
-            ActionCardButton(title: "Leaderboard", icon: "trophy", color: .yellow) {
-                // Route to Leaderboard
-            }
+            ActionCardButton(
+                title: "Learn",
+                icon: "desktopcomputer",
+                color: .cyan,
+                destination: SubjectGridView(navigationSource: .learn).navigationBarBackButtonHidden(true)
+            )
+            ActionCardButton(
+                title: "Practice",
+                icon: "pencil",
+                color: .orange,
+                destination: SubjectGridView(navigationSource: .practice).navigationBarBackButtonHidden(true)
+            )
+            ActionCardButton(
+                title: "Leaderboard",
+                icon: "trophy",
+                color: .yellow,
+                destination: LeaderboardView().navigationBarBackButtonHidden(true)
+            )
             
-            Spacer(minLength: 0) // Pushes quick actions to the top if the left column is taller
+            Spacer(minLength: 0)
         }
     }
     
@@ -259,14 +270,14 @@ struct StatCardView: View {
     }
 }
 
-struct ActionCardButton: View {
+struct ActionCardButton<Destination: View>: View {
     let title: String
     let icon: String
     let color: Color
-    let action: () -> Void
+    let destination: Destination
     
     var body: some View {
-        Button(action: action) {
+        NavigationLink(destination: destination) {
             HStack {
                 Text(title)
                     .font(.title2)
@@ -279,6 +290,7 @@ struct ActionCardButton: View {
             .padding(.vertical, 32)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
             .background(
                 LinearGradient(
                     colors: [color.opacity(0.85), color.opacity(0.65)],
@@ -288,8 +300,7 @@ struct ActionCardButton: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
-        .buttonStyle(.plain) // Prevents default macOS button background styling
-        .contentShape(Rectangle()) // Ensures entire card is clickable
+        .buttonStyle(.plain)
     }
 }
 
