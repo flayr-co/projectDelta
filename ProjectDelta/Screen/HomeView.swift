@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var accuracy: Double = 0.77
     @State private var algebraCorrect: Int = 14
     @State private var algebraTotal: Int = 18
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         NavigationStack {
@@ -22,22 +23,20 @@ struct HomeView: View {
                 .padding(32)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(Color(red: 0.1, green: 0.1, blue: 0.1))
+            .background(colorScheme == .dark ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color(red: 0.95, green: 0.95, blue: 0.97))
         }
         .task {
             await fetchDashboardMetrics()
         }
     }
-    
-    // MARK: - Subviews
-    
+        
     private var headerSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Teacher Dashboard")
                     .font(.largeTitle)
                     .fontWeight(.bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colorScheme == .dark ? .white : .primary)
                 
                 Text("Overview & Analytics")
                     .font(.title3)
@@ -65,15 +64,15 @@ struct HomeView: View {
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
-            .background(Color(red: 0.15, green: 0.15, blue: 0.15))
+            .background(colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.15) : .white)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                    .stroke(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
             )
         }
     }
-    
+        
     private var contentSection: some View {
         HStack(alignment: .top, spacing: 32) {
             // Left Column: Performance Metrics (Expands dynamically)
@@ -81,12 +80,11 @@ struct HomeView: View {
                 Text("Performance Metrics")
                     .font(.title2)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colorScheme == .dark ? .white : .primary)
                 
-                // On a very wide Mac screen, we can let the donut chart and stats grid sit side-by-side or stack responsively
                 HStack(alignment: .top, spacing: 24) {
                     donutChartCard
-                        .frame(maxWidth: 400) // Keeps the donut card from stretching absurdly wide
+                        .frame(maxWidth: 400)
                     
                     statsGrid
                 }
@@ -98,20 +96,20 @@ struct HomeView: View {
                 Text("Quick Actions")
                     .font(.title2)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colorScheme == .dark ? .white : .primary)
                 
                 quickActionsList
             }
             .frame(minWidth: 250, idealWidth: 300, maxWidth: 350)
         }
     }
-    
+        
     private var donutChartCard: some View {
         VStack(spacing: 32) {
             // Donut Chart
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.05), lineWidth: 32)
+                    .stroke(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 32)
                 
                 Circle()
                     .trim(from: 0, to: CGFloat(Double(algebraCorrect) / Double(algebraTotal)))
@@ -121,7 +119,7 @@ struct HomeView: View {
                 VStack(spacing: 4) {
                     Text("\(algebraCorrect)")
                         .font(.system(size: 48, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(colorScheme == .dark ? .white : .primary)
                     Text("CORRECT")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
@@ -140,11 +138,11 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(32)
-        .background(Color(red: 0.12, green: 0.12, blue: 0.12))
+        .background(colorScheme == .dark ? Color(red: 0.12, green: 0.12, blue: 0.12) : .white)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                .stroke(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
         )
     }
     
@@ -205,6 +203,7 @@ struct LegendItemView: View {
     let color: Color
     let title: String
     let value: String
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -217,7 +216,7 @@ struct LegendItemView: View {
                 Text(title)
                     .font(.body)
                     .fontWeight(.bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colorScheme == .dark ? .white : .primary)
                 Text(value)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -231,6 +230,7 @@ struct StatCardView: View {
     let iconColor: Color
     let title: String
     let value: String
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -256,16 +256,16 @@ struct StatCardView: View {
                 Text(value)
                     .font(.title)
                     .fontWeight(.bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(colorScheme == .dark ? .white : .primary)
             }
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(red: 0.12, green: 0.12, blue: 0.12))
+        .background(colorScheme == .dark ? Color(red: 0.12, green: 0.12, blue: 0.12) : .white)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                .stroke(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
         )
     }
 }

@@ -69,216 +69,239 @@ struct LessonView: View {
     }
 
     // MARK: - DESKTOP LAYOUT (macOS)
-    #if os(macOS)
-    private var macOSLayout: some View {
-        ZStack {
-            Color.platformSystemGroupedBackground.ignoresSafeArea()
+        #if os(macOS)
+        private var macOSLayout: some View {
+            ZStack {
+                (colorScheme == .dark ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color(red: 0.95, green: 0.95, blue: 0.97)).ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                if showUIControls {
-                    macOSHeaderView
-                        .transition(.opacity)
-                }
+                VStack(spacing: 0) {
+                    if showUIControls {
+                        macOSHeaderView
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
 
-                if lessonVM.isLoading {
-                    Spacer()
-                    ProgressView("Loading lesson content...")
-                    Spacer()
-                } else if lessonVM.lessonPages.isEmpty {
-                    Spacer()
-                    Text("No content available.")
-                        .font(.system(.title3, design: .rounded, weight: .semibold))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                } else {
-                    // Custom macOS Paging (Avoids TabView tab-style rendering)
-                    ZStack {
-                        if lessonVM.lessonPages.indices.contains(lessonVM.currentPageIndex) {
-                            let page = lessonVM.lessonPages[lessonVM.currentPageIndex]
-                            LessonContentPage(
-                                page: page,
-                                isInteractingWithExplanation: $isInteractingWithExplanation,
-                                onBackgroundTap: {}
-                            )
-                            .id(page.id)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .scale(scale: 0.98)),
-                                removal: .opacity.combined(with: .scale(scale: 1.02))
-                            ))
-                            .frame(maxWidth: 1000)
-                            .frame(maxWidth: .infinity, alignment: .center)
+                    if lessonVM.isLoading {
+                        Spacer()
+                        ProgressView("Loading lesson content...")
+                            .tint(.cyan)
+                        Spacer()
+                    } else if lessonVM.lessonPages.isEmpty {
+                        Spacer()
+                        Text("No content available.")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    } else {
+                        // Custom macOS Paging (Avoids TabView tab-style rendering)
+                        ZStack {
+                            if lessonVM.lessonPages.indices.contains(lessonVM.currentPageIndex) {
+                                let page = lessonVM.lessonPages[lessonVM.currentPageIndex]
+                                ScrollView(.vertical, showsIndicators: false) {
+                                    LessonContentPage(
+                                        page: page,
+                                        isInteractingWithExplanation: $isInteractingWithExplanation,
+                                        onBackgroundTap: {}
+                                    )
+                                    .padding(.vertical, 40)
+                                    .frame(maxWidth: 1000, alignment: .leading)
+                                }
+                                .id(page.id)
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .scale(scale: 0.98)),
+                                    removal: .opacity.combined(with: .scale(scale: 1.02))
+                                ))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
+                            if lessonVM.lessonPages.indices.contains(newPageIndex) {
+                                let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
+                                lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
+                            }
                         }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
-                        if lessonVM.lessonPages.indices.contains(newPageIndex) {
-                            let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
-                            lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
-                        }
+
+                    if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
+                        macOSNavigationControls
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
 
-                if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
-                    macOSNavigationControls
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                if showTableOfContents {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showTableOfContents = false
+                            }
+                        }
+
+                    TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName, isShowing: $showTableOfContents)
+                        .frame(width: 360)
+                        .background(colorScheme == .dark ? Color(red: 0.12, green: 0.12, blue: 0.12) : .white)
+                        .cornerRadius(24)
+                        .shadow(color: .black.opacity(0.2), radius: 30)
+                        .transition(.move(edge: .trailing))
+                        .padding(24)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
+        }
 
-            if showTableOfContents {
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                    .onTapGesture {
+        private var macOSHeaderView: some View {
+            HStack(alignment: .center, spacing: 24) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(subjectName)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    
+                    Text(lessonVM.currentLessonName)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.cyan)
+                }
+
+                Spacer()
+
+                HStack(spacing: 16) {
+                    Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showTableOfContents = false
+                            showTableOfContents.toggle()
+                            if showTableOfContents {
+                                lessonVM.fetchAllLessons(for: subjectName)
+                            }
                         }
-                    }
-
-                TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName, isShowing: $showTableOfContents)
-                    .frame(width: 360)
-                    .background(Color.platformSystemBackground)
-                    .cornerRadius(24)
-                    .shadow(color: .black.opacity(0.1), radius: 20)
-                    .transition(.move(edge: .trailing))
-                    .padding(24)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-    }
-
-    private var macOSHeaderView: some View {
-        HStack(spacing: 24) {
-            Button(action: {
-                dismiss()
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .bold))
-                    Text("Back")
-                        .font(.system(.body, design: .rounded, weight: .semibold))
-                }
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.secondary.opacity(0.1))
-                .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-
-            Text(lessonVM.currentLessonName)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundColor(.primary)
-
-            Spacer()
-
-            HStack(spacing: 16) {
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showTableOfContents.toggle()
-                        if showTableOfContents {
-                            lessonVM.fetchAllLessons(for: subjectName)
+                    }) {
+                        HStack {
+                            Image(systemName: "list.bullet")
+                            Text("Index")
                         }
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "list.number")
-                        Text("Index")
-                    }
-                    .font(.system(.body, design: .rounded, weight: .semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor.opacity(0.15))
-                    .foregroundColor(.accentColor)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-
-                Button(action: {
-                    lessonVM.toggleBookmark(authVM: authVM)
-                }) {
-                    Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? .blue : .secondary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.secondary.opacity(0.1))
+                        .font(.headline)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05))
+                        .foregroundStyle(colorScheme == .dark ? .white : .primary)
                         .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+
+                    Button(action: {
+                        lessonVM.toggleBookmark(authVM: authVM)
+                    }) {
+                        Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
+                            .font(.headline)
+                            .foregroundColor(lessonVM.isCurrentPageBookmarked ? .cyan : (colorScheme == .dark ? .white : .primary))
+                            .padding(14)
+                            .background(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Circle())
+                    
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.headline)
+                            .foregroundColor(colorScheme == .dark ? .white : .primary)
+                            .padding(14)
+                            .background(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 40)
+            .padding(.vertical, 24)
+            .background(colorScheme == .dark ? Color(red: 0.12, green: 0.12, blue: 0.12) : .white)
+            .overlay(
+                Rectangle().frame(height: 1).foregroundColor(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05)),
+                alignment: .bottom
+            )
         }
-        .padding(.horizontal, 40)
-        .padding(.vertical, 20)
-        .background(Color.platformSystemBackground)
-        .overlay(
-            Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.05)),
-            alignment: .bottom
-        )
-    }
 
     private var macOSNavigationControls: some View {
-        VStack(spacing: 16) {
+        HStack {
+            Button(action: {
+                withAnimation {
+                    lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
+                }
+            }) {
+                HStack(spacing: 12) {
+                    Image(systemName: "chevron.left").font(.title3.bold())
+                    Text("Previous").font(.title3).fontWeight(.bold)
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 16)
+                .foregroundStyle(colorScheme == .dark ? .white : .primary)
+                .background(colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .disabled(lessonVM.currentPageIndex == 0)
+            .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
+            
+            Spacer()
+            
             if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 && hasQuiz {
-                // MARK: Routing updated to UniversalTestView
                 NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
                     Text("Take Practice Quiz")
-                        .font(.system(.title3, design: .rounded, weight: .bold))
-                        .frame(maxWidth: 300)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .padding(.horizontal, 32)
                         .padding(.vertical, 16)
-                        .background(Color.green)
-                        .foregroundColor(.white)
+                        .background(
+                            LinearGradient(colors: [.green.opacity(0.85), .green.opacity(0.65)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        )
+                        .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: Color.green.opacity(0.3), radius: 10, x: 0, y: 5)
                 }
                 .buttonStyle(.plain)
-            }
-
-            HStack {
-                Button(action: {
-                    withAnimation {
-                        lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
-                    }
-                }) {
-                    Image(systemName: "chevron.left.circle.fill")
-                        .font(.system(size: 42))
-                        .foregroundStyle(Color.accentColor)
-                }
-                .buttonStyle(.plain)
-                .disabled(lessonVM.currentPageIndex == 0)
-                .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
-
-                Spacer()
-
+            } else {
                 Text("Page \(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
-                    .font(.system(.headline, design: .rounded, weight: .semibold))
+                    .font(.headline)
+                    .fontWeight(.bold)
                     .foregroundColor(.secondary)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 10)
-                    .background(Color.secondary.opacity(0.1))
-                    .clipShape(Capsule())
-
-                Spacer()
-
-                Button(action: {
-                    withAnimation {
-                        lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
-                    }
-                }) {
-                    Image(systemName: "chevron.right.circle.fill")
-                        .font(.system(size: 42))
-                        .foregroundStyle(Color.accentColor)
-                }
-                .buttonStyle(.plain)
-                .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
-                .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
             }
+            
+            Spacer()
+            
+            Button(action: {
+                withAnimation {
+                    lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
+                }
+            }) {
+                HStack(spacing: 12) {
+                    Text("Next").font(.title3).fontWeight(.bold)
+                    Image(systemName: "chevron.right").font(.title3.bold())
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 16)
+                .foregroundStyle(.white)
+                .background(
+                    LinearGradient(colors: [.cyan.opacity(0.85), .cyan.opacity(0.65)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
+            .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
         }
         .padding(.horizontal, 40)
         .padding(.vertical, 24)
-        .frame(maxWidth: 1000)
-        .frame(maxWidth: .infinity, alignment: .center)
-        .background(Color.platformSystemGroupedBackground)
+        .background(colorScheme == .dark ? Color(red: 0.12, green: 0.12, blue: 0.12) : .white)
+        .overlay(
+            Rectangle().frame(height: 1).foregroundColor(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05)),
+            alignment: .top
+        )
     }
-    #endif
+        #endif
 
     // MARK: - MOBILE LAYOUT (iOS)
     #if os(iOS)
