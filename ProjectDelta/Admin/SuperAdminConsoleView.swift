@@ -32,59 +32,83 @@ class SuperAdminViewModel {
     private let db = Firestore.firestore()
     
     func selectRootCollection(_ collection: String) async {
-        collectionPath = [collection]; selectedDocument = nil; await fetchDocuments()
+        collectionPath = [collection]
+        selectedDocument = nil
+        await fetchDocuments()
     }
     
     func drillDown(docId: String, subcollection: String) async {
         guard !subcollection.isEmpty else { return }
-        collectionPath.append(contentsOf: [docId, subcollection]); selectedDocument = nil; await fetchDocuments()
+        collectionPath.append(contentsOf: [docId, subcollection])
+        selectedDocument = nil
+        await fetchDocuments()
     }
     
     func navigateBack() async {
         guard collectionPath.count >= 3 else { return }
-        collectionPath.removeLast(2); selectedDocument = nil; await fetchDocuments()
+        collectionPath.removeLast(2)
+        selectedDocument = nil
+        await fetchDocuments()
     }
     
     func fetchDocuments() async {
         let path = currentCollectionPathString
         guard !path.isEmpty else { self.documents.removeAll(); return }
+        
         isFetching = true
         do {
             let snapshot = try await db.collection(path).limit(to: 100).getDocuments()
             self.documents = snapshot.documents.map { RawFirestoreDocument(id: $0.documentID, data: $0.data()) }
-        } catch { print("Fetch Error: \(error.localizedDescription)") }
+        } catch {
+            print("Fetch Error: \(error.localizedDescription)")
+        }
         isFetching = false
     }
     
     func saveDocumentEdits() async {
         let path = currentCollectionPathString
         guard !path.isEmpty, let doc = selectedDocument else { return }
+        
         isSaving = true
         do {
             try await db.collection(path).document(doc.id).setData(doc.data, merge: false)
             if let index = documents.firstIndex(where: { $0.id == doc.id }) { documents[index] = doc }
-        } catch { print("Save Error: \(error.localizedDescription)") }
+        } catch {
+            print("Save Error: \(error.localizedDescription)")
+        }
         isSaving = false
     }
     
     func deleteDocument(id: String) async {
         let path = currentCollectionPathString
         guard !path.isEmpty else { return }
+        
         do {
             try await db.collection(path).document(id).delete()
-            withAnimation { documents.removeAll(where: { $0.id == id }); if selectedDocument?.id == id { selectedDocument = nil } }
-        } catch { print("Delete Error: \(error.localizedDescription)") }
+            withAnimation {
+                documents.removeAll(where: { $0.id == id })
+                if selectedDocument?.id == id { selectedDocument = nil }
+            }
+        } catch {
+            print("Delete Error: \(error.localizedDescription)")
+        }
     }
     
     func createNewDocument(with id: String) async {
         let path = currentCollectionPathString
         guard !path.isEmpty, !id.isEmpty else { return }
+        
         isSaving = true
         do {
             try await db.collection(path).document(id).setData(["createdAt": FieldValue.serverTimestamp()])
             let newDoc = RawFirestoreDocument(id: id, data: ["createdAt": "Just Now (Timestamp)"])
-            withAnimation { documents.insert(newDoc, at: 0); selectedDocument = newDoc }
-        } catch { print("Create Error: \(error.localizedDescription)") }
+            withAnimation {
+                documents.insert(newDoc, at: 0)
+                selectedDocument = newDoc
+            }
+        } catch {
+            print("Create Error: \(error.localizedDescription)")
+        }
         isSaving = false
     }
     
@@ -112,64 +136,88 @@ struct SuperAdminConsoleView: View {
     private let accentTeal = Color(red: 0.12, green: 0.65, blue: 0.65)
     
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: .constant(.all)) {
             List(viewModel.rootCollections, id: \.self, selection: $selectedRoot) { collection in
                 Text(collection).font(.headline).padding(.vertical, 4)
             }
+            .navigationTitle("Database")
+            .listStyle(.sidebar)
             .onChange(of: selectedRoot) { _, newValue in
-                if let root = newValue { Task { await viewModel.selectRootCollection(root) } }
+                if let root = newValue {
+                    Task { await viewModel.selectRootCollection(root) }
+                }
             }
-            .navigationTitle("Flayr LLC Console")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Exit") { dismiss() }.foregroundStyle(accentTeal) } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Exit") { dismiss() }.foregroundStyle(accentTeal)
+                }
+            }
         } content: {
             Group {
-                if viewModel.isFetching { ProgressView("Querying...") }
-                else if viewModel.documents.isEmpty { ContentUnavailableView("No Documents", systemImage: "tray") }
-                else {
+                if viewModel.isFetching {
+                    ProgressView("Querying...")
+                } else if viewModel.documents.isEmpty {
+                    ContentUnavailableView("No Documents", systemImage: "tray")
+                } else {
                     List(viewModel.documents, selection: $viewModel.selectedDocument) { doc in
                         NavigationLink(value: doc) {
-                            VStack(alignment: .leading) {
-                                Text(doc.id).font(.system(.body, design: .monospaced)).fontWeight(.bold)
-                            }
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) { docToDelete = doc.id; showDeleteAlert = true } label: { Label("Delete", systemImage: "trash") }
+                            Text(doc.id).font(.system(.body, design: .monospaced))
                         }
                     }
                 }
             }
-            .navigationTitle(viewModel.collectionPath.last ?? "Documents")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .navigationTitle(viewModel.collectionPath.last ?? "Collections")
+            .task(id: viewModel.currentCollectionPathString) {
+                await viewModel.fetchDocuments()
+            }
             .toolbar {
-                #if os(macOS)
-                ToolbarItem(placement: .navigation) { if viewModel.collectionPath.count > 1 { backButton } }
-                #else
-                ToolbarItem(placement: .navigationBarLeading) { if viewModel.collectionPath.count > 1 { backButton } }
-                #endif
-                ToolbarItem(placement: .primaryAction) { Button(action: { showNewDocAlert = true }) { Image(systemName: "plus") }.disabled(viewModel.collectionPath.isEmpty) }
+                ToolbarItem(placement: .navigation) {
+                    if viewModel.collectionPath.count > 1 {
+                        Button(action: { Task { await viewModel.navigateBack() } }) {
+                            HStack {
+                                Image(systemName: "chevron.left")
+                                Text("Back")
+                            }
+                            .fontWeight(.bold)
+                            .foregroundStyle(accentTeal)
+                        }
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { showNewDocAlert = true }) { Image(systemName: "plus") }
+                    .disabled(viewModel.collectionPath.isEmpty)
+                }
             }
         } detail: {
             if let doc = viewModel.selectedDocument {
-                DocumentEditorPanel(document: Binding(get: { doc }, set: { viewModel.selectedDocument = $0 }), isSaving: viewModel.isSaving, suggestedSubcollections: viewModel.getSuggestedSubcollections(), onSave: { Task { await viewModel.saveDocumentEdits() } }, onDrillDown: { sub in Task { await viewModel.drillDown(docId: doc.id, subcollection: sub) } })
-            } else { ContentUnavailableView("Select a Document", systemImage: "server.rack") }
+                DocumentEditorPanel(
+                    document: Binding(get: { doc }, set: { viewModel.selectedDocument = $0 }),
+                    isSaving: viewModel.isSaving,
+                    suggestedSubcollections: viewModel.getSuggestedSubcollections(),
+                    onSave: { Task { await viewModel.saveDocumentEdits() } },
+                    onDrillDown: { sub in Task { await viewModel.drillDown(docId: doc.id, subcollection: sub) } }
+                )
+            } else {
+                ContentUnavailableView("Select a Document", systemImage: "server.rack")
+            }
         }
+        .frame(minWidth: 1000, minHeight: 700)
         .preferredColorScheme(.dark)
         .alert("Delete Document", isPresented: $showDeleteAlert) {
             Button("Cancel", role: .cancel) { docToDelete = nil }
-            Button("Delete", role: .destructive) { if let id = docToDelete { Task { await viewModel.deleteDocument(id: id) } } }
-        } message: { Text("Permanently eradicate from Firestore?") }
+            Button("Delete", role: .destructive) {
+                if let id = docToDelete { Task { await viewModel.deleteDocument(id: id) } }
+            }
+        } message: {
+            Text("Permanently eradicate from Firestore?")
+        }
         .alert("New Document", isPresented: $showNewDocAlert) {
             TextField("Document ID (Leave blank for Auto-ID)", text: $newDocId)
             Button("Cancel", role: .cancel) { newDocId = "" }
-            Button("Create") { let idToUse = newDocId.isEmpty ? UUID().uuidString : newDocId; Task { await viewModel.createNewDocument(with: idToUse); newDocId = "" } }
-        }
-    }
-    
-    private var backButton: some View {
-        Button(action: { Task { await viewModel.navigateBack() } }) {
-            HStack { Image(systemName: "chevron.left"); Text("Back") }.fontWeight(.bold).foregroundStyle(accentTeal)
+            Button("Create") {
+                let idToUse = newDocId.isEmpty ? UUID().uuidString : newDocId
+                Task { await viewModel.createNewDocument(with: idToUse); newDocId = "" }
+            }
         }
     }
 }
@@ -181,42 +229,38 @@ struct DocumentEditorPanel: View {
     var suggestedSubcollections: [String]
     var onSave: () -> Void
     var onDrillDown: (String) -> Void
-    @State private var newFieldKey: String = ""; @State private var newFieldValue: String = ""; @State private var showAddField: Bool = false; @State private var manualSubcollectionInput: String = ""
-    let accentEmerald = Color(red: 0.18, green: 0.77, blue: 0.45)
+    @State private var manualSubcollectionInput: String = ""
     
     var body: some View {
-        VStack(spacing: 0) {
-            List {
-                Section(header: Text("Subcollections")) {
-                    ForEach(suggestedSubcollections, id: \.self) { sub in Button(sub) { onDrillDown(sub) } }
-                    HStack { TextField("Path...", text: $manualSubcollectionInput).textFieldStyle(.roundedBorder); Button("Go") { onDrillDown(manualSubcollectionInput) } }
+        Form {
+            Section("Navigation") {
+                ForEach(suggestedSubcollections, id: \.self) { sub in
+                    Button(sub) { onDrillDown(sub) }
                 }
-                Section(header: Text("Raw Data")) {
-                    ForEach(document.data.keys.sorted(), id: \.self) { key in
-                        DynamicFieldRow(key: key, value: document.data[key], onUpdate: { val in document.data[key] = val }, onDelete: { document.data.removeValue(forKey: key) })
-                    }
-                    Button("Add Field") { showAddField.toggle() }
+                HStack {
+                    TextField("Manual Subcollection Path", text: $manualSubcollectionInput)
+                    Button("Go") { onDrillDown(manualSubcollectionInput) }
                 }
             }
-            #if os(iOS)
-            .listStyle(.insetGrouped)
-            #else
-            .listStyle(.inset)
-            #endif
-            Button("Commit Mutation") { onSave() }.padding().disabled(isSaving)
+            
+            Section("Document Fields") {
+                ForEach(document.data.keys.sorted(), id: \.self) { key in
+                    HStack {
+                        Text(key)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 150, alignment: .leading)
+                        TextField("Value", text: Binding(
+                            get: { "\(document.data[key] ?? "")" },
+                            set: { document.data[key] = $0 }
+                        ))
+                    }
+                }
+            }
+            
+            Button("Commit Mutation", action: onSave)
+                .buttonStyle(.borderedProminent)
+                .disabled(isSaving)
         }
-    }
-}
-
-// MARK: - Dynamic Field
-struct DynamicFieldRow: View {
-    let key: String; let value: Any?; var onUpdate: (Any) -> Void; var onDelete: () -> Void
-    var body: some View {
-        HStack {
-            Text(key).frame(width: 100, alignment: .leading)
-            if let str = value as? String { TextField("Value", text: Binding(get: { str }, set: { onUpdate($0) })) }
-            else { Text("Complex Data").foregroundStyle(.secondary) }
-        }
-        .swipeActions { Button("Delete", role: .destructive, action: onDelete) }
+        .formStyle(.grouped)
     }
 }
