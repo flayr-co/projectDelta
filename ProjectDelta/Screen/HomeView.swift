@@ -6,229 +6,296 @@
 import SwiftUI
 
 struct HomeView: View {
-    // MARK: - PROPERTIES
-    @Environment(AuthViewModel.self) var viewModel
-    @Environment(TestSessionViewModel.self) var testViewModel
-    @Environment(LessonViewModel.self) var lessonVM
-    
-    @State private var refreshKey = UUID()
-    @Environment(\.colorScheme) var colorScheme
-    
-    #if os(iOS)
-    let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
-    #endif
+    // MARK: - State Properties
+    @State private var totalVolume: Int = 18
+    @State private var accuracy: Double = 0.77
+    @State private var algebraCorrect: Int = 14
+    @State private var algebraTotal: Int = 18
     
     var body: some View {
-        NavigationStack {
-            Group {
-                #if os(macOS)
-                macOSDashboard
-                #else
-                iOSDashboard
-                #endif
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 32) {
+                headerSection
+                contentSection
             }
-            .id(refreshKey)
-            .onChange(of: viewModel.currentUser) { oldValue, newValue in
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    refreshKey = UUID()
-                }
-            }
-            .task {
-                await loadProgress()
-            }
+            .padding(32)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(red: 0.1, green: 0.1, blue: 0.1))
+        .task {
+            await fetchDashboardMetrics()
         }
     }
     
-    private func loadProgress() async {
-        guard let userId = viewModel.userSession?.uid else { return }
-        do {
-            if let fetchedProgress = try await viewModel.fetchUserProgress(forUserID: userId) {
-                testViewModel.userProgress = fetchedProgress
-            }
-        } catch {
-            print("Error running background progress load sync on HomeView: \(error.localizedDescription)")
-        }
-    }
+    // MARK: - Subviews
     
-    private var dashboardText: String {
-        guard let role = viewModel.currentUser?.role else { return "Dashboard" }
-        switch role {
-        case .student: return "Student Dashboard"
-        case .teacher: return "Teacher Dashboard"
-        case .parent: return "Parent Dashboard"
-        }
-    }
-
-    // MARK: - DESKTOP DASHBOARD (macOS)
-    #if os(macOS)
-    private var macOSDashboard: some View {
-        VStack(spacing: 0) {
-            // Native Desktop Header
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(dashboardText)
-                        .font(.system(.title, design: .rounded, weight: .bold))
-                        .foregroundColor(.primary)
-                    Text("Overview & Analytics")
-                        .font(.system(.body, design: .rounded))
-                        .foregroundColor(.secondary)
-                }
+    private var headerSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Teacher Dashboard")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
                 
-                Spacer()
-                
-                // Structured Desktop Stats Pill
-                HStack(spacing: 16) {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Level \((viewModel.currentUser?.points ?? 0) / 100 + 1)")
-                            .font(.system(.headline, design: .rounded, weight: .bold))
-                            .foregroundColor(.accentColor)
-                        Text("\(viewModel.currentUser?.points ?? 0) pts")
-                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundColor(.secondary)
-                    }
-                    ProgressBar(points: viewModel.currentUser?.points ?? 0)
-                        .frame(width: 120, height: 8)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color.platformSecondarySystemBackground)
-                .cornerRadius(12)
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.15), lineWidth: 1))
+                Text("Overview & Analytics")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 40)
-            .padding(.vertical, 24)
-            .background(Color.platformSystemBackground)
             
-            Divider()
+            Spacer()
             
-            // Asymmetric Split Layout Content
-            ScrollView(showsIndicators: false) {
-                HStack(alignment: .top, spacing: 40) {
-                    
-                    // Left Column: Main Analytics
-                    VStack(alignment: .leading, spacing: 20) {
-                        Text("Performance Metrics")
-                            .font(.system(.title2, design: .rounded, weight: .semibold))
-                            .foregroundColor(.primary)
-                        
-                        MetricsCarouselView(progress: testViewModel.userProgress)
-                            .frame(minHeight: 380)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    // Right Column: Pinned Quick Actions Sidebar
-                    VStack(alignment: .leading, spacing: 20) {
-                        Text("Quick Actions")
-                            .font(.system(.title2, design: .rounded, weight: .semibold))
-                            .foregroundColor(.primary)
-                        
-                        VStack(spacing: 16) {
-                            NavigationLink(destination: SubjectGridView(navigationSource: .learn).navigationBarBackButtonHidden(true)) {
-                                DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
-                            }
-                            .buttonStyle(.plain)
-                            
-                            // Re-routed to the Native Practice mode enumeration
-                            NavigationLink(destination: SubjectGridView(navigationSource: .practice).navigationBarBackButtonHidden(true)) {
-                                DisplayCards(imageName: "pencil", title: "Practice", tintColor: .orange)
-                            }
-                            .buttonStyle(.plain)
-                            
-                            NavigationLink(destination: LeaderboardView().navigationBarBackButtonHidden(true)) {
-                                DisplayCards(imageName: "trophy", title: "Leaderboard", tintColor: .yellow)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .frame(width: 280) // Fixed sidebar width
+            // Level Indicator
+            HStack(spacing: 16) {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Level 1")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.cyan)
+                    Text("80 pts")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(40)
-                .frame(maxWidth: 1400) // Constrains width on ultra-wide monitors
-                .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .background(Color.platformSystemGroupedBackground)
-        }
-    }
-    #endif
-
-    // MARK: - MOBILE DASHBOARD (iOS)
-    #if os(iOS)
-    private var iOSDashboard: some View {
-        VStack(spacing: 0) {
-            // MARK: - HEADER
-            HStack(alignment: .bottom) {
-                Text(dashboardText)
-                    .font(.system(.title2, design: .rounded, weight: .bold))
-                    .foregroundColor(.primary)
                 
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text("\(viewModel.currentUser?.points ?? 0) pts")
-                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundColor(.secondary)
-                        
-                        Text("Level \((viewModel.currentUser?.points ?? 0) / 100 + 1)")
-                            .font(.system(.subheadline, design: .rounded, weight: .bold))
-                            .monospacedDigit()
-                            .foregroundColor(colorScheme == .dark ? .cyan : .blue)
-                    }
-                    
-                    ProgressBar(points: viewModel.currentUser?.points ?? 0)
-                        .frame(width: 140, height: 10)
-                }
+                ProgressView(value: 0.8)
+                    .progressViewStyle(.linear)
+                    .tint(Color.cyan)
+                    .frame(width: 150)
             }
             .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 20)
-            .background(
-                (colorScheme == .dark ? Color.customDarkGray : Color.white)
-                    .ignoresSafeArea(edges: .top)
-                    .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+            .padding(.vertical, 16)
+            .background(Color(red: 0.15, green: 0.15, blue: 0.15))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
             )
-            .zIndex(1)
-            
-            // MARK: - MAIN CONTENT
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("Your Learning Analytics")
-                        .font(.system(.headline, design: .rounded, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 24)
-                    
-                    // Expanded Metrics Carousel Slider
-                    MetricsCarouselView(progress: testViewModel.userProgress)
-                        .frame(height: 240) // Increased vertical footprint for better presence
-                        .padding(.horizontal, 24)
-
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        NavigationLink(destination: SubjectGridView(navigationSource: .learn).navigationBarBackButtonHidden(true)) {
-                            DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
-                        }
-                        .buttonStyle(.plain)
-                        
-                        // Re-routed to the Native Practice mode enumeration
-                        NavigationLink(destination: SubjectGridView(navigationSource: .practice).navigationBarBackButtonHidden(true)) {
-                            DisplayCards(imageName: "pencil", title: "Practice", tintColor: .orange)
-                        }
-                        .buttonStyle(.plain)
-                        
-                        NavigationLink(destination: LeaderboardView().navigationBarBackButtonHidden(true)) {
-                            DisplayCards(imageName: "trophy", title: "Leaderboard", tintColor: .yellow)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 24)
-                    
-                    Spacer(minLength: 120)
-                }
-            }
-            .background(colorScheme == .dark ? Color.customDarkGray : Color.gray.opacity(0.05))
         }
     }
-    #endif
+    
+    private var contentSection: some View {
+        HStack(alignment: .top, spacing: 32) {
+            // Left Column: Performance Metrics (Expands dynamically)
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Performance Metrics")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                
+                // On a very wide Mac screen, we can let the donut chart and stats grid sit side-by-side or stack responsively
+                HStack(alignment: .top, spacing: 24) {
+                    donutChartCard
+                        .frame(maxWidth: 400) // Keeps the donut card from stretching absurdly wide
+                    
+                    statsGrid
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // Right Column: Quick Actions (Flexible but bounded)
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Quick Actions")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                
+                quickActionsList
+            }
+            .frame(minWidth: 250, idealWidth: 300, maxWidth: 350)
+        }
+    }
+    
+    private var donutChartCard: some View {
+        VStack(spacing: 32) {
+            // Donut Chart
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.05), lineWidth: 32)
+                
+                Circle()
+                    .trim(from: 0, to: CGFloat(Double(algebraCorrect) / Double(algebraTotal)))
+                    .stroke(Color.cyan, style: StrokeStyle(lineWidth: 32, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                
+                VStack(spacing: 4) {
+                    Text("\(algebraCorrect)")
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("CORRECT")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 220, height: 220)
+            .padding(.top, 16)
+            
+            // Legend
+            VStack(alignment: .leading, spacing: 20) {
+                LegendItemView(color: .cyan, title: "Algebra", value: "\(algebraCorrect)/\(algebraTotal) correct")
+                LegendItemView(color: .purple, title: "Advanced Math", value: "0/0 correct")
+                LegendItemView(color: .orange, title: "Problem Solving & Data Analysis", value: "0/0 correct")
+                LegendItemView(color: .green, title: "Geometry & Trigonometry", value: "0/0 correct")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(32)
+        .background(Color(red: 0.12, green: 0.12, blue: 0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+        )
+    }
+    
+    private var statsGrid: some View {
+        // Adaptive grid takes full advantage of horizontal space on Mac
+        let columns = [
+            GridItem(.adaptive(minimum: 180, maximum: .infinity), spacing: 24)
+        ]
+        
+        return LazyVGrid(columns: columns, spacing: 24) {
+            StatCardView(icon: "bolt.fill", iconColor: .orange, title: "Total Volume", value: "\(totalVolume)")
+            StatCardView(icon: "target", iconColor: .green, title: "Overall Accuracy", value: "\(Int(accuracy * 100))%")
+            StatCardView(icon: "function", iconColor: .cyan, title: "Advanced Math", value: "0 / 0")
+            StatCardView(icon: "x.squareroot", iconColor: .cyan, title: "Algebra", value: "\(algebraCorrect) / \(algebraTotal)")
+            StatCardView(icon: "angle", iconColor: .cyan, title: "Geometry & Trig", value: "0 / 0")
+            StatCardView(icon: "chart.bar.fill", iconColor: .cyan, title: "Problem Solving", value: "0 / 0")
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    private var quickActionsList: some View {
+        VStack(spacing: 24) {
+            ActionCardButton(title: "Learn", icon: "desktopcomputer", color: .cyan) {
+                // Route to Learn
+            }
+            ActionCardButton(title: "Practice", icon: "pencil", color: .orange) {
+                // Route to Practice
+            }
+            ActionCardButton(title: "Leaderboard", icon: "trophy", color: .yellow) {
+                // Route to Leaderboard
+            }
+            
+            Spacer(minLength: 0) // Pushes quick actions to the top if the left column is taller
+        }
+    }
+    
+    // MARK: - Methods
+    
+    private func fetchDashboardMetrics() async {
+        // Implementation for async data retrieval goes here.
+        // Replace with network or Firestore logic.
+        try? await Task.sleep(for: .seconds(1))
+    }
+}
+
+// MARK: - Helper Views
+
+struct LegendItemView: View {
+    let color: Color
+    let title: String
+    let value: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(color)
+                .frame(width: 10, height: 10)
+                .padding(.top, 4)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.body)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+                Text(value)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+struct StatCardView: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let value: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(alignment: .top) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 36, height: 36)
+                    .background(iconColor.opacity(0.15))
+                    .clipShape(Circle())
+                
+                Spacer()
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                
+                Text(value)
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(red: 0.12, green: 0.12, blue: 0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+        )
+    }
+}
+
+struct ActionCardButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Spacer()
+                Image(systemName: icon)
+                    .font(.title)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 32)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .background(
+                LinearGradient(
+                    colors: [color.opacity(0.85), color.opacity(0.65)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain) // Prevents default macOS button background styling
+        .contentShape(Rectangle()) // Ensures entire card is clickable
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    HomeView()
+        .frame(minWidth: 1000, minHeight: 800)
 }
