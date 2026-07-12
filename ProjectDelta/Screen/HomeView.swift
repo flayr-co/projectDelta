@@ -6,34 +6,83 @@
 import SwiftUI
 
 struct HomeView: View {
-    // MARK: - State Properties
+    // MARK: - PROPERTIES
+    @Environment(AuthViewModel.self) var viewModel
+    @Environment(TestSessionViewModel.self) var testViewModel
+    @Environment(LessonViewModel.self) var lessonVM
+    
+    @State private var refreshKey = UUID()
+    @Environment(\.colorScheme) var colorScheme
+    
+    // macOS Specific State Properties
     @State private var totalVolume: Int = 18
     @State private var accuracy: Double = 0.77
     @State private var algebraCorrect: Int = 14
     @State private var algebraTotal: Int = 18
-    @Environment(\.colorScheme) var colorScheme
+    
+    #if os(iOS)
+    let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
+    #endif
     
     var body: some View {
         NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 32) {
-                    headerSection
-                    contentSection
-                }
-                .padding(32)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Group {
+                #if os(macOS)
+                macOSDashboard
+                #else
+                iOSDashboard
+                #endif
             }
-            .background(colorScheme == .dark ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color(red: 0.95, green: 0.95, blue: 0.97))
-        }
-        .task {
-            await fetchDashboardMetrics()
+            .id(refreshKey)
+            .onChange(of: viewModel.currentUser) { oldValue, newValue in
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    refreshKey = UUID()
+                }
+            }
+            .task {
+                await loadProgress()
+            }
         }
     }
-        
+    
+    private func loadProgress() async {
+        guard let userId = viewModel.userSession?.uid else { return }
+        do {
+            if let fetchedProgress = try await viewModel.fetchUserProgress(forUserID: userId) {
+                testViewModel.userProgress = fetchedProgress
+            }
+        } catch {
+            print("Error running background progress load sync on HomeView: \(error.localizedDescription)")
+        }
+    }
+    
+    private var dashboardText: String {
+        guard let role = viewModel.currentUser?.role else { return "Dashboard" }
+        switch role {
+        case .student: return "Student Dashboard"
+        case .teacher: return "Teacher Dashboard"
+        case .parent: return "Parent Dashboard"
+        }
+    }
+
+    // MARK: - DESKTOP DASHBOARD (macOS)
+    #if os(macOS)
+    private var macOSDashboard: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 32) {
+                headerSection
+                contentSection
+            }
+            .padding(32)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(colorScheme == .dark ? Color(red: 0.1, green: 0.1, blue: 0.1) : Color(red: 0.95, green: 0.95, blue: 0.97))
+    }
+    
     private var headerSection: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Teacher Dashboard")
+                Text(dashboardText)
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundStyle(colorScheme == .dark ? .white : .primary)
@@ -48,16 +97,16 @@ struct HomeView: View {
             // Level Indicator
             HStack(spacing: 16) {
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text("Level 1")
+                    Text("Level \((viewModel.currentUser?.points ?? 0) / 100 + 1)")
                         .font(.headline)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.cyan)
-                    Text("80 pts")
+                    Text("\(viewModel.currentUser?.points ?? 0) pts")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 
-                ProgressView(value: 0.8)
+                ProgressView(value: Double((viewModel.currentUser?.points ?? 0) % 100) / 100.0)
                     .progressViewStyle(.linear)
                     .tint(Color.cyan)
                     .frame(width: 150)
@@ -72,7 +121,7 @@ struct HomeView: View {
             )
         }
     }
-        
+    
     private var contentSection: some View {
         HStack(alignment: .top, spacing: 32) {
             // Left Column: Performance Metrics (Expands dynamically)
@@ -103,7 +152,7 @@ struct HomeView: View {
             .frame(minWidth: 250, idealWidth: 300, maxWidth: 350)
         }
     }
-        
+    
     private var donutChartCard: some View {
         VStack(spacing: 32) {
             // Donut Chart
@@ -187,18 +236,90 @@ struct HomeView: View {
             Spacer(minLength: 0)
         }
     }
-    
-    // MARK: - Methods
-    
-    private func fetchDashboardMetrics() async {
-        // Implementation for async data retrieval goes here.
-        // Replace with network or Firestore logic.
-        try? await Task.sleep(for: .seconds(1))
+    #endif
+
+    // MARK: - MOBILE DASHBOARD (iOS)
+    #if os(iOS)
+    private var iOSDashboard: some View {
+        VStack(spacing: 0) {
+            // MARK: - HEADER
+            HStack(alignment: .bottom) {
+                Text(dashboardText)
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text("\(viewModel.currentUser?.points ?? 0) pts")
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundColor(.secondary)
+                        
+                        Text("Level \((viewModel.currentUser?.points ?? 0) / 100 + 1)")
+                            .font(.system(.subheadline, design: .rounded, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundColor(colorScheme == .dark ? .cyan : .blue)
+                    }
+                    
+                    ProgressBar(points: viewModel.currentUser?.points ?? 0)
+                        .frame(width: 140, height: 10)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 20)
+            .background(
+                (colorScheme == .dark ? Color.customDarkGray : Color.white)
+                    .ignoresSafeArea(edges: .top)
+                    .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+            )
+            .zIndex(1)
+            
+            // MARK: - MAIN CONTENT
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Your Learning Analytics")
+                        .font(.system(.headline, design: .rounded, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 24)
+                    
+                    // Expanded Metrics Carousel Slider
+                    MetricsCarouselView(progress: testViewModel.userProgress)
+                        .frame(height: 240)
+                        .padding(.horizontal, 24)
+
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        NavigationLink(destination: SubjectGridView(navigationSource: .learn).navigationBarBackButtonHidden(true)) {
+                            DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        NavigationLink(destination: SubjectGridView(navigationSource: .practice).navigationBarBackButtonHidden(true)) {
+                            DisplayCards(imageName: "pencil", title: "Practice", tintColor: .orange)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        NavigationLink(destination: LeaderboardView().navigationBarBackButtonHidden(true)) {
+                            DisplayCards(imageName: "trophy", title: "Leaderboard", tintColor: .yellow)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 24)
+                    
+                    Spacer(minLength: 120)
+                }
+            }
+            .background(colorScheme == .dark ? Color.customDarkGray : Color.gray.opacity(0.05))
+        }
     }
+    #endif
 }
 
-// MARK: - Helper Views
-
+// MARK: - Helper Views (macOS)
+#if os(macOS)
 struct LegendItemView: View {
     let color: Color
     let title: String
@@ -303,10 +424,4 @@ struct ActionCardButton<Destination: View>: View {
         .buttonStyle(.plain)
     }
 }
-
-// MARK: - Preview
-
-#Preview {
-    HomeView()
-        .frame(minWidth: 1000, minHeight: 800)
-}
+#endif
