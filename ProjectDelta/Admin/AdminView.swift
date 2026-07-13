@@ -26,7 +26,7 @@ struct AdminView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal)
-                    .padding(.top, 20)
+                    .padding(.top, 48) // Clears the macOS sidebar toggle
                     
                     // Subject Grid
                     ForEach(viewModel.subjects) { subject in

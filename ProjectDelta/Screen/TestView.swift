@@ -25,18 +25,20 @@ struct TestView: View {
     var subtopic: String? = nil
 
     var body: some View {
-        NavigationStack {
-            Group {
-                #if os(macOS)
-                macOSLayout
-                #else
-                iOSLayout
-                #endif
-            }
-            .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
-            .task {
-                await fetchUserProgress()
-            }
+        // Redundant NavigationStack removed to prevent double-toolbar collision
+        Group {
+            #if os(macOS)
+            macOSLayout
+            #else
+            iOSLayout
+            #endif
+        }
+        .background(colorScheme == .dark ? Color.customDarkGray : Color.white)
+#if os(macOS)
+        .toolbarVisibility(.hidden, for: .windowToolbar)
+        #endif
+        .task {
+            await fetchUserProgress()
         }
     }
 
@@ -104,7 +106,9 @@ struct TestView: View {
                             .font(.system(.subheadline, design: .rounded, weight: .semibold))
                             .foregroundColor(.secondary)
                     }
-                    .padding(24)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                    .padding(.top, 48) // Clears the macOS sidebar toggle
                     .background(Color.platformSystemBackground)
                     
                     ScrollView {

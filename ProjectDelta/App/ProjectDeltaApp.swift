@@ -55,6 +55,19 @@ struct ProjectDeltaApp: App {
         _quizViewModel = State(initialValue: QuizViewModel(authViewModel: auth))
     }
     
+    #if os(macOS)
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environment(viewModel)
+                .environment(testViewModel)
+                .environment(lessonVM)
+                .environment(quizViewModel)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact)
+    }
+    #else
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -64,4 +77,5 @@ struct ProjectDeltaApp: App {
                 .environment(quizViewModel)
         }
     }
+    #endif
 }

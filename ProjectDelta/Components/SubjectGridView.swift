@@ -33,6 +33,9 @@ struct SubjectGridView: View {
             #endif
         }
         .navigationBarBackButtonHidden(true)
+#if os(macOS)
+        .toolbarVisibility(.hidden, for: .windowToolbar)
+        #endif
         .task {
             do {
                 testViewModel.subjects = try await testViewModel.fetchSubjectsFromFirestore()
@@ -50,41 +53,7 @@ struct SubjectGridView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Header Bar
-                HStack {
-                    Button(action: { dismiss() }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 14, weight: .bold))
-                            Text("Back")
-                                .font(.system(.body, design: .rounded, weight: .semibold))
-                        }
-                        .foregroundColor(.secondary)
-                        .padding(12)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 40)
-                .padding(.top, 24)
-                
-                // Dashboard Title Block
-                VStack(alignment: .center, spacing: 8) {
-                    Text("Curriculum")
-                        .font(.system(.subheadline, design: .rounded, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-                        .tracking(2)
-                    
-                    Text("Choose a Subject")
-                        .font(.system(size: 42, weight: .black, design: .rounded))
-                        .foregroundColor(.primary)
-                }
-                .padding(.top, 16)
-                .padding(.bottom, 40)
+                macOSHeaderView
                 
                 // Grid Content Scroll
                 ScrollView(showsIndicators: false) {
@@ -103,11 +72,46 @@ struct SubjectGridView: View {
                         }
                     }
                     .padding(.horizontal, 40)
-                    .padding(.bottom, 40)
+                    .padding(.vertical, 40)
                     .frame(maxWidth: 1200)
                 }
             }
         }
+    }
+    
+    private var macOSHeaderView: some View {
+        HStack(spacing: 24) {
+            Button(action: {
+                dismiss()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .bold))
+                    Text("Back")
+                        .font(.system(.body, design: .rounded, weight: .semibold))
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.secondary.opacity(0.1))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Text("Choose a Subject")
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundColor(.primary)
+
+            Spacer()
+        }
+        .padding(.horizontal, 40)
+        .padding(.top, 40) // Explicitly buffers against macOS system controls
+        .padding(.bottom, 20)
+        .background(Color.platformSystemBackground)
+        .overlay(
+            Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.05)),
+            alignment: .bottom
+        )
     }
     #endif
 
@@ -272,6 +276,9 @@ struct LessonSelectionView: View {
             #endif
         }
         .navigationBarBackButtonHidden(true)
+#if os(macOS)
+        .toolbarVisibility(.hidden, for: .windowToolbar)
+        #endif
         .task {
             await fetchLessonsWithTests()
         }
@@ -284,38 +291,7 @@ struct LessonSelectionView: View {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                HStack {
-                    Button(action: { dismiss() }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 14, weight: .bold))
-                            Text("Back")
-                                .font(.system(.body, design: .rounded, weight: .semibold))
-                        }
-                        .foregroundColor(.secondary)
-                        .padding(12)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    Spacer()
-                }
-                .padding(.horizontal, 40)
-                .padding(.top, 24)
-                
-                VStack(alignment: .center, spacing: 8) {
-                    Text(subjectName)
-                        .font(.system(.subheadline, design: .rounded, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-                        .tracking(2)
-                    
-                    Text("Select a Lesson")
-                        .font(.system(size: 42, weight: .black, design: .rounded))
-                        .foregroundColor(.primary)
-                }
-                .padding(.top, 16)
-                .padding(.bottom, 40)
+                macOSHeaderView
                 
                 if isLoading {
                     Spacer()
@@ -345,12 +321,47 @@ struct LessonSelectionView: View {
                             }
                         }
                         .padding(.horizontal, 40)
-                        .padding(.bottom, 40)
+                        .padding(.vertical, 40)
                         .frame(maxWidth: 1000)
                     }
                 }
             }
         }
+    }
+    
+    private var macOSHeaderView: some View {
+        HStack(spacing: 24) {
+            Button(action: {
+                dismiss()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .bold))
+                    Text("Back")
+                        .font(.system(.body, design: .rounded, weight: .semibold))
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.secondary.opacity(0.1))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Text("\(subjectName) - Select a Lesson")
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundColor(.primary)
+
+            Spacer()
+        }
+        .padding(.horizontal, 40)
+        .padding(.top, 40) // Explicitly buffers against macOS system controls
+        .padding(.bottom, 20)
+        .background(Color.platformSystemBackground)
+        .overlay(
+            Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.05)),
+            alignment: .bottom
+        )
     }
     #endif
 
