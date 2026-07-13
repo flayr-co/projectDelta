@@ -9,6 +9,7 @@ import Observation
 
 struct LessonEditorView: View {
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) var colorScheme
     @State private var lessonTitle: String
     @State private var showTestBuilder: Bool = false
     @State private var lessonBlocks: [QuestionBlockModel] = []
@@ -24,43 +25,82 @@ struct LessonEditorView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("Lesson Details")) {
-                    TextField("Lesson Title", text: $lessonTitle)
-                    
-                    HStack {
-                        Text("Subject Architecture")
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(lesson.id?.isEmpty == false ? "Edit Curriculum" : "Author New Lesson")
+                            .font(.title)
+                            .fontWeight(.heavy)
+                        Text("Construct your educational material using the dynamic block editor.")
                             .foregroundColor(.secondary)
-                        Spacer()
-                        Text(subject.name)
-                            .fontWeight(.semibold)
                     }
-                }
-                
-                Section(header: Text("Lesson Content")) {
-                    UniversalBlockEditorView(blocks: $lessonBlocks)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                        .padding(.vertical, 8)
-                }
-                
-                Section {
-                    Button(action: {
-                        showTestBuilder = true
-                    }) {
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.top, 16)
+                    
+                    // Metadata Card
+                    VStack(alignment: .leading, spacing: 16) {
                         HStack {
-                            Image(systemName: "wand.and.stars")
-                            Text("Generate Test for This Lesson")
-                                .fontWeight(.bold)
-                            Spacer()
-                            Image(systemName: "chevron.right")
+                            Image(systemName: "text.book.closed.fill")
+                                .foregroundColor(.teal)
+                            Text("Lesson Metadata")
+                                .font(.headline)
+                        }
+                        
+                        Divider()
+                        
+                        TextField("Enter Lesson Title...", text: $lessonTitle)
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                            .padding(12)
+                            .background(Color.platformSecondarySystemBackground)
+                            .cornerRadius(10)
+                        
+                        HStack {
+                            Text("Parent Subject")
                                 .foregroundColor(.secondary)
+                                .font(.subheadline)
+                            Spacer()
+                            Text(subject.name)
+                                .fontWeight(.bold)
+                                .foregroundColor(.primary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.teal.opacity(0.15))
+                                .cornerRadius(8)
                         }
                     }
-                    .foregroundColor(.cyan)
+                    .padding()
+                    .background(Color.platformSystemBackground)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                    .padding(.horizontal)
+                    
+                    // Editor Card
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Image(systemName: "square.dashed.inset.filled")
+                                .foregroundColor(.purple)
+                            Text("Content Blocks")
+                                .font(.headline)
+                        }
+                        
+                        Divider()
+                        
+                        UniversalBlockEditorView(blocks: $lessonBlocks)
+                    }
+                    .padding()
+                    .background(Color.platformSystemBackground)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                    .padding(.horizontal)
+                    
+                    Spacer(minLength: 80)
                 }
             }
-            .navigationTitle(lesson.id?.isEmpty == false ? "Edit Lesson" : "New Lesson")
+            .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
+            .navigationTitle("")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -69,13 +109,34 @@ struct LessonEditorView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveLesson() }
+                    Button("Save Curriculum") { saveLesson() }
                         .fontWeight(.bold)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.teal)
                         .disabled(lessonTitle.isEmpty)
                 }
             }
             .onAppear {
                 loadLessonBlocks()
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button(action: { showTestBuilder = true }) {
+                    HStack {
+                        Image(systemName: "wand.and.stars.inverse")
+                            .font(.title3)
+                        Text("Generate Linked Test")
+                            .fontWeight(.bold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.purple)
+                    .foregroundColor(.white)
+                    .cornerRadius(14)
+                    .shadow(color: Color.purple.opacity(0.3), radius: 10, y: 5)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+                .background(Color.platformSystemGroupedBackground.opacity(0.95))
             }
             .sheet(isPresented: $showTestBuilder) {
                 NavigationStack {
@@ -97,10 +158,7 @@ struct LessonEditorView: View {
     private func saveLesson() {
         Task {
             let db = Firestore.firestore()
-            guard let subjectId = subject.id, !subjectId.isEmpty else {
-                print("Error: Immutable Subject ID missing.")
-                return
-            }
+            guard let subjectId = subject.id, !subjectId.isEmpty else { return }
             
             let finalDescription: String
             if let data = try? JSONEncoder().encode(lessonBlocks),

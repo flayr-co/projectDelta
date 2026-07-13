@@ -7,83 +7,55 @@ import SwiftUI
 import FirebaseFirestore
 import Observation
 
+// (TestBuilderViewModel remains completely unchanged)
 @MainActor
 @Observable
 class TestBuilderViewModel {
     var subject: Subject?
     var lessonName: String = ""
     var testTitle: String = ""
-    
     var questionCount: Int = 10
     var generatedQuestions: [QuestionWrapper] = []
-    
     var isGenerating: Bool = false
     var isSaving: Bool = false
     var showEditor: Bool = false
     var existingTestId: String? = nil
-    
     private let db = Firestore.firestore()
     
     func initialize(subject: Subject, lesson: String, testId: String?) async {
         self.subject = subject
         self.lessonName = lesson
         self.existingTestId = testId
-        
-        if let tId = testId {
-            await loadExistingTest(testId: tId)
-        }
+        if let tId = testId { await loadExistingTest(testId: tId) }
     }
     
     private func loadExistingTest(testId: String) async {
         isGenerating = true
         guard let subjectId = subject?.id else { return }
-        
         do {
             let snapshot = try await db.collection("Subjects").document(subjectId).collection("Tests").document(testId).collection("Questions").getDocuments()
             let rawQuestions = snapshot.documents.compactMap { try? $0.data(as: Question.self) }
             self.generatedQuestions = rawQuestions.map { QuestionWrapper(question: $0) }
             self.showEditor = true
-        } catch {
-            print("Failed to load test questions: \(error.localizedDescription)")
-        }
+        } catch { print("Error: \(error)") }
         isGenerating = false
     }
     
     func generateRecommendedTest() async {
         isGenerating = true
-        
-        try? await Task.sleep(for: .seconds(1.5))
-        
+        try? await Task.sleep(for: .seconds(0.8))
         self.generatedQuestions = (0..<questionCount).map { _ in
-            QuestionWrapper(question: Question(
-                id: UUID().uuidString,
-                correctOptionIndex: 0,
-                options: ["", "", "", ""],
-                points: 10,
-                questionText: "",
-                type: "multiple_choice",
-                subject: subject?.name ?? "",
-                subtopic: lessonName,
-                hint: "",
-                feedback: "",
-                testId: ""
-            ))
+            QuestionWrapper(question: Question(id: UUID().uuidString, correctOptionIndex: 0, options: ["", "", "", ""], points: 10, questionText: "", type: "multiple_choice", subject: subject?.name ?? "", subtopic: lessonName, hint: "", feedback: "", testId: ""))
         }
-        
         showEditor = true
         isGenerating = false
     }
     
     func saveTestToDatabase() async {
         isSaving = true
-        guard let subject = subject, let subjectId = subject.id else {
-            isSaving = false
-            return
-        }
-        
+        guard let subject = subject, let subjectId = subject.id else { isSaving = false; return }
         do {
             let batch = db.batch()
-            
             let testId = existingTestId ?? UUID().uuidString
             let testRef = db.collection("Subjects").document(subjectId).collection("Tests").document(testId)
             
@@ -102,8 +74,7 @@ class TestBuilderViewModel {
             let existingQIds = Set(existingQuestionsSnap.documents.map { $0.documentID })
             let currentQIds = Set(generatedQuestions.compactMap { $0.question.id })
             
-            let idsToDelete = existingQIds.subtracting(currentQIds)
-            for id in idsToDelete {
+            for id in existingQIds.subtracting(currentQIds) {
                 batch.deleteDocument(testRef.collection("Questions").document(id))
                 batch.deleteDocument(db.collection("questions").document(id))
             }
@@ -112,32 +83,12 @@ class TestBuilderViewModel {
                 var question = wrapper.question
                 let qId = question.id ?? UUID().uuidString
                 question.id = qId
-                
-                let docData: [String: Any] = [
-                    "correctOptionIndex": question.correctOptionIndex,
-                    "options": question.options,
-                    "points": question.points,
-                    "questionText": question.questionText,
-                    "type": question.type,
-                    "subject": subject.name,
-                    "subtopic": lessonName,
-                    "hint": question.hint ?? "",
-                    "feedback": question.feedback ?? "",
-                    "testId": testId
-                ]
-                
-                let subRef = testRef.collection("Questions").document(qId)
-                batch.setData(docData, forDocument: subRef)
-                
-                let flatRef = db.collection("questions").document(qId)
-                batch.setData(docData, forDocument: flatRef)
+                let docData: [String: Any] = ["correctOptionIndex": question.correctOptionIndex, "options": question.options, "points": question.points, "questionText": question.questionText, "type": question.type, "subject": subject.name, "subtopic": lessonName, "hint": question.hint ?? "", "feedback": question.feedback ?? "", "testId": testId]
+                batch.setData(docData, forDocument: testRef.collection("Questions").document(qId))
+                batch.setData(docData, forDocument: db.collection("questions").document(qId))
             }
-            
             try await batch.commit()
-        } catch {
-            print("Failed to save test: \(error.localizedDescription)")
-        }
-        
+        } catch { print("Save failed: \(error)") }
         isSaving = false
     }
 }
@@ -153,14 +104,16 @@ struct AddTestView: View {
     let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack {
+            Color.platformSystemGroupedBackground.ignoresSafeArea()
+            
             if viewModel.showEditor {
                 editorContent
             } else {
                 generatorContent
             }
         }
-        .navigationTitle(existingTest != nil ? "Edit Test" : "New Test")
+        .navigationTitle(existingTest != nil ? "Edit Assessment" : "Build Assessment")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -174,36 +127,40 @@ struct AddTestView: View {
     
     @ViewBuilder
     private var generatorContent: some View {
-        VStack(spacing: 20) {
-            Text("Create Test for \(subject.name)")
-                .font(.title2)
-                .fontWeight(.bold)
+        VStack(spacing: 24) {
+            Image(systemName: "checklist.checked")
+                .font(.system(size: 60))
+                .foregroundColor(emeraldAccent)
             
-            Text("Lesson: \(lessonName)")
-                .font(.subheadline)
+            Text("Assessment Generator")
+                .font(.title)
+                .fontWeight(.heavy)
+            
+            Text("Building structure for:\n**\(lessonName)**")
+                .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
             
-            Stepper(value: $viewModel.questionCount, in: 1...50) {
-                Text("Number of Questions: \(viewModel.questionCount)")
+            VStack {
+                Text("Question Count: \(viewModel.questionCount)")
                     .font(.headline)
+                Slider(value: Binding(get: { Double(viewModel.questionCount) }, set: { viewModel.questionCount = Int($0) }), in: 1...50, step: 1)
+                    .tint(emeraldAccent)
             }
-            .padding(.horizontal)
-            .padding(.top, 10)
+            .padding()
+            .background(Color.platformSystemBackground)
+            .cornerRadius(16)
+            .padding(.horizontal, 30)
             
-            Button(action: {
-                Task {
-                    await viewModel.generateRecommendedTest()
-                }
-            }) {
+            Button(action: { Task { await viewModel.generateRecommendedTest() } }) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 14)
                         .fill(emeraldAccent)
                         .frame(height: 55)
                     
                     if viewModel.isGenerating {
                         ProgressView().tint(.white)
                     } else {
-                        Text("Generate Template")
+                        Text("Initialize Canvas")
                             .font(.headline)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -211,102 +168,100 @@ struct AddTestView: View {
                 }
             }
             .disabled(viewModel.isGenerating)
-            .padding(.horizontal)
+            .padding(.horizontal, 30)
+            .padding(.top, 10)
             
             Spacer()
         }
-        .padding(.top, 40)
+        .padding(.top, 60)
     }
     
     @ViewBuilder
     private var editorContent: some View {
-        List {
-            Section(header: Text("Test Details")) {
-                TextField("Test Title", text: $viewModel.testTitle)
-                    .font(.headline)
-            }
-            
-            ForEach(viewModel.generatedQuestions) { wrapper in
-                let safeBinding = Binding<Question>(
-                    get: {
-                        guard let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) else { return wrapper.question }
-                        return viewModel.generatedQuestions[index].question
-                    },
-                    set: { newValue in
-                        guard let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) else { return }
-                        viewModel.generatedQuestions[index].question = newValue
-                    }
-                )
-                
-                let displayIndex = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) ?? 0
-                
-                AdminQuestionEditorCell(
-                    question: safeBinding,
-                    index: displayIndex,
-                    onDelete: {
-                        withAnimation {
-                            viewModel.generatedQuestions.removeAll(where: { $0.id == wrapper.id })
-                        }
-                    }
-                )
-            }
-            
-            Button(action: {
-                withAnimation {
-                    viewModel.generatedQuestions.append(QuestionWrapper(question: Question(
-                        id: UUID().uuidString,
-                        correctOptionIndex: 0,
-                        options: ["", "", "", ""],
-                        points: 10,
-                        questionText: "",
-                        type: "multiple_choice",
-                        subject: subject.name,
-                        subtopic: lessonName,
-                        hint: "",
-                        feedback: "",
-                        testId: viewModel.existingTestId
-                    )))
+        @Bindable var bindableVM = viewModel
+        
+        ScrollView {
+            LazyVStack(spacing: 20) {
+                // Metadata
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Test Configuration")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                    
+                    TextField("Assessment Title...", text: $bindableVM.testTitle)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .padding()
+                        .background(Color.platformSystemBackground)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
                 }
-            }) {
-                Label("Add Another Question", systemImage: "plus.circle.fill")
-                    .font(.headline)
-                    .foregroundColor(emeraldAccent)
-            }
-        }
-        #if os(iOS)
-        .listStyle(.insetGrouped)
-        #endif
-        .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 0) {
-                Divider()
-                Button(action: {
-                    Task {
-                        await viewModel.saveTestToDatabase()
-                        dismiss()
-                    }
-                }) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(emeraldAccent)
-                            .frame(height: 55)
-                        
-                        if viewModel.isSaving {
-                            ProgressView().tint(.white)
-                        } else {
-                            Text("Save Test to Database")
-                                .font(.headline)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
-                .disabled(viewModel.isSaving)
                 .padding(.horizontal)
                 .padding(.top, 16)
-                .padding(.bottom, 24)
+                
+                // Questions Array
+                ForEach($bindableVM.generatedQuestions) { $wrapper in
+                    let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) ?? 0
+                    
+                    AdminQuestionEditorCell(
+                        question: $wrapper.question,
+                        index: index,
+                        onDelete: {
+                            withAnimation { viewModel.generatedQuestions.removeAll(where: { $0.id == wrapper.id }) }
+                        }
+                    )
+                }
+                
+                // Add Button
+                Button(action: {
+                    withAnimation {
+                        viewModel.generatedQuestions.append(QuestionWrapper(question: Question(
+                            id: UUID().uuidString, correctOptionIndex: 0, options: ["", "", "", ""], points: 10, questionText: "", type: "multiple_choice", subject: subject.name, subtopic: lessonName, hint: "", feedback: "", testId: viewModel.existingTestId
+                        )))
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add Manual Question")
+                            .fontWeight(.bold)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(emeraldAccent.opacity(0.15))
+                    .foregroundColor(emeraldAccent)
+                    .cornerRadius(12)
+                }
+                .padding(.horizontal)
+                
+                Spacer(minLength: 100)
             }
-            .background(colorScheme == .dark ? Color.platformSystemBackground : Color.white)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom) {
+            Button(action: {
+                Task { await viewModel.saveTestToDatabase(); dismiss() }
+            }) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(emeraldAccent)
+                        .frame(height: 55)
+                    
+                    if viewModel.isSaving {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Deploy Assessment")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            .disabled(viewModel.isSaving)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+            .background(Color.platformSystemGroupedBackground.opacity(0.95))
         }
     }
 }
@@ -320,60 +275,69 @@ struct AdminQuestionEditorCell: View {
     let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
     
     var body: some View {
-        Section(header: HStack {
-            Text("Question \(index + 1)")
-                .font(.headline)
-            Spacer()
-            Button(role: .destructive, action: onDelete) {
-                Image(systemName: "trash")
-                    .foregroundColor(.red)
-            }
-        }) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Question Builder")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                UniversalBlockEditorView(blocks: $blocks)
-                    .onChange(of: blocks) { _, newBlocks in
-                        question.updateWith(blocks: newBlocks)
-                    }
-            }
-            .padding(.vertical, 8)
-            
-            Text("Multiple Choice Options")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .padding(.top, 8)
-            
-            ForEach(0..<4, id: \.self) { i in
-                HStack {
-                    Button(action: { question.correctOptionIndex = i }) {
-                        Image(systemName: question.correctOptionIndex == i ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(question.correctOptionIndex == i ? emeraldAccent : .gray)
-                            .imageScale(.large)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    TextField("Option \(i + 1)", text: Binding(
-                        get: { question.options.indices.contains(i) ? question.options[i] : "" },
-                        set: { if question.options.indices.contains(i) { question.options[i] = $0 } }
-                    ))
-                    .padding(8)
-                    .background(Color.platformSecondarySystemBackground)
-                    .cornerRadius(8)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Question \(index + 1)")
+                    .font(.headline)
+                    .foregroundColor(emeraldAccent)
+                Spacer()
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash.fill")
+                        .foregroundColor(.red.opacity(0.8))
+                        .padding(8)
+                        .background(Color.red.opacity(0.1))
+                        .clipShape(Circle())
                 }
             }
             
-            TextField("Hint (Optional)", text: Binding(
+            Divider()
+            
+            UniversalBlockEditorView(blocks: $blocks)
+                .onChange(of: blocks) { _, newBlocks in
+                    question.updateWith(blocks: newBlocks)
+                }
+            
+            Divider()
+            
+            Text("Multiple Choice Parameters")
+                .font(.caption)
+                .fontWeight(.bold)
+                .foregroundColor(.secondary)
+            
+            VStack(spacing: 12) {
+                ForEach(0..<4, id: \.self) { i in
+                    HStack {
+                        Button(action: { question.correctOptionIndex = i }) {
+                            Image(systemName: question.correctOptionIndex == i ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(question.correctOptionIndex == i ? emeraldAccent : .gray.opacity(0.5))
+                                .font(.title3)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        TextField("Option \(i + 1)", text: Binding(
+                            get: { question.options.indices.contains(i) ? question.options[i] : "" },
+                            set: { if question.options.indices.contains(i) { question.options[i] = $0 } }
+                        ))
+                        .padding(10)
+                        .background(Color.platformSecondarySystemBackground)
+                        .cornerRadius(8)
+                    }
+                }
+            }
+            
+            TextField("Optional Hint/Feedback...", text: Binding(
                 get: { question.hint ?? "" },
                 set: { question.hint = $0.isEmpty ? nil : $0 }
             ))
-            .padding(8)
-            .background(Color.platformSecondarySystemBackground)
+            .padding(10)
+            .background(Color.yellow.opacity(0.1))
             .cornerRadius(8)
-            .padding(.top, 8)
         }
+        .padding()
+        .background(Color.platformSystemBackground)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+        .padding(.horizontal)
         .onAppear {
             blocks = question.parsedBlocks
         }

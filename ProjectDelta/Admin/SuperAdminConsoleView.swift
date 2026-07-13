@@ -2,8 +2,6 @@
 //  SuperAdminConsoleView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 7/10/26.
-//
 
 import SwiftUI
 import FirebaseFirestore
@@ -133,15 +131,41 @@ struct SuperAdminConsoleView: View {
     @State private var newDocId: String = ""
     @Environment(\.dismiss) var dismiss
     
-    private let accentTeal = Color(red: 0.12, green: 0.65, blue: 0.65)
+    // UI Constants
+    private let accentGradient = LinearGradient(colors: [Color(red: 0.12, green: 0.65, blue: 0.65), Color(red: 0.08, green: 0.5, blue: 0.6)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    private let primaryTeal = Color(red: 0.12, green: 0.65, blue: 0.65)
+    
+    // Explicitly manage visibility to help macOS rendering
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     
     var body: some View {
-        NavigationSplitView(columnVisibility: .constant(.all)) {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            // MARK: - Sidebar Column
             List(viewModel.rootCollections, id: \.self, selection: $selectedRoot) { collection in
-                Text(collection).font(.headline).padding(.vertical, 4)
+                NavigationLink(value: collection) {
+                    HStack(spacing: 12) {
+                        Image(systemName: iconForCollection(collection))
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(primaryTeal)
+                            .frame(width: 24)
+                        
+                        Text(collection)
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                    }
+                    .padding(.vertical, 6)
+                }
+                .listRowBackground(selectedRoot == collection ? primaryTeal.opacity(0.15) : Color.clear)
             }
             .navigationTitle("Database")
+            #if os(macOS)
+            .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 300)
+            // By defining containerBackground with ultraThinMaterial on macOS, we force the
+            // window chrome to draw the sidebar glass all the way up to the top window edge,
+            // preventing the cutoff bug.
+            .containerBackground(.ultraThinMaterial, for: .window)
+            #endif
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
             .onChange(of: selectedRoot) { _, newValue in
                 if let root = newValue {
                     Task { await viewModel.selectRootCollection(root) }
@@ -149,24 +173,62 @@ struct SuperAdminConsoleView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Exit") { dismiss() }.foregroundStyle(accentTeal)
-                }
-            }
-        } content: {
-            Group {
-                if viewModel.isFetching {
-                    ProgressView("Querying...")
-                } else if viewModel.documents.isEmpty {
-                    ContentUnavailableView("No Documents", systemImage: "tray")
-                } else {
-                    List(viewModel.documents, selection: $viewModel.selectedDocument) { doc in
-                        NavigationLink(value: doc) {
-                            Text(doc.id).font(.system(.body, design: .monospaced))
-                        }
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
+        } content: {
+            // MARK: - Content Column
+            Group {
+                if viewModel.isFetching {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .tint(primaryTeal)
+                        Text("Querying Cluster...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if viewModel.documents.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Documents", systemImage: "tray")
+                    } description: {
+                        Text("This collection is currently empty.")
+                    }
+                } else {
+                    List(viewModel.documents, selection: $viewModel.selectedDocument) { doc in
+                        NavigationLink(value: doc) {
+                            HStack {
+                                Image(systemName: "doc.text.fill")
+                                    .foregroundStyle(.secondary.opacity(0.5))
+                                Text(doc.id)
+                                    .font(.system(.subheadline, design: .monospaced))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .listRowBackground(viewModel.selectedDocument?.id == doc.id ? primaryTeal.opacity(0.15) : Color.clear)
+                        .contextMenu {
+                            Button(role: .destructive, action: {
+                                docToDelete = doc.id
+                                showDeleteAlert = true
+                            }) {
+                                Label("Eradicate", systemImage: "trash")
+                            }
+                        }
+                    }
+                    .listStyle(.inset)
+                    .scrollContentBackground(.hidden)
+                }
+            }
             .navigationTitle(viewModel.collectionPath.last ?? "Collections")
+            #if os(macOS)
+            .navigationSplitViewColumnWidth(min: 250, ideal: 300, max: 400)
+            .background(Color.platformSecondarySystemBackground)
+            #endif
             .task(id: viewModel.currentCollectionPathString) {
                 await viewModel.fetchDocuments()
             }
@@ -174,50 +236,76 @@ struct SuperAdminConsoleView: View {
                 ToolbarItem(placement: .navigation) {
                     if viewModel.collectionPath.count > 1 {
                         Button(action: { Task { await viewModel.navigateBack() } }) {
-                            HStack {
+                            HStack(spacing: 4) {
                                 Image(systemName: "chevron.left")
                                 Text("Back")
                             }
-                            .fontWeight(.bold)
-                            .foregroundStyle(accentTeal)
+                            .fontWeight(.medium)
+                            .foregroundStyle(primaryTeal)
                         }
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showNewDocAlert = true }) { Image(systemName: "plus") }
+                    Button(action: { showNewDocAlert = true }) {
+                        Image(systemName: "plus")
+                            .fontWeight(.semibold)
+                    }
                     .disabled(viewModel.collectionPath.isEmpty)
+                    .tint(primaryTeal)
                 }
             }
         } detail: {
-            if let doc = viewModel.selectedDocument {
-                DocumentEditorPanel(
-                    document: Binding(get: { doc }, set: { viewModel.selectedDocument = $0 }),
-                    isSaving: viewModel.isSaving,
-                    suggestedSubcollections: viewModel.getSuggestedSubcollections(),
-                    onSave: { Task { await viewModel.saveDocumentEdits() } },
-                    onDrillDown: { sub in Task { await viewModel.drillDown(docId: doc.id, subcollection: sub) } }
-                )
-            } else {
-                ContentUnavailableView("Select a Document", systemImage: "server.rack")
+            // MARK: - Detail Column
+            Group {
+                if let doc = viewModel.selectedDocument {
+                    DocumentEditorPanel(
+                        document: Binding(get: { doc }, set: { viewModel.selectedDocument = $0 }),
+                        isSaving: viewModel.isSaving,
+                        suggestedSubcollections: viewModel.getSuggestedSubcollections(),
+                        onSave: { Task { await viewModel.saveDocumentEdits() } },
+                        onDrillDown: { sub in Task { await viewModel.drillDown(docId: doc.id, subcollection: sub) } }
+                    )
+                } else {
+                    ContentUnavailableView {
+                        Label("Inspector Node", systemImage: "server.rack")
+                    } description: {
+                        Text("Select a document from the hierarchy to view or mutate its raw JSON payload.")
+                    }
+                }
             }
+            #if os(macOS)
+            .background(Color.platformSystemBackground)
+            #endif
         }
         .frame(minWidth: 1000, minHeight: 700)
         .preferredColorScheme(.dark)
-        .alert("Delete Document", isPresented: $showDeleteAlert) {
+        // ALERTS
+        .alert("Eradicate Document", isPresented: $showDeleteAlert) {
             Button("Cancel", role: .cancel) { docToDelete = nil }
-            Button("Delete", role: .destructive) {
+            Button("Confirm Deletion", role: .destructive) {
                 if let id = docToDelete { Task { await viewModel.deleteDocument(id: id) } }
             }
         } message: {
-            Text("Permanently eradicate from Firestore?")
+            Text("This action is irreversible and will completely destroy the document and all nested fields.")
         }
-        .alert("New Document", isPresented: $showNewDocAlert) {
+        .alert("Initialize Document", isPresented: $showNewDocAlert) {
             TextField("Document ID (Leave blank for Auto-ID)", text: $newDocId)
             Button("Cancel", role: .cancel) { newDocId = "" }
             Button("Create") {
                 let idToUse = newDocId.isEmpty ? UUID().uuidString : newDocId
                 Task { await viewModel.createNewDocument(with: idToUse); newDocId = "" }
             }
+        }
+    }
+    
+    private func iconForCollection(_ name: String) -> String {
+        switch name {
+        case "Users": return "person.2.fill"
+        case "Subjects": return "books.vertical.fill"
+        case "questions": return "questionmark.folder.fill"
+        case "quizSnapshots": return "camera.macro"
+        case "UserProgress": return "chart.xyaxis.line"
+        default: return "folder.fill"
         }
     }
 }
@@ -231,36 +319,145 @@ struct DocumentEditorPanel: View {
     var onDrillDown: (String) -> Void
     @State private var manualSubcollectionInput: String = ""
     
+    private let primaryTeal = Color(red: 0.12, green: 0.65, blue: 0.65)
+    
     var body: some View {
-        Form {
-            Section("Navigation") {
-                ForEach(suggestedSubcollections, id: \.self) { sub in
-                    Button(sub) { onDrillDown(sub) }
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Document Inspector")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("ID: \(document.id)")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(6)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(6)
                 }
-                HStack {
-                    TextField("Manual Subcollection Path", text: $manualSubcollectionInput)
-                    Button("Go") { onDrillDown(manualSubcollectionInput) }
-                }
-            }
-            
-            Section("Document Fields") {
-                ForEach(document.data.keys.sorted(), id: \.self) { key in
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+                .padding(.top, 24)
+                
+                // Navigation Card
+                VStack(alignment: .leading, spacing: 16) {
                     HStack {
-                        Text(key)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 150, alignment: .leading)
-                        TextField("Value", text: Binding(
-                            get: { "\(document.data[key] ?? "")" },
-                            set: { document.data[key] = $0 }
-                        ))
+                        Image(systemName: "folder.tree.fill")
+                            .foregroundStyle(primaryTeal)
+                        Text("Sub-Collections")
+                            .font(.headline)
+                    }
+                    
+                    Divider()
+                    
+                    if !suggestedSubcollections.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(suggestedSubcollections, id: \.self) { sub in
+                                    Button(action: { onDrillDown(sub) }) {
+                                        Text(sub)
+                                            .fontWeight(.semibold)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 8)
+                                            .background(primaryTeal.opacity(0.15))
+                                            .foregroundStyle(primaryTeal)
+                                            .cornerRadius(8)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                    
+                    HStack {
+                        TextField("Manual subcollection path...", text: $manualSubcollectionInput)
+                            .textFieldStyle(.plain)
+                            .padding(10)
+                            .background(Color.black.opacity(0.2))
+                            .cornerRadius(8)
+                        
+                        Button(action: { onDrillDown(manualSubcollectionInput) }) {
+                            Image(systemName: "arrow.right.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(primaryTeal)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(manualSubcollectionInput.isEmpty)
                     }
                 }
+                .padding()
+                .background(Color.platformSecondarySystemBackground)
+                .cornerRadius(16)
+                .padding(.horizontal)
+                
+                // Fields Card
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Image(systemName: "hammer.fill")
+                            .foregroundStyle(Color.orange)
+                        Text("Mutate Fields")
+                            .font(.headline)
+                    }
+                    
+                    Divider()
+                    
+                    VStack(spacing: 12) {
+                        ForEach(document.data.keys.sorted(), id: \.self) { key in
+                            HStack(alignment: .top) {
+                                Text(key)
+                                    .font(.system(.subheadline, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 140, alignment: .leading)
+                                    .padding(.top, 8)
+                                
+                                TextField("Value", text: Binding(
+                                    get: { "\(document.data[key] ?? "")" },
+                                    set: { document.data[key] = $0 }
+                                ), axis: .vertical)
+                                .textFieldStyle(.plain)
+                                .lineLimit(1...10)
+                                .padding(10)
+                                .background(Color.black.opacity(0.2))
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.platformSecondarySystemBackground)
+                .cornerRadius(16)
+                .padding(.horizontal)
+                
+                Spacer(minLength: 100)
             }
-            
-            Button("Commit Mutation", action: onSave)
-                .buttonStyle(.borderedProminent)
-                .disabled(isSaving)
         }
-        .formStyle(.grouped)
+        .safeAreaInset(edge: .bottom) {
+            Button(action: onSave) {
+                HStack {
+                    if isSaving {
+                        ProgressView().tint(.white)
+                            .padding(.trailing, 8)
+                    } else {
+                        Image(systemName: "server.rack")
+                    }
+                    Text("Commit Payload")
+                        .fontWeight(.bold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(primaryTeal)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+                .shadow(color: primaryTeal.opacity(0.3), radius: 10, y: 4)
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+            .background(
+                LinearGradient(colors: [Color.platformSystemBackground.opacity(0), Color.platformSystemBackground], startPoint: .top, endPoint: .bottom)
+            )
+        }
     }
 }
