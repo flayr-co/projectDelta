@@ -7,7 +7,6 @@ import SwiftUI
 import FirebaseFirestore
 import Observation
 
-// (TestBuilderViewModel remains completely unchanged)
 @MainActor
 @Observable
 class TestBuilderViewModel {
@@ -117,6 +116,24 @@ struct AddTestView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .toolbar {
+            #if os(macOS)
+            if viewModel.showEditor {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button("Cancel") { dismiss() }
+                        .buttonStyle(.borderless)
+                    
+                    Button("Deploy") {
+                        Task { await viewModel.saveTestToDatabase(); dismiss() }
+                    }
+                    .fontWeight(.bold)
+                    .buttonStyle(.borderedProminent)
+                    .tint(emeraldAccent)
+                    .disabled(viewModel.isSaving)
+                }
+            }
+            #endif
+        }
         .task {
             await viewModel.initialize(subject: subject, lesson: lessonName, testId: existingTest?.id)
             if existingTest != nil {
@@ -239,6 +256,7 @@ struct AddTestView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        #if os(iOS)
         .safeAreaInset(edge: .bottom) {
             Button(action: {
                 Task { await viewModel.saveTestToDatabase(); dismiss() }
@@ -263,6 +281,7 @@ struct AddTestView: View {
             .padding(.bottom, 16)
             .background(Color.platformSystemGroupedBackground.opacity(0.95))
         }
+        #endif
     }
 }
 

@@ -56,6 +56,20 @@ struct AddQuestionView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .toolbar {
+            #if os(macOS)
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(.borderless)
+                
+                Button("Commit") { saveQuestion() }
+                    .fontWeight(.bold)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.teal)
+                    .disabled(questionBlocks.isEmpty || options.contains(where: \.isEmpty))
+            }
+            #endif
+        }
         .onAppear {
             if let initialArea = SubjectArea(rawValue: subject.name) ?? SubjectArea(rawValue: subject.subjectArea.rawValue) {
                 selectedSubjectArea = initialArea
@@ -68,6 +82,7 @@ struct AddQuestionView: View {
         } message: {
             Text("The question has been successfully deployed to the global bank and linked to the assessment.")
         }
+        #if os(iOS)
         .safeAreaInset(edge: .bottom) {
             Button(action: saveQuestion) {
                 HStack {
@@ -88,6 +103,7 @@ struct AddQuestionView: View {
             .padding(.bottom, 16)
             .background(Color.platformSystemGroupedBackground.opacity(0.95))
         }
+        #endif
     }
     
     // MARK: - Sub-Builders

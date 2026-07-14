@@ -105,16 +105,32 @@ struct LessonEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                #if os(iOS)
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: 16) {
+                        Button("Cancel") { dismiss() }
+                            .foregroundStyle(.secondary)
+                        
+                        Button("Save") { saveLesson() }
+                            .fontWeight(.bold)
+                            .buttonStyle(.borderedProminent)
+                            .tint(.teal)
+                            .disabled(lessonTitle.isEmpty)
+                            .clipShape(Capsule())
+                    }
                 }
+                #else
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save Curriculum") { saveLesson() }
+                    Button("Save") { saveLesson() }
                         .fontWeight(.bold)
                         .buttonStyle(.borderedProminent)
                         .tint(.teal)
                         .disabled(lessonTitle.isEmpty)
                 }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                #endif
             }
             .onAppear {
                 loadLessonBlocks()
