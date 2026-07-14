@@ -99,41 +99,39 @@ struct LessonContentPage: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 32) {
                 
                 // NEW INLINE PARSER RENDERER
                 ForEach(parsedBlocks) { block in
                     switch block.type {
                     case .text(let textContent):
                         TextStylingUtility.styledText(from: textContent)
-                            .font(.system(size: 19, weight: .regular, design: .serif))
-                            .lineSpacing(8)
+                            .font(.system(size: 21, weight: .regular, design: .serif))
+                            .lineSpacing(12)
+                            .foregroundColor(.primary.opacity(0.9))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal)
                         
                     case .math(let latexContent):
                         VStack(spacing: 0) {
                             LatexView(latex: "$$\n\(latexContent)\n$$")
                                 .frame(minHeight: calculateHeight(for: latexContent))
-                                .padding(12)
+                                .padding(24)
                                 .frame(maxWidth: .infinity)
-                                .background(colorScheme == ColorScheme.dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-                                .cornerRadius(12)
+                                .background(Color.platformSecondarySystemBackground)
+                                .cornerRadius(16)
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                         }
-                        .padding(.horizontal)
                         
                     case .graph(let graphDataStr):
                         InlineGraphRenderer(graphString: graphDataStr)
-                            .padding(.horizontal)
                     }
                 }
 
                 // LEGACY BACKWARD COMPATIBILITY
                 if let graphData = page.graphData {
                     DynamicGraphView(data: graphData)
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 16)
                 }
 
                 if let example = page.example, !example.isEmpty {
@@ -141,25 +139,26 @@ struct LessonContentPage: View {
                 }
 
                 if let explanationText = page.explanation, !explanationText.isEmpty {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 16) {
                         Button {
-                            withAnimation(.spring()) {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                                 isExplanationVisible.toggle()
                                 isInteractingWithExplanation = isExplanationVisible
                             }
                         } label: {
-                            HStack {
-                                Image(systemName: isExplanationVisible ? "chevron.up.circle.fill" : "checkmark.seal.fill")
-                                Text(isExplanationVisible ? "Hide explanation" : "See explanation")
-                                    .fontWeight(.semibold)
+                            HStack(spacing: 8) {
+                                Image(systemName: isExplanationVisible ? "chevron.up.circle.fill" : "lightbulb.fill")
+                                    .font(.system(size: 18))
+                                Text(isExplanationVisible ? "Hide Breakdown" : "View Step-by-Step Breakdown")
+                                    .fontWeight(.bold)
                             }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 16)
-                            .background(Color(red: 0.18, green: 0.80, blue: 0.44).opacity(0.1))
+                            .padding(.vertical, 14)
+                            .padding(.horizontal, 24)
+                            .background(Color.teal.opacity(0.1))
                             .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
-                        .foregroundColor(Color(red: 0.18, green: 0.80, blue: 0.44))
+                        .foregroundColor(.teal)
                         .frame(maxWidth: .infinity)
 
                         if isExplanationVisible {
@@ -167,6 +166,7 @@ struct LessonContentPage: View {
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
+                    .padding(.top, 16)
                 }
 
                 if page.readyButtonDisplayed {
@@ -183,26 +183,38 @@ struct LessonContentPage: View {
                                 lessonId: lessonVM.currentLessonId
                             ))
                         } label: {
-                            Text("Go to test")
-                                .font(.title3)
+                            Text("Jump to Practice Session")
+                                .font(.headline)
                                 .fontWeight(.bold)
-                                .foregroundStyle(colorScheme == ColorScheme.dark ? .cyan : Color(red: 0.18, green: 0.80, blue: 0.44))
+                                .padding(.horizontal, 32)
+                                .padding(.vertical, 16)
+                                .background(Color.teal)
+                                .foregroundColor(.white)
+                                .clipShape(Capsule())
+                                .shadow(color: Color.teal.opacity(0.3), radius: 10, y: 5)
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.vertical, 30)
+                    .padding(.vertical, 40)
                     .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.top, 20)
+            #if os(macOS)
+            .padding(.horizontal, 80)
+            .padding(.vertical, 40)
+            .frame(maxWidth: 900) // Optimized for readability
+            .frame(maxWidth: .infinity, alignment: .center)
+            #else
+            .padding(.horizontal, 24)
+            .padding(.top, 40)
+            .padding(.bottom, 120)
+            #endif
         }
         .scrollIndicators(.hidden)
         .background(
             Color.clear
                 .contentShape(Rectangle())
-                .onTapGesture {
-                    onBackgroundTap()
-                }
+                .onTapGesture { onBackgroundTap() }
         )
     }
 }
@@ -216,7 +228,7 @@ struct InlineGraphPoint: Identifiable {
 
 struct InlineGraphRenderer: View {
     let graphString: String
-    @Environment(\.colorScheme) var colorScheme // Fixed missing backslash
+    @Environment(\.colorScheme) var colorScheme
 
     var points: [InlineGraphPoint] {
         var extractedPoints: [InlineGraphPoint] = []
@@ -238,17 +250,14 @@ struct InlineGraphRenderer: View {
             VStack(spacing: 8) {
                 Image(systemName: "function")
                     .font(.largeTitle)
-                    .foregroundColor(.green)
+                    .foregroundColor(.teal)
                 Text("Function Graph: \(getEquation(from: graphString))")
                     .font(.headline)
                     .foregroundColor(.primary)
-                Text("Switch graph type to 'Coordinate Points' in Admin to visualize line data.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, minHeight: 250)
-            .background(colorScheme == ColorScheme.dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-            .cornerRadius(12)
+            .background(Color.platformSecondarySystemBackground)
+            .cornerRadius(16)
         } else {
             Chart {
                 ForEach(points) { point in
@@ -257,19 +266,20 @@ struct InlineGraphRenderer: View {
                         y: .value("Y", point.y)
                     )
                     .interpolationMethod(.monotone)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(.teal)
                     
                     PointMark(
                         x: .value("X", point.x),
                         y: .value("Y", point.y)
                     )
-                    .foregroundStyle(.green)
+                    .foregroundStyle(.teal)
                 }
             }
             .frame(height: 250)
-            .padding(16)
-            .background(colorScheme == ColorScheme.dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-            .cornerRadius(12)
+            .padding(24)
+            .background(Color.platformSecondarySystemBackground)
+            .cornerRadius(16)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         }
     }
 
@@ -290,7 +300,7 @@ struct ParsedExampleItem: Identifiable {
 
 struct ExampleView: View {
     var text: String
-    @Environment(\.colorScheme) var colorScheme // Fixed missing backslash
+    @Environment(\.colorScheme) var colorScheme
 
     var parsedContent: [ParsedExampleItem] {
         text.split(separator: "\n").map { line in
@@ -311,9 +321,9 @@ struct ExampleView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 20) {
             ForEach(parsedContent) { item in
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     if item.example.contains("$$") {
                         let latex = item.example
                             .replacingOccurrences(of: "$$", with: "")
@@ -323,27 +333,29 @@ struct ExampleView: View {
                         
                         LatexView(latex: "$$\n\(latex)\n$$")
                             .frame(minHeight: height)
-                            .padding(12)
+                            .padding(16)
                             .frame(maxWidth: .infinity)
-                            .background(colorScheme == ColorScheme.dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-                            .cornerRadius(12)
+                            .background(Color.platformSecondarySystemBackground)
+                            .cornerRadius(16)
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                     } else {
                         TextStylingUtility.styledText(from: item.example)
-                            .padding(12)
+                            .font(.system(size: 18, weight: .medium, design: .rounded))
+                            .padding(16)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(colorScheme == ColorScheme.dark ? Color.black.opacity(0.4) : Color.white)
-                            .cornerRadius(12)
-                            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                            .background(Color.platformSecondarySystemBackground)
+                            .cornerRadius(16)
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                     }
 
                     if !item.explanation.isEmpty {
                         Text(item.explanation)
-                            .font(.footnote)
+                            .font(.callout)
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
+                            .padding(.horizontal, 8)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .padding(.horizontal)
             }
         }
     }

@@ -72,55 +72,52 @@ struct LessonView: View {
     // MARK: - DESKTOP LAYOUT (macOS)
     #if os(macOS)
     private var macOSLayout: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                if showUIControls {
-                    macOSHeaderView
-                        .transition(.opacity)
+            if lessonVM.isLoading {
+                VStack {
+                    Spacer()
+                    ProgressView("Loading curriculum...")
+                        .controlSize(.large)
+                    Spacer()
                 }
-
-                if lessonVM.isLoading {
+            } else if lessonVM.lessonPages.isEmpty {
+                VStack(spacing: 16) {
                     Spacer()
-                    ProgressView("Loading lesson content...")
-                    Spacer()
-                } else if lessonVM.lessonPages.isEmpty {
-                    Spacer()
+                    Image(systemName: "book.closed")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary.opacity(0.5))
                     Text("No content available.")
                         .font(.system(.title3, design: .rounded, weight: .semibold))
                         .foregroundColor(.secondary)
                     Spacer()
-                } else {
-                    ZStack {
-                        if lessonVM.lessonPages.indices.contains(lessonVM.currentPageIndex) {
-                            let page = lessonVM.lessonPages[lessonVM.currentPageIndex]
-                            LessonContentPage(
-                                page: page,
-                                isInteractingWithExplanation: $isInteractingWithExplanation,
-                                onBackgroundTap: {}
-                            )
-                            .id(page.id)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .scale(scale: 0.98)),
-                                removal: .opacity.combined(with: .scale(scale: 1.02))
-                            ))
-                            .frame(maxWidth: 1000)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
-                        if lessonVM.lessonPages.indices.contains(newPageIndex) {
-                            let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
-                            lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
-                        }
+                }
+            } else {
+                ZStack(alignment: .bottom) {
+                    if lessonVM.lessonPages.indices.contains(lessonVM.currentPageIndex) {
+                        let page = lessonVM.lessonPages[lessonVM.currentPageIndex]
+                        LessonContentPage(
+                            page: page,
+                            isInteractingWithExplanation: $isInteractingWithExplanation,
+                            onBackgroundTap: {}
+                        )
+                        .id(page.id)
+                        .transition(.opacity)
                     }
                 }
-
-                if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
-                    macOSNavigationControls
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .safeAreaInset(edge: .top) {
+                    if showUIControls { macOSHeaderView }
+                }
+                .safeAreaInset(edge: .bottom) {
+                    if showUIControls { macOSNavigationControls }
+                }
+                .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
+                    if lessonVM.lessonPages.indices.contains(newPageIndex) {
+                        let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
+                        lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
+                    }
                 }
             }
 
@@ -132,30 +129,29 @@ struct LessonView: View {
                             showTableOfContents = false
                         }
                     }
+                    .zIndex(4)
 
                 TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName, isShowing: $showTableOfContents)
                     .frame(width: 360)
                     .background(Color.platformSystemBackground)
                     .cornerRadius(24)
-                    .shadow(color: .black.opacity(0.1), radius: 20)
+                    .shadow(color: .black.opacity(0.2), radius: 40, x: -10, y: 0)
                     .transition(.move(edge: .trailing))
-                    .padding(24)
                     .frame(maxWidth: .infinity, alignment: .trailing)
+                    .ignoresSafeArea(edges: .bottom)
+                    .zIndex(5)
             }
         }
     }
 
     private var macOSHeaderView: some View {
-        HStack(spacing: 24) {
-            Button(action: {
-                dismiss()
-            }) {
-                HStack(spacing: 8) {
+        HStack(spacing: 16) {
+            Button(action: { dismiss() }) {
+                HStack(spacing: 6) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .bold))
-                    Text("Back")
-                        .font(.system(.body, design: .rounded, weight: .semibold))
+                    Text("Exit")
                 }
+                .font(.system(size: 15, weight: .bold))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
@@ -164,30 +160,30 @@ struct LessonView: View {
             }
             .buttonStyle(.plain)
 
+            Spacer()
+
             Text(lessonVM.currentLessonName)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .font(.system(.title3, design: .rounded, weight: .heavy))
                 .foregroundColor(.primary)
 
             Spacer()
 
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         showTableOfContents.toggle()
-                        if showTableOfContents {
-                            lessonVM.fetchAllLessons(for: subjectName)
-                        }
+                        if showTableOfContents { lessonVM.fetchAllLessons(for: subjectName) }
                     }
                 }) {
-                    HStack {
-                        Image(systemName: "list.number")
+                    HStack(spacing: 6) {
+                        Image(systemName: "list.bullet.rectangle")
                         Text("Index")
                     }
-                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.primary)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Color.accentColor.opacity(0.15))
-                    .foregroundColor(.accentColor)
+                    .background(Color.primary.opacity(0.05))
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
@@ -196,86 +192,95 @@ struct LessonView: View {
                     lessonVM.toggleBookmark(authVM: authVM)
                 }) {
                     Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? .blue : .secondary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(Capsule())
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? .teal : .secondary)
+                        .frame(width: 36, height: 36)
+                        .background(Color.primary.opacity(0.05))
+                        .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 40)
-        .padding(.vertical, 20)
-        .background(Color.platformSystemBackground)
-        .overlay(
-            Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.05)),
-            alignment: .bottom
-        )
+        .padding(.horizontal, 32)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
+        .background(.ultraThinMaterial)
+        .overlay(Divider(), alignment: .bottom)
     }
 
     private var macOSNavigationControls: some View {
-        VStack(spacing: 16) {
-            if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 && hasQuiz {
-                NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
-                    Text("Take Practice Quiz")
-                        .font(.system(.title3, design: .rounded, weight: .bold))
-                        .frame(maxWidth: 300)
-                        .padding(.vertical, 16)
-                        .background(Color.green)
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: Color.green.opacity(0.3), radius: 10, x: 0, y: 5)
-                }
-                .buttonStyle(.plain)
-            }
-
-            HStack {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 24) {
                 Button(action: {
-                    withAnimation {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
                     }
                 }) {
-                    Image(systemName: "chevron.left.circle.fill")
-                        .font(.system(size: 42))
-                        .foregroundStyle(Color.accentColor)
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.left")
+                        Text("Previous")
+                    }
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(lessonVM.currentPageIndex == 0 ? .gray.opacity(0.3) : .primary)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color.primary.opacity(0.05))
+                    .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .disabled(lessonVM.currentPageIndex == 0)
-                .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
 
                 Spacer()
 
                 Text("Page \(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
-                    .font(.system(.headline, design: .rounded, weight: .semibold))
+                    .font(.system(.headline, design: .rounded, weight: .heavy))
+                    .monospacedDigit()
                     .foregroundColor(.secondary)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 10)
-                    .background(Color.secondary.opacity(0.1))
-                    .clipShape(Capsule())
 
                 Spacer()
 
-                Button(action: {
-                    withAnimation {
-                        lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
+                if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 && hasQuiz {
+                    NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
+                        HStack(spacing: 8) {
+                            Text("Assess Knowledge")
+                            Image(systemName: "checkmark.seal.fill")
+                        }
+                        .font(.system(size: 14, weight: .bold))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.teal)
+                        .foregroundColor(.white)
+                        .clipShape(Capsule())
+                        .shadow(color: Color.teal.opacity(0.3), radius: 10, y: 4)
                     }
-                }) {
-                    Image(systemName: "chevron.right.circle.fill")
-                        .font(.system(size: 42))
-                        .foregroundStyle(Color.accentColor)
+                    .buttonStyle(.plain)
+                } else {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
+                        }
+                    }) {
+                        HStack(spacing: 8) {
+                            Text("Next")
+                            Image(systemName: "arrow.right")
+                        }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .gray.opacity(0.3) : .primary)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(Color.primary.opacity(0.05))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
                 }
-                .buttonStyle(.plain)
-                .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
-                .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
             }
+            .padding(.horizontal, 32)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity)
+            .background(.ultraThinMaterial)
         }
-        .padding(.horizontal, 40)
-        .padding(.vertical, 24)
-        .frame(maxWidth: 1000)
-        .frame(maxWidth: .infinity, alignment: .center)
-        .background(Color.platformSystemGroupedBackground)
     }
     #endif
 
@@ -283,15 +288,21 @@ struct LessonView: View {
     #if os(iOS)
     private var iOSLayout: some View {
         ZStack {
-            (colorScheme == ColorScheme.dark ? Color.customDarkGray : Color.white)
+            (colorScheme == ColorScheme.dark ? Color.customDarkGray : Color.platformSystemGroupedBackground)
                 .ignoresSafeArea()
             
             if lessonVM.isLoading {
-                ProgressView("Loading lesson content...")
+                ProgressView("Loading curriculum...")
+                    .tint(.teal)
             } else if lessonVM.lessonPages.isEmpty {
-                Text("No content available.")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
+                VStack(spacing: 12) {
+                    Image(systemName: "book.closed")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    Text("No content available.")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
             } else {
                 TabView(selection: Bindable(lessonVM).currentPageIndex) {
                     ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
@@ -300,7 +311,7 @@ struct LessonView: View {
                             page: page,
                             isInteractingWithExplanation: $isInteractingWithExplanation,
                             onBackgroundTap: {
-                                withAnimation(.easeInOut(duration: 0.25)) {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     showUIControls.toggle()
                                 }
                             }
@@ -310,6 +321,7 @@ struct LessonView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .id(lessonVM.currentLessonId)
+                .ignoresSafeArea(edges: .bottom)
                 .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                     if lessonVM.lessonPages.indices.contains(newPageIndex) {
                         let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
@@ -319,82 +331,76 @@ struct LessonView: View {
             }
             
             if showTableOfContents {
-                Color.black.opacity(0.3)
+                Color.black.opacity(0.4)
                     .ignoresSafeArea()
                     .onTapGesture {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             showTableOfContents = false
                         }
                     }
+                    .zIndex(2)
                 
                 TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName, isShowing: $showTableOfContents)
                     .frame(width: 320)
-                    .background(colorScheme == ColorScheme.dark ? Color.customDarkGray : .white)
-                    .cornerRadius(16)
-                    .shadow(color: .black.opacity(0.2), radius: 10)
+                    .background(Color.platformSystemBackground)
+                    .cornerRadius(24)
+                    .shadow(color: .black.opacity(0.2), radius: 20)
                     .transition(.move(edge: .trailing))
                     .padding(.trailing, 16)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                    .zIndex(2)
+                    .zIndex(3)
             }
-        }
-        .safeAreaInset(edge: .top) {
-            if showUIControls {
-                headerView
-                    .background(colorScheme == ColorScheme.dark ? Color.customDarkGray : .white)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+            
+            VStack {
+                if showUIControls && !lessonVM.isLoading {
+                    headerView
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                
+                Spacer()
+                
+                if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
+                    lessonNavigationControls
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
-                lessonNavigationControls
-                    .background(colorScheme == ColorScheme.dark ? Color.customDarkGray : .white)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            .zIndex(1)
         }
     }
 
     private var headerView: some View {
         HStack(spacing: 12) {
-            Button(action: {
-                dismiss()
-            }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.left")
-                        .font(.system(size: 16, weight: .bold))
-                }
-                .foregroundColor(.red)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 40, height: 40)
+                    .background(Color.secondary.opacity(0.15))
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
 
             Text(lessonVM.currentLessonName)
-                .font(.headline)
-                .fontWeight(.bold)
+                .font(.system(.headline, design: .rounded, weight: .bold))
                 .foregroundColor(.primary)
-                .lineLimit(2)
-                .minimumScaleFactor(0.75)
-                .multilineTextAlignment(.leading)
+                .lineLimit(1)
                 .layoutPriority(1)
 
             Spacer(minLength: 8)
 
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         showTableOfContents.toggle()
-                        if showTableOfContents {
-                            lessonVM.fetchAllLessons(for: subjectName)
-                        }
+                        if showTableOfContents { lessonVM.fetchAllLessons(for: subjectName) }
                     }
                 }) {
-                    Image(systemName: "list.number")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(colorScheme == ColorScheme.dark ? .mint : .blue)
-                        .padding(8)
-                        .contentShape(Rectangle())
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.teal)
+                        .frame(width: 40, height: 40)
+                        .background(Color.teal.opacity(0.1))
+                        .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
 
@@ -402,87 +408,83 @@ struct LessonView: View {
                     lessonVM.toggleBookmark(authVM: authVM)
                 }) {
                     Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 18))
-                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? .blue : .secondary)
-                        .padding(8)
-                        .contentShape(Rectangle())
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(lessonVM.isCurrentPageBookmarked ? .teal : .secondary)
+                        .frame(width: 40, height: 40)
+                        .background(Color.secondary.opacity(0.15))
+                        .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+        .shadow(color: .black.opacity(0.05), radius: 10, y: 5)
     }
 
     private var lessonNavigationControls: some View {
-        VStack {
+        VStack(spacing: 16) {
             if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 && hasQuiz {
                 NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
-                    Text("Take Quiz")
-                        .font(.headline)
-                        .bold()
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(colorScheme == ColorScheme.dark ? .cyan : .green)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
+                    HStack {
+                        Text("Assess Knowledge")
+                        Image(systemName: "arrow.right.circle.fill")
+                    }
+                    .font(.headline)
+                    .bold()
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.teal)
+                    .foregroundColor(.white)
+                    .clipShape(Capsule())
+                    .shadow(color: Color.teal.opacity(0.4), radius: 10, y: 4)
                 }
-                .padding(.horizontal, 25)
-                .padding(.bottom, 10)
+                .padding(.horizontal, 24)
             }
             
-            HStack {
+            HStack(spacing: 20) {
                 Button(action: {
-                    withAnimation {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
                     }
                 }) {
-                    Image(systemName: "chevron.left.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(colorScheme == ColorScheme.dark ? .cyan : .blue)
-                        .contentShape(Circle())
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(lessonVM.currentPageIndex == 0 ? .gray.opacity(0.3) : .primary)
+                        .frame(width: 50, height: 50)
                 }
-                .buttonStyle(.plain)
                 .disabled(lessonVM.currentPageIndex == 0)
-                .opacity(lessonVM.currentPageIndex == 0 ? 0.3 : 1)
 
                 Spacer()
                 
                 Text("\(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
-                    .font(.footnote.monospacedDigit())
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
+                    .font(.subheadline.monospacedDigit())
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
 
                 Spacer()
                 
                 Button(action: {
-                    withAnimation {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
                     }
                 }) {
-                    Image(systemName: "chevron.right.circle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(colorScheme == ColorScheme.dark ? .cyan : .blue)
-                        .contentShape(Circle())
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .gray.opacity(0.3) : .primary)
+                        .frame(width: 50, height: 50)
                 }
-                .buttonStyle(.plain)
                 .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
-                .opacity(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? 0.3 : 1)
             }
-            .padding(.horizontal, 25)
-            .padding(.bottom, 30)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
         }
     }
     #endif
-}
-
-#Preview {
-    let auth = AuthViewModel()
-    LessonView(subjectName: "Algebra")
-        .environment(LessonViewModel())
-        .environment(auth)
-        .environment(TestSessionViewModel(authViewModel: auth))
 }
