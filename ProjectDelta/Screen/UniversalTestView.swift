@@ -20,7 +20,6 @@ struct UniversalTestView: View {
     @State private var isHintExpanded: Bool = false
     @State private var breakdownStates: [String: Bool] = [:]
     @State private var showAdminEditor = false
-    @State private var targetTestId: String? = nil
     @State private var hoveredOptions: [String: Int] = [:]
     
     @State private var timeRemaining: Int = 300
@@ -56,7 +55,6 @@ struct UniversalTestView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
                     Button(action: {
-                        targetTestId = testViewModel.questions.first?.testId
                         showAdminEditor = true
                     }) {
                         Image(systemName: "pencil.and.list.clipboard")
@@ -72,7 +70,7 @@ struct UniversalTestView: View {
             AdminTestManagerView(
                 subjectName: mode.subjectName,
                 lessonName: mode.subtopicName ?? "",
-                existingTestId: targetTestId
+                existingTestId: testViewModel.questions.first?.testId
             )
         }
         #else
@@ -80,7 +78,7 @@ struct UniversalTestView: View {
             AdminTestManagerView(
                 subjectName: mode.subjectName,
                 lessonName: mode.subtopicName ?? "",
-                existingTestId: targetTestId
+                existingTestId: testViewModel.questions.first?.testId
             )
         }
         #endif
@@ -210,7 +208,6 @@ struct UniversalTestView: View {
 
             if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
                 Button(action: {
-                    targetTestId = testViewModel.questions.first?.testId
                     showAdminEditor = true
                 }) {
                     HStack(spacing: 6) {
