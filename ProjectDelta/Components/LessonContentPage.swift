@@ -27,6 +27,15 @@ struct LessonContentPage: View {
     @State private var isExplanationVisible: Bool = false
     @Environment(LessonViewModel.self) var lessonVM
     @Environment(\.colorScheme) var colorScheme
+    
+    // Dynamic Theme Logic
+    var themeColor: Color {
+        colorScheme == .dark ? .teal : .blue
+    }
+    
+    var secondaryThemeColor: Color {
+        colorScheme == .dark ? .orange : .red
+    }
 
     // Core Parser Engine
     var parsedBlocks: [ParsedContentBlock] {
@@ -101,7 +110,6 @@ struct LessonContentPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 
-                // NEW INLINE PARSER RENDERER
                 ForEach(parsedBlocks) { block in
                     switch block.type {
                     case .text(let textContent):
@@ -124,18 +132,17 @@ struct LessonContentPage: View {
                         }
                         
                     case .graph(let graphDataStr):
-                        InlineGraphRenderer(graphString: graphDataStr)
+                        InlineGraphRenderer(graphString: graphDataStr, themeColor: themeColor)
                     }
                 }
 
-                // LEGACY BACKWARD COMPATIBILITY
                 if let graphData = page.graphData {
                     DynamicGraphView(data: graphData)
                         .padding(.vertical, 16)
                 }
 
                 if let example = page.example, !example.isEmpty {
-                    ExampleView(text: example)
+                    ExampleView(text: example, themeColor: themeColor)
                 }
 
                 if let explanationText = page.explanation, !explanationText.isEmpty {
@@ -147,22 +154,22 @@ struct LessonContentPage: View {
                             }
                         } label: {
                             HStack(spacing: 8) {
-                                Image(systemName: isExplanationVisible ? "chevron.up.circle.fill" : "lightbulb.fill")
+                                Image(systemName: isExplanationVisible ? "chevron.up.circle.fill" : "checkmark.seal.fill")
                                     .font(.system(size: 18))
                                 Text(isExplanationVisible ? "Hide Breakdown" : "View Step-by-Step Breakdown")
                                     .fontWeight(.bold)
                             }
                             .padding(.vertical, 14)
                             .padding(.horizontal, 24)
-                            .background(Color.teal.opacity(0.1))
+                            .background(themeColor.opacity(0.1))
                             .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
-                        .foregroundColor(.teal)
+                        .foregroundColor(themeColor)
                         .frame(maxWidth: .infinity)
 
                         if isExplanationVisible {
-                            ExampleView(text: explanationText)
+                            ExampleView(text: explanationText, themeColor: themeColor)
                                 .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
@@ -188,10 +195,10 @@ struct LessonContentPage: View {
                                 .fontWeight(.bold)
                                 .padding(.horizontal, 32)
                                 .padding(.vertical, 16)
-                                .background(Color.teal)
+                                .background(themeColor)
                                 .foregroundColor(.white)
                                 .clipShape(Capsule())
-                                .shadow(color: Color.teal.opacity(0.3), radius: 10, y: 5)
+                                .shadow(color: themeColor.opacity(0.3), radius: 10, y: 5)
                         }
                         .buttonStyle(.plain)
                     }
@@ -202,7 +209,7 @@ struct LessonContentPage: View {
             #if os(macOS)
             .padding(.horizontal, 80)
             .padding(.vertical, 40)
-            .frame(maxWidth: 900) // Optimized for readability
+            .frame(maxWidth: 900)
             .frame(maxWidth: .infinity, alignment: .center)
             #else
             .padding(.horizontal, 24)
@@ -228,11 +235,11 @@ struct InlineGraphPoint: Identifiable {
 
 struct InlineGraphRenderer: View {
     let graphString: String
+    let themeColor: Color
     @Environment(\.colorScheme) var colorScheme
 
     var points: [InlineGraphPoint] {
         var extractedPoints: [InlineGraphPoint] = []
-        
         if graphString.contains("type=points"), let pointsStr = graphString.components(separatedBy: "points=").last {
             let pairs = pointsStr.components(separatedBy: ";")
             for pair in pairs {
@@ -250,48 +257,37 @@ struct InlineGraphRenderer: View {
             VStack(spacing: 8) {
                 Image(systemName: "function")
                     .font(.largeTitle)
-                    .foregroundColor(.teal)
+                    .foregroundColor(themeColor)
                 Text("Function Graph: \(getEquation(from: graphString))")
                     .font(.headline)
                     .foregroundColor(.primary)
             }
             .frame(maxWidth: .infinity, minHeight: 250)
-            .background(Color.platformSecondarySystemBackground)
-            .cornerRadius(16)
+            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
+            .cornerRadius(12)
         } else {
             Chart {
                 ForEach(points) { point in
-                    LineMark(
-                        x: .value("X", point.x),
-                        y: .value("Y", point.y)
-                    )
-                    .interpolationMethod(.monotone)
-                    .foregroundStyle(.teal)
-                    
-                    PointMark(
-                        x: .value("X", point.x),
-                        y: .value("Y", point.y)
-                    )
-                    .foregroundStyle(.teal)
+                    LineMark(x: .value("X", point.x), y: .value("Y", point.y))
+                        .interpolationMethod(.monotone)
+                        .foregroundStyle(themeColor)
+                    PointMark(x: .value("X", point.x), y: .value("Y", point.y))
+                        .foregroundStyle(themeColor)
                 }
             }
             .frame(height: 250)
-            .padding(24)
-            .background(Color.platformSecondarySystemBackground)
-            .cornerRadius(16)
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+            .padding(16)
+            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
+            .cornerRadius(12)
         }
     }
 
     func getEquation(from string: String) -> String {
-        if string.contains("type=equation"), let eqStr = string.components(separatedBy: "equation=").last {
-            return eqStr
-        }
-        return "Unknown"
+        string.contains("type=equation") ? (string.components(separatedBy: "equation=").last ?? "Unknown") : "Unknown"
     }
 }
 
-// MARK: - ExampleView (Legacy Support)
+// MARK: - ExampleView
 struct ParsedExampleItem: Identifiable {
     let id = UUID()
     let example: String
@@ -300,6 +296,7 @@ struct ParsedExampleItem: Identifiable {
 
 struct ExampleView: View {
     var text: String
+    var themeColor: Color
     @Environment(\.colorScheme) var colorScheme
 
     var parsedContent: [ParsedExampleItem] {
@@ -321,41 +318,33 @@ struct ExampleView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             ForEach(parsedContent) { item in
                 VStack(alignment: .leading, spacing: 12) {
                     if item.example.contains("$$") {
-                        let latex = item.example
-                            .replacingOccurrences(of: "$$", with: "")
-                            .replacingOccurrences(of: "\\\\newline", with: "\\\\")
-                        
-                        let height = calculateHeight(for: latex)
-                        
+                        let latex = item.example.replacingOccurrences(of: "$$", with: "").replacingOccurrences(of: "\\\\newline", with: "\\\\")
                         LatexView(latex: "$$\n\(latex)\n$$")
-                            .frame(minHeight: height)
-                            .padding(16)
+                            .frame(minHeight: calculateHeight(for: latex))
+                            .padding(12)
                             .frame(maxWidth: .infinity)
-                            .background(Color.platformSecondarySystemBackground)
-                            .cornerRadius(16)
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
+                            .cornerRadius(12)
                     } else {
                         TextStylingUtility.styledText(from: item.example)
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
-                            .padding(16)
+                            .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.platformSecondarySystemBackground)
-                            .cornerRadius(16)
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                     }
-
                     if !item.explanation.isEmpty {
                         Text(item.explanation)
-                            .font(.callout)
+                            .font(.footnote)
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 4)
                     }
                 }
+                .padding(.horizontal)
             }
         }
     }

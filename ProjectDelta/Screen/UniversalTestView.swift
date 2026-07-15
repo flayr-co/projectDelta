@@ -26,6 +26,9 @@ struct UniversalTestView: View {
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     var mode: TestMode
+    
+    // Dynamic theme for UI consistency across light/dark modes
+    var themeColor: Color { colorScheme == .dark ? .teal : .blue }
 
     var body: some View {
         Group {
@@ -51,15 +54,12 @@ struct UniversalTestView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            
             ToolbarItem(placement: .topBarTrailing) {
                 if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
-                    Button(action: {
-                        showAdminEditor = true
-                    }) {
+                    Button(action: { showAdminEditor = true }) {
                         Image(systemName: "pencil.and.list.clipboard")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.teal)
+                            .foregroundStyle(themeColor)
                     }
                 }
             }
@@ -207,15 +207,13 @@ struct UniversalTestView: View {
             Spacer()
 
             if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
-                Button(action: {
-                    showAdminEditor = true
-                }) {
+                Button(action: { showAdminEditor = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: "pencil.and.list.clipboard")
                         Text("Edit")
                     }
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.teal)
+                    .foregroundColor(themeColor)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(.ultraThinMaterial)
@@ -275,9 +273,9 @@ struct UniversalTestView: View {
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white)
                         .frame(width: 54, height: 54)
-                        .background(Color.teal)
+                        .background(themeColor)
                         .clipShape(Circle())
-                        .shadow(color: Color.teal.opacity(0.4), radius: 8, y: 4)
+                        .shadow(color: themeColor.opacity(0.4), radius: 8, y: 4)
                 }
                 .buttonStyle(.plain)
             } else {
@@ -296,9 +294,9 @@ struct UniversalTestView: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)
-                    .background(Color.teal)
+                    .background(themeColor)
                     .clipShape(Capsule())
-                    .shadow(color: Color.teal.opacity(0.4), radius: 8, y: 4)
+                    .shadow(color: themeColor.opacity(0.4), radius: 8, y: 4)
                 }
                 .buttonStyle(.plain)
                 .disabled(isSubmitting)
@@ -306,15 +304,15 @@ struct UniversalTestView: View {
         }
         .padding(.horizontal, 32)
         .padding(.bottom, 32)
-        .frame(maxWidth: 864) // Matches standard question card width + padding
+        .frame(maxWidth: 864)
     }
     
     private var macOSIntroView: some View {
         VStack(spacing: 32) {
             Image(systemName: "timer")
                 .font(.system(size: 80, weight: .light))
-                .foregroundColor(.teal)
-                .shadow(color: Color.teal.opacity(0.3), radius: 10, y: 5)
+                .foregroundColor(themeColor)
+                .shadow(color: themeColor.opacity(0.3), radius: 10, y: 5)
             
             VStack(spacing: 8) {
                 Text(mode.subtopicName ?? "General \(mode.subjectName)")
@@ -340,10 +338,10 @@ struct UniversalTestView: View {
                     .padding(.vertical, 20)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.teal)
+            .tint(themeColor)
             .controlSize(.large)
             .clipShape(Capsule())
-            .shadow(color: Color.teal.opacity(0.3), radius: 15, y: 8)
+            .shadow(color: themeColor.opacity(0.3), radius: 15, y: 8)
         }
     }
     #endif
@@ -357,7 +355,7 @@ struct UniversalTestView: View {
             } else if testViewModel.isGeneratingQuiz {
                 Spacer()
                 ProgressView("Analyzing curriculum...")
-                    .tint(.teal)
+                    .tint(themeColor)
                 Spacer()
             } else if testViewModel.isQuizComplete {
                 quizEndView
@@ -410,7 +408,7 @@ struct UniversalTestView: View {
             VStack(spacing: 16) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 60))
-                    .foregroundStyle(.teal)
+                    .foregroundStyle(themeColor)
                 
                 Text(mode.subtopicName ?? "General \(mode.subjectName)")
                     .font(.headline)
@@ -422,7 +420,7 @@ struct UniversalTestView: View {
                 
                 Text("5 Minute Session")
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.teal)
+                    .foregroundStyle(themeColor)
             }
             .padding(.horizontal)
             .padding(.bottom, 40)
@@ -437,9 +435,9 @@ struct UniversalTestView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
-                    .background(Color.teal)
+                    .background(themeColor)
                     .cornerRadius(16)
-                    .shadow(color: Color.teal.opacity(0.3), radius: 10, y: 5)
+                    .shadow(color: themeColor.opacity(0.3), radius: 10, y: 5)
             }
             .padding(.horizontal, 24)
             
@@ -499,9 +497,9 @@ struct UniversalTestView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
-                        .background(Color.teal)
+                        .background(themeColor)
                         .clipShape(Capsule())
-                        .shadow(color: Color.teal.opacity(0.3), radius: 4, y: 2)
+                        .shadow(color: themeColor.opacity(0.3), radius: 4, y: 2)
                 }
                 .disabled(isSubmitting)
             }
@@ -519,7 +517,9 @@ struct UniversalTestView: View {
     private func questionContentPage(for index: Int) -> some View {
         ScrollView {
             if index < testViewModel.questions.count {
-                let question = testViewModel.questions[index]; let qId = question.id ?? UUID().uuidString
+                let question = testViewModel.questions[index]
+                let qId = question.id ?? UUID().uuidString
+                
                 if !question.parsedBlocks.isEmpty {
                     VStack(alignment: .leading, spacing: 24) {
                         VStack(alignment: .leading, spacing: 16) {
@@ -537,7 +537,7 @@ struct UniversalTestView: View {
                                         .background(Color.secondary.opacity(0.05))
                                         .cornerRadius(12)
                                 } else if block.type == QuestionBlockType.graph.rawValue {
-                                    InlineGraphRenderer(graphString: block.content)
+                                    InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
                                         .padding(.vertical, 8)
                                 }
                             }
@@ -552,20 +552,16 @@ struct UniversalTestView: View {
                         
                         if let hint = question.hint, !hint.isEmpty {
                             DisclosureGroup("Hint", isExpanded: $isHintExpanded) {
-                                Text(hint)
-                                    .font(.callout)
-                                    .foregroundColor(.secondary)
+                                ExampleView(text: hint, themeColor: themeColor)
                                     .padding(.top, 8)
                             }
-                            .tint(.teal)
+                            .tint(themeColor)
                             .padding(.horizontal, 24)
                         }
                         
                         if case .practice = mode, let feedback = question.feedback, !feedback.isEmpty {
                             DisclosureGroup(isExpanded: Binding(get: { self.breakdownStates[qId, default: false] }, set: { self.breakdownStates[qId] = $0 })) {
-                                Text(feedback)
-                                    .font(.callout)
-                                    .foregroundColor(.secondary)
+                                ExampleView(text: feedback, themeColor: themeColor)
                                     .padding(.top, 8)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             } label: {
@@ -576,7 +572,7 @@ struct UniversalTestView: View {
                                         .foregroundColor(.primary)
                                 }
                             }
-                            .tint(.teal)
+                            .tint(themeColor)
                             .padding(16)
                             .background(Color.platformSystemBackground)
                             .cornerRadius(16)
@@ -611,10 +607,10 @@ struct UniversalTestView: View {
                                     }
                                     .padding()
                                     .contentShape(Rectangle())
-                                    .background(selectedIndex == optIndex ? Color.teal : (hoveredOptions[qId] == optIndex ? Color.secondary.opacity(0.15) : Color.platformSystemBackground))
+                                    .background(selectedIndex == optIndex ? themeColor : (hoveredOptions[qId] == optIndex ? Color.secondary.opacity(0.15) : Color.platformSystemBackground))
                                     .cornerRadius(16)
-                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(selectedIndex == optIndex ? Color.teal : Color.primary.opacity(0.08), lineWidth: 1))
-                                    .shadow(color: selectedIndex == optIndex ? Color.teal.opacity(0.3) : .clear, radius: 5, y: 3)
+                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(selectedIndex == optIndex ? themeColor : Color.primary.opacity(0.08), lineWidth: 1))
+                                    .shadow(color: selectedIndex == optIndex ? themeColor.opacity(0.3) : .clear, radius: 5, y: 3)
                                 }
                                 .buttonStyle(.plain)
                                 .onHover { isHovered in if isHovered { hoveredOptions[qId] = optIndex } else if hoveredOptions[qId] == optIndex { hoveredOptions[qId] = nil } }
@@ -639,7 +635,7 @@ struct UniversalTestView: View {
             VStack(spacing: 24) {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 72))
-                    .foregroundColor(.teal)
+                    .foregroundColor(themeColor)
                     .padding(.top, 40)
                 
                 if case .practice(_, _, _) = mode {
@@ -670,7 +666,7 @@ struct UniversalTestView: View {
                                                 LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
                                                     .padding(.vertical, 4)
                                             } else if block.type == QuestionBlockType.graph.rawValue {
-                                                InlineGraphRenderer(graphString: block.content)
+                                                InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
                                                     .padding(.vertical, 4)
                                             }
                                         }
@@ -700,7 +696,7 @@ struct UniversalTestView: View {
                     
                     Button("Done") { dismiss() }
                         .buttonStyle(.borderedProminent)
-                        .tint(.teal)
+                        .tint(themeColor)
                         .controlSize(.large)
                         .clipShape(Capsule())
                         .padding(.top, 24)
