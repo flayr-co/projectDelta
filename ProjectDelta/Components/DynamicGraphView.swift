@@ -47,9 +47,9 @@ struct DynamicGraphView: View {
     var data: GraphData
     @Environment(\.colorScheme) var colorScheme
 
-    // Dynamic Theme Colors
-    var primaryColor: Color { colorScheme == .dark ? .teal : .blue }
-    var secondaryColor: Color { colorScheme == .dark ? .orange : .red }
+    // Dynamic Theme Colors utilizing the Curriculum Palette
+    var primaryColor: Color { colorScheme == .dark ? .cyan : .indigo }
+    var secondaryColor: Color { colorScheme == .dark ? .pink : .orange }
     
     var primaryEquation: String {
         if let regressionLine = linearRegression(x: data.xValues, y: data.yValues) {
