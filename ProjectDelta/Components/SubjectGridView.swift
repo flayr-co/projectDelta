@@ -13,6 +13,12 @@ enum NavigationSource {
     case practice
 }
 
+// Helper struct to organize the curriculum
+struct CurriculumSection: Hashable {
+    let title: String
+    let subjects: [String]
+}
+
 struct SubjectGridView: View {
     @Environment(TestSessionViewModel.self) var testViewModel
     @Environment(LessonViewModel.self) var lessonVM
@@ -22,7 +28,39 @@ struct SubjectGridView: View {
     var navigationSource: NavigationSource
     
     let warmTan = Color(red: 0.97, green: 0.96, blue: 0.94)
-    let emeraldAccent = Color(red: 0.18, green: 0.80, blue: 0.44)
+    
+    // Dynamically categorize the string-based subjects into a proper curriculum
+    private var curriculumSections: [CurriculumSection] {
+        var algebra: [String] = []
+        var advanced: [String] = []
+        var data: [String] = []
+        var geometry: [String] = []
+        var other: [String] = []
+
+        for subject in testViewModel.subjects {
+            let lower = subject.lowercased()
+            if lower.contains("algebra") && !lower.contains("linear") && !lower.contains("abstract") {
+                algebra.append(subject)
+            } else if lower.contains("calc") || lower.contains("linear") || lower.contains("matrix") || lower.contains("diff") || lower.contains("advanced") || lower.contains("aero") {
+                advanced.append(subject)
+            } else if lower.contains("data") || lower.contains("stat") || lower.contains("prob") {
+                data.append(subject)
+            } else if lower.contains("geometry") || lower.contains("trig") || lower.contains("precalc") {
+                geometry.append(subject)
+            } else {
+                other.append(subject)
+            }
+        }
+
+        var sections: [CurriculumSection] = []
+        if !algebra.isEmpty { sections.append(CurriculumSection(title: "Algebra & Foundations", subjects: algebra.sorted())) }
+        if !geometry.isEmpty { sections.append(CurriculumSection(title: "Geometry & Trigonometry", subjects: geometry.sorted())) }
+        if !advanced.isEmpty { sections.append(CurriculumSection(title: "Advanced Mathematics", subjects: advanced.sorted())) }
+        if !data.isEmpty { sections.append(CurriculumSection(title: "Problem Solving & Data", subjects: data.sorted())) }
+        if !other.isEmpty { sections.append(CurriculumSection(title: "Additional Topics", subjects: other.sorted())) }
+
+        return sections
+    }
     
     var body: some View {
         Group {
@@ -58,17 +96,27 @@ struct SubjectGridView: View {
                 // Grid Content Scroll
                 ScrollView(showsIndicators: false) {
                     let desktopColumns = [
-                        GridItem(.adaptive(minimum: 280, maximum: 340), spacing: 24)
+                        GridItem(.adaptive(minimum: 320, maximum: 400), spacing: 24)
                     ]
                     
-                    LazyVGrid(columns: desktopColumns, spacing: 24) {
-                        ForEach(testViewModel.subjects, id: \.self) { subject in
-                            NavigationLink {
-                                destinationView(for: subject)
-                            } label: {
-                                subjectCard(for: subject)
+                    VStack(alignment: .leading, spacing: 48) {
+                        ForEach(curriculumSections, id: \.title) { section in
+                            VStack(alignment: .leading, spacing: 20) {
+                                Text(section.title)
+                                    .font(.system(size: 24, weight: .black, design: .rounded))
+                                    .foregroundColor(.primary.opacity(0.8))
+                                
+                                LazyVGrid(columns: desktopColumns, spacing: 24) {
+                                    ForEach(Array(section.subjects.enumerated()), id: \.element) { index, subject in
+                                        NavigationLink {
+                                            destinationView(for: subject)
+                                        } label: {
+                                            subjectCard(for: subject, index: index + 1)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, 40)
@@ -98,7 +146,7 @@ struct SubjectGridView: View {
             }
             .buttonStyle(.plain)
 
-            Text("Choose a Subject")
+            Text("Curriculum Pathways")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
 
@@ -117,11 +165,6 @@ struct SubjectGridView: View {
 
     // MARK: - MOBILE LAYOUT (iOS)
     #if os(iOS)
-    private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16)
-    ]
-    
     private var iOSLayout: some View {
         ZStack {
             (colorScheme == .dark ? Color(red: 0.10, green: 0.10, blue: 0.12) : warmTan)
@@ -140,14 +183,14 @@ struct SubjectGridView: View {
                 
                 // Dashboard Title Block
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Curriculum")
+                    Text("Table of Contents")
                         .font(.caption)
                         .fontWeight(.bold)
                         .foregroundColor(.secondary)
                         .textCase(.uppercase)
                         .tracking(1.5)
                     
-                    Text("Choose a Subject")
+                    Text("Select a Pathway")
                         .font(.largeTitle)
                         .fontWeight(.black)
                         .foregroundColor(.primary)
@@ -155,22 +198,35 @@ struct SubjectGridView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
-                .padding(.bottom, 24)
+                .padding(.bottom, 16)
                 
-                // Grid Content Scroll
+                // Content Scroll - Converted to Vertical List for full text fitting
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(testViewModel.subjects, id: \.self) { subject in
-                            NavigationLink {
-                                destinationView(for: subject)
-                            } label: {
-                                subjectCard(for: subject)
+                    VStack(alignment: .leading, spacing: 40) {
+                        ForEach(curriculumSections, id: \.title) { section in
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text(section.title)
+                                    .font(.title3)
+                                    .fontWeight(.black)
+                                    .foregroundColor(.primary.opacity(0.8))
+                                    .padding(.horizontal, 24)
+                                
+                                LazyVStack(spacing: 16) {
+                                    ForEach(Array(section.subjects.enumerated()), id: \.element) { index, subject in
+                                        NavigationLink {
+                                            destinationView(for: subject)
+                                        } label: {
+                                            subjectCard(for: subject, index: index + 1)
+                                        }
+                                        .buttonStyle(SubjectCardButtonStyle())
+                                    }
+                                }
+                                .padding(.horizontal, 24)
                             }
-                            .buttonStyle(SubjectCardButtonStyle())
                         }
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 120) // Ensure the bottom content is not obscured by fixed UI elements
+                    .padding(.top, 8)
+                    .padding(.bottom, 120) // Ensure the bottom content is not obscured
                 }
             }
         }
@@ -196,50 +252,71 @@ struct SubjectGridView: View {
     }
     
     @ViewBuilder
-    private func subjectCard(for subject: String) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
+    private func subjectCard(for subject: String, index: Int) -> some View {
+        let theme = themeForSubject(subject)
+        
+        HStack(spacing: 20) {
+            // Sequence Number Identifier
+            Text(String(format: "%02d", index))
+                .font(.system(size: 28, weight: .heavy, design: .rounded))
+                .foregroundColor(theme.opacity(colorScheme == .dark ? 0.3 : 0.25))
+                .frame(width: 40, alignment: .leading)
+            
+            // Styled Icon Context
+            ZStack {
+                Circle()
+                    .fill(theme.opacity(colorScheme == .dark ? 0.15 : 0.1))
+                    .frame(width: 52, height: 52)
+                
                 Image(systemName: iconForSubject(subject))
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(emeraldAccent)
-                    .frame(width: 44, height: 44)
-                    .background(emeraldAccent.opacity(colorScheme == .dark ? 0.15 : 0.1))
-                    .cornerRadius(12)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.secondary.opacity(0.4))
+                    .foregroundColor(theme)
             }
             
+            // Title Text
             Text(subject)
-                .font(.headline)
-                .fontWeight(.bold)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
-                .minimumScaleFactor(0.75) // Adaptive scaling ensures multi-word strings fit gracefully
                 .multilineTextAlignment(.leading)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             
             Spacer(minLength: 0)
+            
+            // Nav Indicator
+            Image(systemName: "chevron.right")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.3))
         }
         .padding(16)
-        .frame(minHeight: 135) // Converted to minimum height bound to allow organic expansion
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 #if os(macOS)
                 .fill(Color.platformSystemBackground)
                 #else
-                .fill(colorScheme == .dark ? Color(red: 0.16, green: 0.16, blue: 0.19) : .white)
+                .fill(colorScheme == .dark ? Color(red: 0.14, green: 0.14, blue: 0.16) : .white)
                 #endif
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.05), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(theme.opacity(0.2), lineWidth: 1.5)
         )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.04), radius: 8, x: 0, y: 4)
+        .shadow(color: theme.opacity(colorScheme == .dark ? 0.1 : 0.05), radius: 10, x: 0, y: 5)
+    }
+    
+    // MARK: - Dynamic Theming Functions
+    private func themeForSubject(_ subject: String) -> Color {
+        let lower = subject.lowercased()
+        if lower.contains("algebra") { return .blue }
+        if lower.contains("calculus") { return .orange }
+        if lower.contains("geometry") { return .purple }
+        if lower.contains("trig") { return .indigo }
+        if lower.contains("data") || lower.contains("stat") || lower.contains("prob") { return .pink }
+        if lower.contains("physics") || lower.contains("aero") { return .red }
+        if lower.contains("linear") || lower.contains("matrix") { return .teal }
+        if lower.contains("advanced") { return .cyan }
+        return .green
     }
     
     private func iconForSubject(_ subject: String) -> String {
@@ -249,6 +326,7 @@ struct SubjectGridView: View {
         if lower.contains("geometry") { return "triangle" }
         if lower.contains("physics") || lower.contains("aero") { return "rocket.tilt.fill" }
         if lower.contains("linear") || lower.contains("matrix") { return "line.3.horizontal.circle" }
+        if lower.contains("data") || lower.contains("stat") { return "chart.bar.fill" }
         return "book.closed.fill"
     }
 }
@@ -265,7 +343,19 @@ struct LessonSelectionView: View {
     @State private var isLoading = true
     
     let warmTan = Color(red: 0.97, green: 0.96, blue: 0.94)
-    let emeraldAccent = Color(red: 0.18, green: 0.80, blue: 0.44)
+    
+    private var themeColor: Color {
+        let lower = subjectName.lowercased()
+        if lower.contains("algebra") { return .blue }
+        if lower.contains("calculus") { return .orange }
+        if lower.contains("geometry") { return .purple }
+        if lower.contains("trig") { return .indigo }
+        if lower.contains("data") || lower.contains("stat") || lower.contains("prob") { return .pink }
+        if lower.contains("physics") || lower.contains("aero") { return .red }
+        if lower.contains("linear") || lower.contains("matrix") { return .teal }
+        if lower.contains("advanced") { return .cyan }
+        return .green
+    }
     
     var body: some View {
         Group {
@@ -295,34 +385,34 @@ struct LessonSelectionView: View {
                 
                 if isLoading {
                     Spacer()
-                    ProgressView("Finding practice material...")
-                        .tint(emeraldAccent)
+                    ProgressView("Loading curriculum material...")
+                        .tint(themeColor)
                     Spacer()
                 } else if lessons.isEmpty {
                     Spacer()
                     ContentUnavailableView(
-                        "No Practice Available",
+                        "No Content Available",
                         systemImage: "book.closed.fill",
-                        description: Text("There are currently no generated tests available for this subject.")
+                        description: Text("There are currently no lessons sequenced for this subject.")
                     )
                     Spacer()
                 } else {
                     ScrollView(showsIndicators: false) {
                         let desktopColumns = [
-                            GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 24)
+                            GridItem(.adaptive(minimum: 320, maximum: 400), spacing: 24)
                         ]
                         
                         LazyVGrid(columns: desktopColumns, spacing: 24) {
-                            ForEach(lessons, id: \.id) { lesson in
+                            ForEach(Array(lessons.enumerated()), id: \.element.id) { index, lesson in
                                 NavigationLink(destination: UniversalTestView(mode: .practice(subject: subjectName, lessonName: lesson.name, lessonId: lesson.id)).environment(testViewModel)) {
-                                    lessonCard(for: lesson.name)
+                                    lessonCard(for: lesson.name, index: index + 1)
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal, 40)
                         .padding(.vertical, 40)
-                        .frame(maxWidth: 1000)
+                        .frame(maxWidth: 1200)
                     }
                 }
             }
@@ -348,7 +438,7 @@ struct LessonSelectionView: View {
             }
             .buttonStyle(.plain)
 
-            Text("\(subjectName) - Select a Lesson")
+            Text("\(subjectName) Curriculum")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
 
@@ -388,7 +478,7 @@ struct LessonSelectionView: View {
                         .textCase(.uppercase)
                         .tracking(1.5)
                     
-                    Text("Select a Lesson")
+                    Text("Curriculum Path")
                         .font(.largeTitle)
                         .fontWeight(.black)
                         .foregroundColor(.primary)
@@ -400,23 +490,23 @@ struct LessonSelectionView: View {
                 
                 if isLoading {
                     Spacer()
-                    ProgressView("Finding practice material...")
-                        .tint(emeraldAccent)
+                    ProgressView("Loading curriculum material...")
+                        .tint(themeColor)
                     Spacer()
                 } else if lessons.isEmpty {
                     Spacer()
                     ContentUnavailableView(
-                        "No Practice Available",
+                        "No Content Available",
                         systemImage: "book.closed.fill",
-                        description: Text("There are currently no generated tests available for this subject.")
+                        description: Text("There are currently no lessons sequenced for this subject.")
                     )
                     Spacer()
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(lessons, id: \.id) { lesson in
+                            ForEach(Array(lessons.enumerated()), id: \.element.id) { index, lesson in
                                 NavigationLink(destination: UniversalTestView(mode: .practice(subject: subjectName, lessonName: lesson.name, lessonId: lesson.id)).environment(testViewModel)) {
-                                    lessonCard(for: lesson.name)
+                                    lessonCard(for: lesson.name, index: index + 1)
                                 }
                                 .buttonStyle(SubjectCardButtonStyle())
                             }
@@ -464,42 +554,58 @@ struct LessonSelectionView: View {
     }
     
     @ViewBuilder
-    private func lessonCard(for lessonName: String) -> some View {
-        HStack(spacing: 16) {
-            Image(systemName: "bookmark.fill")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(emeraldAccent)
-                .frame(width: 44, height: 44)
-                .background(emeraldAccent.opacity(colorScheme == .dark ? 0.15 : 0.1))
-                .cornerRadius(12)
+    private func lessonCard(for lessonName: String, index: Int) -> some View {
+        HStack(spacing: 20) {
+            // Sequence Number Identifier
+            Text(String(format: "%02d", index))
+                .font(.system(size: 28, weight: .heavy, design: .rounded))
+                .foregroundColor(themeColor.opacity(colorScheme == .dark ? 0.3 : 0.25))
+                .frame(width: 40, alignment: .leading)
             
+            // Styled Icon Context
+            ZStack {
+                Circle()
+                    .fill(themeColor.opacity(colorScheme == .dark ? 0.15 : 0.1))
+                    .frame(width: 52, height: 52)
+                
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(themeColor)
+            }
+            
+            // Title Text
             Text(lessonName)
-                .font(.headline)
-                .fontWeight(.bold)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.leading)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             
-            Spacer()
+            Spacer(minLength: 0)
             
+            // Nav Indicator
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.secondary.opacity(0.4))
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.secondary.opacity(0.3))
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 #if os(macOS)
                 .fill(Color.platformSystemBackground)
                 #else
-                .fill(colorScheme == .dark ? Color(red: 0.16, green: 0.16, blue: 0.19) : .white)
+                .fill(colorScheme == .dark ? Color(red: 0.14, green: 0.14, blue: 0.16) : .white)
                 #endif
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.05), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(themeColor.opacity(0.2), lineWidth: 1.5)
         )
         #if os(macOS)
-        .shadow(color: Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
+        .shadow(color: themeColor.opacity(0.05), radius: 10, x: 0, y: 5)
+        #else
+        .shadow(color: themeColor.opacity(colorScheme == .dark ? 0.1 : 0.05), radius: 10, x: 0, y: 5)
         #endif
     }
 }
@@ -507,7 +613,7 @@ struct LessonSelectionView: View {
 struct SubjectCardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
