@@ -8,6 +8,7 @@ import Observation
 
 struct AdminView: View {
     @State private var viewModel = AdminViewModel()
+    @State private var selectedSubject: Subject?
     @Environment(\.dismiss) var dismiss
     
     // UI Constants
@@ -25,16 +26,22 @@ struct AdminView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 24)
+                #if os(macOS)
                 .padding(.top, 32)
+                #else
+                .padding(.top, 16)
+                #endif
                 .padding(.bottom, 16)
                 
-                // Interactive List Grid
+                // Interactive List
                 List {
-                    ForEach(viewModel.subjects) { subject in
-                        SubjectAdminCard(subject: subject, viewModel: viewModel)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
-                            .listRowBackground(Color.clear)
+                    ForEach(Array(viewModel.subjects.enumerated()), id: \.element.id) { index, subject in
+                        SubjectAdminCard(subject: subject, displayIndex: index + 1, viewModel: viewModel, onEdit: {
+                            selectedSubject = subject
+                        })
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
+                        .listRowBackground(Color.clear)
                     }
                     .onMove { source, destination in
                         viewModel.updateSubjectOrder(from: source, to: destination)
@@ -42,9 +49,12 @@ struct AdminView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                // Hoisted navigation destination resolves all console warnings
+                .navigationDestination(item: $selectedSubject) { subject in
+                    LessonManagerView(subject: subject, viewModel: viewModel)
+                }
             }
             .background(Color.platformSystemGroupedBackground)
-            // Ensures macOS window controls do not collide with the custom header
             .safeAreaInset(edge: .top) {
                 #if os(macOS)
                 Color.clear.frame(height: 24)
@@ -88,14 +98,15 @@ struct AdminView: View {
 // MARK: - Refined Subject Card
 struct SubjectAdminCard: View {
     let subject: Subject
+    let displayIndex: Int
     @Bindable var viewModel: AdminViewModel
-    @State private var showingLessons = false
+    let onEdit: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 16) {
                 // Sequence Indicator
-                Text("\(subject.orderIndex + 1)")
+                Text("\(displayIndex)")
                     .font(.system(size: 26, weight: .heavy, design: .rounded))
                     .foregroundColor(.teal.opacity(0.4))
                     .frame(width: 32, alignment: .leading)
@@ -127,7 +138,7 @@ struct SubjectAdminCard: View {
             Divider()
             
             HStack(spacing: 12) {
-                Button("Edit Curriculum") { showingLessons = true }
+                Button("Edit Curriculum") { onEdit() }
                     .buttonStyle(.borderedProminent)
                     .tint(.teal)
                 
@@ -144,9 +155,6 @@ struct SubjectAdminCard: View {
         .background(Color.platformSystemBackground)
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
-        .navigationDestination(isPresented: $showingLessons) {
-            LessonManagerView(subject: subject, viewModel: viewModel)
-        }
     }
 }
 
@@ -162,7 +170,6 @@ struct LessonManagerView: View {
                 ForEach(viewModel.lessons) { lesson in
                     NavigationLink(destination: LessonEditorView(lesson: lesson, subject: subject)) {
                         HStack(spacing: 16) {
-                            // Sequence Indicator
                             Text("\(lesson.lessonNumber)")
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
                                 .foregroundColor(.teal.opacity(0.6))

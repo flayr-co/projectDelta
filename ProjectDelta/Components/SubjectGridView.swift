@@ -36,7 +36,7 @@ struct SubjectGridView: View {
         var data: [String] = []
         var geometry: [String] = []
         var other: [String] = []
-
+        
         for subject in testViewModel.subjects {
             let lower = subject.lowercased()
             if lower.contains("algebra") && !lower.contains("linear") && !lower.contains("abstract") {
@@ -51,14 +51,21 @@ struct SubjectGridView: View {
                 other.append(subject)
             }
         }
-
+        
         var sections: [CurriculumSection] = []
-        if !algebra.isEmpty { sections.append(CurriculumSection(title: "Algebra & Foundations", subjects: algebra.sorted())) }
-        if !geometry.isEmpty { sections.append(CurriculumSection(title: "Geometry & Trigonometry", subjects: geometry.sorted())) }
-        if !advanced.isEmpty { sections.append(CurriculumSection(title: "Advanced Mathematics", subjects: advanced.sorted())) }
-        if !data.isEmpty { sections.append(CurriculumSection(title: "Problem Solving & Data", subjects: data.sorted())) }
-        if !other.isEmpty { sections.append(CurriculumSection(title: "Additional Topics", subjects: other.sorted())) }
-
+        if !algebra.isEmpty { sections.append(CurriculumSection(title: "Algebra & Foundations", subjects: algebra)) }
+        if !geometry.isEmpty { sections.append(CurriculumSection(title: "Geometry & Trigonometry", subjects: geometry)) }
+        if !advanced.isEmpty { sections.append(CurriculumSection(title: "Advanced Mathematics", subjects: advanced)) }
+        if !data.isEmpty { sections.append(CurriculumSection(title: "Problem Solving & Data", subjects: data)) }
+        if !other.isEmpty { sections.append(CurriculumSection(title: "Additional Topics", subjects: other)) }
+        
+        // Sort sections dynamically based on their highest-ranked subject from the Admin panel
+        sections.sort { sectionA, sectionB in
+            let minIndexA = sectionA.subjects.compactMap { testViewModel.subjects.firstIndex(of: $0) }.min() ?? Int.max
+            let minIndexB = sectionB.subjects.compactMap { testViewModel.subjects.firstIndex(of: $0) }.min() ?? Int.max
+            return minIndexA < minIndexB
+        }
+        
         return sections
     }
     
@@ -107,11 +114,13 @@ struct SubjectGridView: View {
                                     .foregroundColor(.primary.opacity(0.8))
                                 
                                 LazyVGrid(columns: desktopColumns, spacing: 24) {
-                                    ForEach(Array(section.subjects.enumerated()), id: \.element) { index, subject in
+                                    ForEach(section.subjects, id: \.self) { subject in
                                         NavigationLink {
                                             destinationView(for: subject)
                                         } label: {
-                                            subjectCard(for: subject, index: index + 1)
+                                            // Derive the sequence number from the globally sorted array
+                                            let globalIndex = (testViewModel.subjects.firstIndex(of: subject) ?? 0) + 1
+                                            subjectCard(for: subject, index: globalIndex)
                                         }
                                         .buttonStyle(.plain)
                                     }
@@ -504,9 +513,13 @@ struct LessonSelectionView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(Array(lessons.enumerated()), id: \.element.id) { index, lesson in
-                                NavigationLink(destination: UniversalTestView(mode: .practice(subject: subjectName, lessonName: lesson.name, lessonId: lesson.id)).environment(testViewModel)) {
-                                    lessonCard(for: lesson.name, index: index + 1)
+                            ForEach(section.subjects, id: \.self) { subject in
+                                NavigationLink {
+                                    destinationView(for: subject)
+                                } label: {
+                                    // Derive the sequence number from the globally sorted array
+                                    let globalIndex = (testViewModel.subjects.firstIndex(of: subject) ?? 0) + 1
+                                    subjectCard(for: subject, index: globalIndex)
                                 }
                                 .buttonStyle(SubjectCardButtonStyle())
                             }
@@ -525,28 +538,33 @@ struct LessonSelectionView: View {
         do {
             let db = Firestore.firestore()
             let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
-            var lessonTuples: [(String, String)] = []
+            
+            // Store the lessonNumber alongside the ID and name
+            var lessonTuples: [(id: String, name: String, order: Int)] = []
             
             if let subjectId = subjectQuery.documents.first?.documentID {
                 let lessonsSnap = try await db.collection("Subjects").document(subjectId).collection("Lessons").getDocuments()
                 for doc in lessonsSnap.documents {
                     if let name = doc.data()["name"] as? String {
-                        lessonTuples.append((doc.documentID, name))
+                        let order = doc.data()["lessonNumber"] as? Int ?? Int.max
+                        lessonTuples.append((id: doc.documentID, name: name, order: order))
                     }
                 }
             }
             
-            var uniqueLessons: [(id: String, name: String)] = []
+            var uniqueLessons: [(id: String, name: String, order: Int)] = []
             var seenNames = Set<String>()
             
             for tuple in lessonTuples {
-                if !seenNames.contains(tuple.1) {
-                    seenNames.insert(tuple.1)
-                    uniqueLessons.append((id: tuple.0, name: tuple.1))
+                if !seenNames.contains(tuple.name) {
+                    seenNames.insert(tuple.name)
+                    uniqueLessons.append(tuple)
                 }
             }
             
-            self.lessons = uniqueLessons.sorted { $0.name < $1.name }
+            // Sort by the sequential integer rather than alphabetically
+            let sortedTuples = uniqueLessons.sorted { $0.order < $1.order }
+            self.lessons = sortedTuples.map { (id: $0.id, name: $0.name) }
         } catch {
             print("Error parsing practice lessons: \(error)")
         }
