@@ -44,7 +44,19 @@ class AdminViewModel {
             if fetched.isEmpty {
                 await seedDefaultSubjects()
             } else {
-                self.subjects = fetched.sorted { $0.name < $1.name }
+                var processedSubjects = fetched.sorted { $0.orderIndex < $1.orderIndex }
+                
+                // Establish exact aggregation counts for UI representation
+                for i in 0..<processedSubjects.count {
+                    guard let subjectId = processedSubjects[i].id else { continue }
+                    do {
+                        let countQuery = try await db.collection("Subjects").document(subjectId).collection("Lessons").count.getAggregation(source: .server)
+                        processedSubjects[i].lessonCount = Int(truncating: countQuery.count)
+                    } catch {
+                        processedSubjects[i].lessonCount = 0
+                    }
+                }
+                self.subjects = processedSubjects
             }
         } catch {
             print("Error fetching subjects: \(error.localizedDescription)")
@@ -52,6 +64,7 @@ class AdminViewModel {
     }
     
     private func seedDefaultSubjects() async {
+        var index = 0
         for area in SubjectArea.allCases {
             let newSubject = Subject(
                 id: area.rawValue,
@@ -60,10 +73,12 @@ class AdminViewModel {
                 difficulty: 1,
                 subjectArea: area,
                 imageName: "folder",
-                subtopics: []
+                subtopics: [],
+                orderIndex: index
             )
             do {
                 try await db.collection("Subjects").document(area.rawValue).setData(from: newSubject)
+                index += 1
             } catch {
                 print("Error seeding subject \(area.rawValue): \(error.localizedDescription)")
             }
@@ -85,7 +100,8 @@ class AdminViewModel {
             difficulty: 1,
             subjectArea: mappedArea,
             imageName: "folder",
-            subtopics: []
+            subtopics: [],
+            orderIndex: subjects.count
         )
         do {
             try await db.collection("Subjects").document(id).setData(from: newSubject)
@@ -106,6 +122,29 @@ class AdminViewModel {
         }
     }
     
+    func updateSubjectOrder(from source: IndexSet, to destination: Int) {
+        subjects.move(fromOffsets: source, toOffset: destination)
+        
+        Task {
+            let batch = db.batch()
+            for (index, subject) in subjects.enumerated() {
+                guard let id = subject.id else { continue }
+                
+                // 1. Force the local model to sync with the new visual index
+                subjects[index].orderIndex = index
+                
+                let ref = db.collection("Subjects").document(id)
+                // 2. Use setData with merge to aggressively inject the field into legacy documents
+                batch.setData(["orderIndex": index], forDocument: ref, merge: true)
+            }
+            do {
+                try await batch.commit()
+            } catch {
+                print("Failed to apply subject batch sequence update: \(error.localizedDescription)")
+            }
+        }
+    }
+    
     // MARK: - Lessons
     
     func fetchLessons(for subjectId: String) async {
@@ -119,6 +158,35 @@ class AdminViewModel {
             for doc in snapshot.documents {
                 if var lesson = try? doc.data(as: Lesson.self) {
                     lesson.id = doc.documentID
+                    
+                    if let embeddedPages = lesson.pages, !embeddedPages.isEmpty {
+                        lesson.pages = embeddedPages.map { page in
+                            var p = page
+                            if p.id == nil { p.id = "page_\(p.pageNumber)" }
+                            return p
+                        }
+                    } else {
+                        var pageSnapshot = try? await db.collection("Subjects").document(subjectId)
+                            .collection("Lessons").document(lesson.id!)
+                            .collection("Pages").order(by: "pageNumber").getDocuments()
+                        
+                        if pageSnapshot?.isEmpty == true {
+                            pageSnapshot = try? await db.collection("Subjects").document(subjectId)
+                                .collection("Lessons").document(lesson.id!)
+                                .collection("pages").order(by: "pageNumber").getDocuments()
+                        }
+                        
+                        let legacyPages = pageSnapshot?.documents.compactMap { doc -> Page? in
+                            return try? doc.data(as: Page.self)
+                        } ?? []
+                        
+                        lesson.pages = legacyPages
+                    }
+                    
+                    if (lesson.pages?.isEmpty ?? true) && !lesson.description.isEmpty {
+                        lesson.pages = [Page(id: "page_1", content: lesson.description, pageNumber: 1, readyButtonDisplayed: true)]
+                    }
+                    
                     fetchedLessons.append(lesson)
                 }
             }
@@ -150,6 +218,29 @@ class AdminViewModel {
             await fetchLessons(for: subjectId)
         } catch {
             print("Error deleting lesson: \(error.localizedDescription)")
+        }
+    }
+    
+    func updateLessonOrder(subjectId: String, from source: IndexSet, to destination: Int) {
+        lessons.move(fromOffsets: source, toOffset: destination)
+        
+        Task {
+            let batch = db.batch()
+            for (index, lesson) in lessons.enumerated() {
+                guard let id = lesson.id else { continue }
+                
+                // 1. Force the local model to sync with the new visual index
+                lessons[index].lessonNumber = index + 1
+                
+                let ref = db.collection("Subjects").document(subjectId).collection("Lessons").document(id)
+                // 2. Use setData with merge to aggressively inject the field into legacy documents
+                batch.setData(["lessonNumber": index + 1], forDocument: ref, merge: true)
+            }
+            do {
+                try await batch.commit()
+            } catch {
+                print("Failed to apply lesson batch sequence update: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -228,7 +319,6 @@ class AdminViewModel {
             
             try await docRef.setData(from: targetedQuestion)
             
-            // Backup replication sync to global questions bank
             try await db.collection("questions").document(docRef.documentID).setData(from: targetedQuestion)
             
             showSubmissionSuccessAlert = true

@@ -184,10 +184,18 @@ struct LessonEditorView: View {
                 finalDescription = lessonBlocks.map { $0.content }.joined(separator: "\n")
             }
             
+            let defaultPage: [String: Any] = [
+                "id": "page_1",
+                "content": finalDescription,
+                "pageNumber": 1,
+                "readyButtonDisplayed": true
+            ]
+            
             var lessonData: [String: Any] = [
                 "name": lessonTitle,
                 "subject": subject.name,
                 "description": finalDescription,
+                "pages": [defaultPage],
                 "completed": lesson.completed,
                 "lessonNumber": lesson.lessonNumber,
                 "updatedAt": FieldValue.serverTimestamp()

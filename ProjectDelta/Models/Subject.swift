@@ -27,13 +27,15 @@ struct Subject: Identifiable, Codable, Hashable {
     var difficulty: Int
     var subjectArea: SubjectArea
     var imageName: String
-    var subtopics: [String] // Added to enforce a flattened, dynamic database architecture
+    var subtopics: [String]
+    var orderIndex: Int
+    var lessonCount: Int = 0 // Ephemeral UI property, not pushed to Firestore
     
     enum CodingKeys: String, CodingKey {
-        case id, name, description, difficulty, subjectArea, imageName, subtopics
+        case id, name, description, difficulty, subjectArea, imageName, subtopics, orderIndex
     }
     
-    init(id: String? = nil, name: String, description: String, difficulty: Int, subjectArea: SubjectArea, imageName: String, subtopics: [String] = []) {
+    init(id: String? = nil, name: String, description: String, difficulty: Int, subjectArea: SubjectArea, imageName: String, subtopics: [String] = [], orderIndex: Int = 0) {
         self.id = id
         self.name = name
         self.description = description
@@ -41,9 +43,9 @@ struct Subject: Identifiable, Codable, Hashable {
         self.subjectArea = subjectArea
         self.imageName = imageName
         self.subtopics = subtopics
+        self.orderIndex = orderIndex
     }
     
-    // Custom decoder allows legacy documents lacking newer fields to decode flawlessly
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self._id = try container.decodeIfPresent(DocumentID<String>.self, forKey: .id) ?? DocumentID<String>(wrappedValue: nil)
@@ -51,17 +53,27 @@ struct Subject: Identifiable, Codable, Hashable {
         self.description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
         self.difficulty = try container.decodeIfPresent(Int.self, forKey: .difficulty) ?? 1
         
-        // Graceful fallback to the original string name if the strict enum is missing
         if let decodedArea = try? container.decode(SubjectArea.self, forKey: .subjectArea) {
             self.subjectArea = decodedArea
         } else {
             self.subjectArea = SubjectArea(rawValue: self.name) ?? .algebra
         }
         
-        // Default to your standard "folder" icon if the image field is absent
         self.imageName = try container.decodeIfPresent(String.self, forKey: .imageName) ?? "folder"
-        
-        // Safely decodes legacy subjects that don't have a subtopics array yet
         self.subtopics = try container.decodeIfPresent([String].self, forKey: .subtopics) ?? []
+        self.orderIndex = try container.decodeIfPresent(Int.self, forKey: .orderIndex) ?? 0
+    }
+    
+    // Custom encoder enforces strict database schema by stripping the transient lessonCount
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(description, forKey: .description)
+        try container.encode(difficulty, forKey: .difficulty)
+        try container.encode(subjectArea, forKey: .subjectArea)
+        try container.encode(imageName, forKey: .imageName)
+        try container.encode(subtopics, forKey: .subtopics)
+        try container.encode(orderIndex, forKey: .orderIndex)
     }
 }
