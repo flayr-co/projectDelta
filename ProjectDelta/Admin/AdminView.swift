@@ -162,47 +162,41 @@ struct SubjectAdminCard: View {
 struct LessonManagerView: View {
     let subject: Subject
     @Bindable var viewModel: AdminViewModel
-    @State private var showingEditor = false
+    @State private var showingAddLesson = false
+    @State private var selectedLesson: Lesson?
     
     var body: some View {
-        List {
-            Section("Lesson Sequence") {
-                ForEach(viewModel.lessons) { lesson in
-                    NavigationLink(destination: LessonEditorView(lesson: lesson, subject: subject)) {
-                        HStack(spacing: 16) {
-                            Text("\(lesson.lessonNumber)")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
-                                .foregroundColor(.teal.opacity(0.6))
-                                .frame(width: 24, alignment: .leading)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(lesson.name)
-                                    .font(.headline)
-                                Text("Page Count: \(lesson.pages?.count ?? 0)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                        }
-                        .padding(.vertical, 4)
-                    }
+        VStack(spacing: 0) {
+            List {
+                ForEach(Array(viewModel.lessons.enumerated()), id: \.element.id) { index, lesson in
+                    LessonAdminCard(lesson: lesson, displayIndex: index + 1, onEdit: {
+                        selectedLesson = lesson
+                    }, onDelete: {
+                        Task { await viewModel.deleteLesson(subjectId: subject.id ?? "", lessonId: lesson.id ?? "") }
+                    })
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
+                    .listRowBackground(Color.clear)
                 }
                 .onMove { source, destination in
                     viewModel.updateLessonOrder(subjectId: subject.id ?? "", from: source, to: destination)
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .navigationDestination(item: $selectedLesson) { lesson in
+                LessonEditorView(lesson: lesson, subject: subject)
+            }
         }
-        #if os(macOS)
-        .listStyle(.inset)
-        #else
-        .listStyle(.insetGrouped)
-        #endif
+        .background(Color.platformSystemGroupedBackground)
         .navigationTitle(subject.name)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task { await viewModel.fetchLessons(for: subject.id ?? "") }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("New Lesson") { showingEditor = true }
+                Button("New Lesson") { showingAddLesson = true }
             }
             #if os(iOS)
             ToolbarItem(placement: .topBarTrailing) {
@@ -210,8 +204,71 @@ struct LessonManagerView: View {
             }
             #endif
         }
-        .sheet(isPresented: $showingEditor) {
+        .sheet(isPresented: $showingAddLesson) {
+            // Reusing LessonEditorView for creation. Adjust if your logic dictates otherwise.
             LessonEditorView(subject: subject)
         }
+    }
+}
+
+// MARK: - Refined Lesson Card
+struct LessonAdminCard: View {
+    let lesson: Lesson
+    let displayIndex: Int
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 16) {
+                Text("\(displayIndex)")
+                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .foregroundColor(.teal.opacity(0.4))
+                    .frame(width: 32, alignment: .leading)
+                
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.teal.opacity(0.1))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: "book.pages")
+                        .font(.title2)
+                        .foregroundColor(.teal)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(lesson.name)
+                        .font(.headline)
+                    Text("\(lesson.pages?.count ?? 0) Pages")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "line.3.horizontal")
+                    .font(.title3)
+                    .foregroundColor(.secondary.opacity(0.3))
+            }
+            
+            Divider()
+            
+            HStack(spacing: 12) {
+                Button("Manage Pages") { onEdit() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.teal)
+                
+                Spacer()
+                
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+            }
+        }
+        .padding(20)
+        .background(Color.platformSystemBackground)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
     }
 }

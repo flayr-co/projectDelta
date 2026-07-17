@@ -12,7 +12,7 @@ struct UniversalBlockEditorView: View {
     @Binding var blocks: [QuestionBlockModel]
     
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             ForEach($blocks) { $block in
                 let blockId = block.id
                 
@@ -37,15 +37,16 @@ struct UniversalBlockEditorView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "plus.circle.fill")
-                        .font(.title3)
+                        .font(.title2)
                     Text("Add Content Block")
-                        .fontWeight(.semibold)
+                        .font(.headline)
+                        .fontWeight(.bold)
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
+                .padding(.vertical, 16)
                 .background(Color.teal.opacity(0.15))
                 .foregroundColor(.teal)
-                .cornerRadius(14)
+                .cornerRadius(16)
             }
         }
     }
@@ -64,67 +65,81 @@ fileprivate struct BlockEditCell: View {
     @FocusState private var isFocused: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 20) {
             // Header
             HStack {
-                Label(block.type.capitalized, systemImage: iconForType())
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .foregroundColor(colorForType())
+                HStack(spacing: 8) {
+                    Image(systemName: iconForType())
+                    Text(block.type.capitalized)
+                }
+                .font(.subheadline)
+                .fontWeight(.bold)
+                .foregroundColor(colorForType())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(colorForType().opacity(0.15))
+                .cornerRadius(8)
                 
                 Spacer()
                 
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "trash.fill")
                         .foregroundColor(.red.opacity(0.8))
-                        .padding(8)
+                        .padding(10)
                         .background(Color.red.opacity(0.1))
                         .clipShape(Circle())
                 }
+                .buttonStyle(.plain)
             }
             
             // Content Editor Based on Type
             if block.type == QuestionBlockType.text.rawValue {
-                TextField("Enter instruction or context...", text: $block.content, axis: .vertical)
-                    .lineLimit(3...10)
-                    .padding(12)
-                    .background(Color.platformSecondarySystemGroupedBackground)
-                    .cornerRadius(10)
+                TextField("Enter instructional prose or context...", text: $block.content, axis: .vertical)
+                    .lineLimit(4...12)
+                    .font(.system(.body, design: .rounded))
+                    .padding(16)
+                    .background(Color.platformSecondarySystemBackground)
+                    .cornerRadius(12)
                     .focused($isFocused)
-                    
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(isFocused ? colorForType() : Color.clear, lineWidth: 2)
+                    )
+                
             } else if block.type == QuestionBlockType.math.rawValue {
                 buildMathEditor()
             } else if block.type == QuestionBlockType.graph.rawValue {
                 buildGraphEditor()
             }
         }
-        .padding(16)
+        .padding(20)
         .background(Color.platformSystemBackground)
-        .cornerRadius(16)
+        .cornerRadius(20)
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 3)
+        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
     }
     
     // MARK: - Sub-Editors
     
     @ViewBuilder
     private func buildMathEditor() -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text("LaTeX Expression Builder")
                 .font(.caption)
-                .fontWeight(.medium)
+                .fontWeight(.bold)
+                .textCase(.uppercase)
                 .foregroundColor(.secondary)
             
             // Input Field
             TextField("e.g. \\frac{1}{2}x + 5", text: $block.content, axis: .vertical)
                 .lineLimit(2...6)
-                .font(.system(.body, design: .monospaced))
-                .padding(12)
+                .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                .padding(16)
                 .background(Color.teal.opacity(0.05))
-                .cornerRadius(10)
+                .cornerRadius(12)
                 .focused($isFocused)
                 #if os(iOS)
                 .keyboardType(.numbersAndPunctuation)
@@ -132,7 +147,7 @@ fileprivate struct BlockEditCell: View {
                 #endif
                 .autocorrectionDisabled()
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: 12)
                         .stroke(isFocused ? Color.teal : Color.clear, lineWidth: 2)
                 )
                 .toolbar {
@@ -145,7 +160,7 @@ fileprivate struct BlockEditCell: View {
                                 .foregroundColor(.teal)
                         }
                     }
-                    #endif
+                    #endif // os(iOS)
                 }
             
             // WebAssign Style Live Preview
@@ -158,10 +173,10 @@ fileprivate struct BlockEditCell: View {
                         .textCase(.uppercase)
                     
                     LatexView(latex: "$$ " + block.content.parsedMathToLatex + " $$")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(16)
                         .background(Color.platformSecondarySystemGroupedBackground)
-                        .cornerRadius(10)
+                        .cornerRadius(12)
                 }
             }
             
@@ -175,7 +190,7 @@ fileprivate struct BlockEditCell: View {
     
     @ViewBuilder
     private func buildGraphEditor() -> some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 20) {
             Picker("Mode", selection: Binding(
                 get: { block.graphType ?? QuestionGraphType.equation.rawValue },
                 set: { block.graphType = $0 }
@@ -190,21 +205,23 @@ fileprivate struct BlockEditCell: View {
                 content: $block.content,
                 graphType: block.graphType ?? QuestionGraphType.equation.rawValue
             )
-            .frame(height: 300) // Explicitly increased height for better resolution
+            .frame(height: 340)
             
             let placeholder = block.graphType == QuestionGraphType.equation.rawValue ? "Generated Equation (e.g., y = 2x + 1)" : "Generated Coordinates"
             
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(placeholder)
                     .font(.caption)
+                    .fontWeight(.bold)
                     .foregroundColor(.secondary)
+                    .textCase(.uppercase)
                 
-                TextField("Data...", text: $block.content, axis: .vertical)
+                TextField("Data Matrix...", text: $block.content, axis: .vertical)
                     .lineLimit(1...4)
                     .font(.system(.body, design: .monospaced))
-                    .padding(12)
-                    .background(Color.platformSecondarySystemGroupedBackground)
-                    .cornerRadius(10)
+                    .padding(16)
+                    .background(Color.platformSecondarySystemBackground)
+                    .cornerRadius(12)
                     .focused($isFocused)
                     .autocorrectionDisabled()
                     #if os(iOS)
@@ -252,10 +269,10 @@ fileprivate struct InteractiveGraphBuilderView: View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "hand.draw.fill")
-                    .foregroundColor(.teal)
-                Text(graphType == QuestionGraphType.equation.rawValue ? "Plot 2 points" : "Tap points")
+                    .foregroundColor(.purple)
+                Text(graphType == QuestionGraphType.equation.rawValue ? "Plot 2 points to generate line" : "Tap to map coordinates")
                     .font(.subheadline)
-                    .fontWeight(.medium)
+                    .fontWeight(.bold)
                     .foregroundColor(.primary)
                 
                 Spacer()
@@ -267,15 +284,16 @@ fileprivate struct InteractiveGraphBuilderView: View {
                             content = ""
                         }
                     }) {
-                        Text("Clear")
+                        Text("Clear Canvas")
                             .font(.caption)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 8)
                             .background(Color.red)
                             .cornerRadius(8)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             
@@ -341,9 +359,9 @@ fileprivate struct InteractiveGraphBuilderView: View {
                         )
                     }
                 }
-                .background(Color.platformSystemBackground)
-                .cornerRadius(12)
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.teal.opacity(0.3), lineWidth: 2))
+                .background(Color.platformSecondarySystemGroupedBackground)
+                .cornerRadius(16)
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.3), lineWidth: 2))
                 .clipped()
             }
         }
@@ -426,7 +444,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
             linePath.addLine(to: CGPoint(x: canvasSize.width, y: m * canvasSize.width + b))
         }
         
-        context.stroke(linePath, with: .color(.teal), lineWidth: 3)
+        context.stroke(linePath, with: .color(.purple), lineWidth: 3)
     }
     
     private func handleTap(location: CGPoint, origin: CGPoint, scale: CGFloat, step: CGFloat) {
@@ -510,15 +528,15 @@ fileprivate struct DraggablePointView: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color.black.opacity(0.75))
+                .background(Color.black.opacity(0.85))
                 .cornerRadius(6)
                 .offset(y: -35)
             
             Circle()
-                .fill(Color.teal)
+                .fill(Color.purple)
                 .frame(width: 20, height: 20)
                 .overlay(Circle().stroke(Color.white, lineWidth: 3))
-                .shadow(color: .black.opacity(0.3), radius: 4)
+                .shadow(color: .black.opacity(0.4), radius: 6)
         }
         .frame(width: 60, height: 60)
         .contentShape(Rectangle())
@@ -559,7 +577,7 @@ fileprivate struct MathKeypadView: View {
     let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 5)
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 16) {
             Picker("", selection: $currentTab) {
                 ForEach(KeypadTab.allCases, id: \.self) { tab in
                     Text(tab.rawValue).tag(tab)
@@ -567,7 +585,7 @@ fileprivate struct MathKeypadView: View {
             }
             .pickerStyle(.segmented)
             
-            LazyVGrid(columns: columns, spacing: 8) {
+            LazyVGrid(columns: columns, spacing: 10) {
                 switch currentTab {
                 case .num:
                     keyButton("7", display: "7")
@@ -646,9 +664,9 @@ fileprivate struct MathKeypadView: View {
                 }
             }
         }
-        .padding(12)
-        .background(Color.platformSecondarySystemBackground)
-        .cornerRadius(14)
+        .padding(16)
+        .background(Color.platformSecondarySystemGroupedBackground)
+        .cornerRadius(16)
     }
     
     private func backspace() {
@@ -656,15 +674,15 @@ fileprivate struct MathKeypadView: View {
     }
     
     @ViewBuilder
-    private func keyButton(_ insertString: String, display: String, color: Color = Color.platformTertiarySystemBackground) -> some View {
+    private func keyButton(_ insertString: String, display: String, color: Color = Color.platformSystemBackground) -> some View {
         Button(action: { text.append(insertString) }) {
             Text(display)
                 .font(.system(size: 16, weight: .bold, design: .monospaced))
                 .frame(maxWidth: .infinity)
-                .frame(height: 44)
+                .frame(height: 48)
                 .background(color)
-                .cornerRadius(8)
-                .shadow(color: Color.black.opacity(0.05), radius: 1, y: 1)
+                .cornerRadius(10)
+                .shadow(color: Color.black.opacity(0.04), radius: 2, y: 2)
                 .foregroundColor(.primary)
         }
         .buttonStyle(.plain)
@@ -676,10 +694,10 @@ fileprivate struct MathKeypadView: View {
             Image(systemName: systemName)
                 .font(.system(size: 16, weight: .bold))
                 .frame(maxWidth: .infinity)
-                .frame(height: 44)
+                .frame(height: 48)
                 .background(color)
-                .cornerRadius(8)
-                .shadow(color: Color.black.opacity(0.05), radius: 1, y: 1)
+                .cornerRadius(10)
+                .shadow(color: Color.black.opacity(0.04), radius: 2, y: 2)
                 .foregroundColor(textColor)
         }
         .buttonStyle(.plain)
