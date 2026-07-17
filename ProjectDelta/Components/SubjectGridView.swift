@@ -78,14 +78,32 @@ struct SubjectGridView: View {
             #endif
         }
         .navigationBarBackButtonHidden(true)
-#if os(macOS)
+        #if os(macOS)
         .toolbarVisibility(.hidden, for: .windowToolbar)
         #endif
         .task {
             do {
-                testViewModel.subjects = try await testViewModel.fetchSubjectsFromFirestore()
+                // Fetch directly to ensure sorting by admin-defined 'order' field rather than alphabetical.
+                let snapshot = try await Firestore.firestore().collection("Subjects")
+                    .order(by: "orderIndex")
+                    .getDocuments()
+                
+                let fetchedSubjects = snapshot.documents.compactMap { $0.data()["name"] as? String }
+                
+                if !fetchedSubjects.isEmpty {
+                    testViewModel.subjects = fetchedSubjects
+                } else {
+                    // Fallback to view model method if custom fetch yields nothing
+                    testViewModel.subjects = try await testViewModel.fetchSubjectsFromFirestore()
+                }
             } catch {
-                print("Error fetching subjects in SubjectGridView: \(error.localizedDescription)")
+                print("Error fetching ordered subjects in SubjectGridView: \(error.localizedDescription)")
+                do {
+                    // Final fallback
+                    testViewModel.subjects = try await testViewModel.fetchSubjectsFromFirestore()
+                } catch {
+                    print("Fallback fetch failed: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -170,7 +188,7 @@ struct SubjectGridView: View {
             alignment: .bottom
         )
     }
-    #endif
+    #endif // os(macOS)
 
     // MARK: - MOBILE LAYOUT (iOS)
     #if os(iOS)
@@ -221,11 +239,13 @@ struct SubjectGridView: View {
                                     .padding(.horizontal, 24)
                                 
                                 LazyVStack(spacing: 16) {
-                                    ForEach(Array(section.subjects.enumerated()), id: \.element) { index, subject in
+                                    ForEach(section.subjects, id: \.self) { subject in
                                         NavigationLink {
                                             destinationView(for: subject)
                                         } label: {
-                                            subjectCard(for: subject, index: index + 1)
+                                            // Properly derive global index instead of local index
+                                            let globalIndex = (testViewModel.subjects.firstIndex(of: subject) ?? 0) + 1
+                                            subjectCard(for: subject, index: globalIndex)
                                         }
                                         .buttonStyle(SubjectCardButtonStyle())
                                     }
@@ -240,7 +260,7 @@ struct SubjectGridView: View {
             }
         }
     }
-    #endif
+    #endif // os(iOS)
     
     @ViewBuilder
     private func destinationView(for subject: String) -> some View {
@@ -375,7 +395,7 @@ struct LessonSelectionView: View {
             #endif
         }
         .navigationBarBackButtonHidden(true)
-#if os(macOS)
+        #if os(macOS)
         .toolbarVisibility(.hidden, for: .windowToolbar)
         #endif
         .task {
@@ -462,7 +482,7 @@ struct LessonSelectionView: View {
             alignment: .bottom
         )
     }
-    #endif
+    #endif // os(macOS)
 
     // MARK: - MOBILE LAYOUT (iOS)
     #if os(iOS)
@@ -513,13 +533,12 @@ struct LessonSelectionView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(section.subjects, id: \.self) { subject in
+                            ForEach(Array(lessons.enumerated()), id: \.element.id) { index, lesson in
                                 NavigationLink {
-                                    destinationView(for: subject)
+                                    UniversalTestView(mode: .practice(subject: subjectName, lessonName: lesson.name, lessonId: lesson.id))
+                                        .environment(testViewModel)
                                 } label: {
-                                    // Derive the sequence number from the globally sorted array
-                                    let globalIndex = (testViewModel.subjects.firstIndex(of: subject) ?? 0) + 1
-                                    subjectCard(for: subject, index: globalIndex)
+                                    lessonCard(for: lesson.name, index: index + 1)
                                 }
                                 .buttonStyle(SubjectCardButtonStyle())
                             }
@@ -531,7 +550,7 @@ struct LessonSelectionView: View {
             }
         }
     }
-    #endif
+    #endif // os(iOS)
     
     private func fetchLessonsWithTests() async {
         isLoading = true
