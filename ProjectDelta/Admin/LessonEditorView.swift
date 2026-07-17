@@ -31,7 +31,10 @@ struct LessonEditorView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        // NavigationStack strictly removed to prevent safe-area intersection bugs when pushed
+        ZStack {
+            Color.platformSystemGroupedBackground.ignoresSafeArea()
+            
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 32) {
                     // Header
@@ -122,47 +125,46 @@ struct LessonEditorView: View {
                     Spacer(minLength: 120)
                 }
             }
-            .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
-            .navigationTitle("")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save Curriculum") { saveLesson() }
+        }
+        .navigationTitle("")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save Curriculum") { saveLesson() }
+                    .fontWeight(.bold)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.teal)
+                    .disabled(lessonTitle.isEmpty)
+            }
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+                    .foregroundColor(.secondary)
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button(action: { showTestBuilder = true }) {
+                HStack {
+                    Image(systemName: "wand.and.stars.inverse")
+                        .font(.title3)
+                    Text("Generate Linked Test")
                         .fontWeight(.bold)
-                        .buttonStyle(.borderedProminent)
-                        .tint(.teal)
-                        .disabled(lessonTitle.isEmpty)
                 }
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundColor(.secondary)
-                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.purple)
+                .foregroundColor(.white)
+                .cornerRadius(14)
+                .shadow(color: Color.purple.opacity(0.3), radius: 10, y: 5)
             }
-            .safeAreaInset(edge: .bottom) {
-                Button(action: { showTestBuilder = true }) {
-                    HStack {
-                        Image(systemName: "wand.and.stars.inverse")
-                            .font(.title3)
-                        Text("Generate Linked Test")
-                            .fontWeight(.bold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.purple)
-                    .foregroundColor(.white)
-                    .cornerRadius(14)
-                    .shadow(color: Color.purple.opacity(0.3), radius: 10, y: 5)
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
-                .background(Color.platformSystemGroupedBackground.opacity(0.95))
-            }
-            .sheet(isPresented: $showTestBuilder) {
-                NavigationStack {
-                    AddTestView(subject: subject, lessonName: lessonTitle)
-                }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+            .background(Color.platformSystemGroupedBackground.opacity(0.95))
+        }
+        .sheet(isPresented: $showTestBuilder) {
+            NavigationStack {
+                AddTestView(subject: subject, lessonName: lessonTitle)
             }
         }
     }
@@ -280,26 +282,29 @@ struct PageEditorView: View {
     @State private var isPreviewMode: Bool = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("Mode", selection: $isPreviewMode) {
-                Text("Block Editor").tag(false)
-                Text("Live Render").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(Color.platformSystemBackground)
+        ZStack(alignment: .top) {
+            Color.platformSystemGroupedBackground.ignoresSafeArea()
             
-            if isPreviewMode {
-                PageLivePreview(blocks: blocks)
-            } else {
-                ScrollView(showsIndicators: false) {
-                    UniversalBlockEditorView(blocks: $blocks)
-                        .padding(24)
+            VStack(spacing: 0) {
+                Picker("Mode", selection: $isPreviewMode) {
+                    Text("Block Editor").tag(false)
+                    Text("Live Render").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
+                .background(Color.platformSystemBackground)
+                
+                if isPreviewMode {
+                    PageLivePreview(blocks: blocks)
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        UniversalBlockEditorView(blocks: $blocks)
+                            .padding(24)
+                    }
                 }
             }
         }
-        .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
         .navigationTitle("Page \(pageIndex) Editor")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -309,12 +314,29 @@ struct PageEditorView: View {
     }
 
     private func loadBlocks() {
-        if let data = page.content.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([QuestionBlockModel].self, from: data) {
-            blocks = decoded
-        } else if !page.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            blocks = [QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: page.content)]
+        let textData = page.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !textData.isEmpty else { return }
+        
+        if let data = textData.data(using: .utf8) {
+            // Attempt primary strict codable decode
+            if let decoded = try? JSONDecoder().decode([QuestionBlockModel].self, from: data) {
+                blocks = decoded
+                return
+            }
+            // Fault-tolerant fallback: Parses legacy database JSON missing 'id' tags
+            if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                blocks = jsonArray.compactMap { dict in
+                    let type = dict["type"] as? String ?? QuestionBlockType.text.rawValue
+                    let content = dict["content"] as? String ?? ""
+                    let graphType = dict["graphType"] as? String
+                    return QuestionBlockModel(type: type, content: content, graphType: graphType)
+                }
+                return
+            }
         }
+        
+        // Final fallback: Raw unformatted string
+        blocks = [QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: textData)]
     }
 
     private func saveBlocksToPage() {

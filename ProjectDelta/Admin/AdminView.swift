@@ -205,8 +205,9 @@ struct LessonManagerView: View {
             #endif
         }
         .sheet(isPresented: $showingAddLesson) {
-            // Reusing LessonEditorView for creation. Adjust if your logic dictates otherwise.
-            LessonEditorView(subject: subject)
+            NavigationStack {
+                LessonEditorView(subject: subject)
+            }
         }
     }
 }
