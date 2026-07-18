@@ -125,6 +125,9 @@ struct LessonEditorView: View {
                     Spacer(minLength: 120)
                 }
             }
+            #if os(macOS)
+            .safeAreaPadding(.top, 56)
+            #endif
         }
         .navigationTitle("")
         #if os(iOS)
@@ -279,31 +282,18 @@ struct PageEditorView: View {
     @Binding var page: Page
     let pageIndex: Int
     @State private var blocks: [QuestionBlockModel] = []
-    @State private var isPreviewMode: Bool = false
 
     var body: some View {
         ZStack(alignment: .top) {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
             
-            VStack(spacing: 0) {
-                Picker("Mode", selection: $isPreviewMode) {
-                    Text("Block Editor").tag(false)
-                    Text("Live Render").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 16)
-                .background(Color.platformSystemBackground)
-                
-                if isPreviewMode {
-                    PageLivePreview(blocks: blocks)
-                } else {
-                    ScrollView(showsIndicators: false) {
-                        UniversalBlockEditorView(blocks: $blocks)
-                            .padding(24)
-                    }
-                }
+            ScrollView(showsIndicators: false) {
+                UniversalBlockEditorView(blocks: $blocks)
+                    .padding(24)
             }
+            #if os(macOS)
+            .safeAreaPadding(.top, 56)
+            #endif
         }
         .navigationTitle("Page \(pageIndex) Editor")
         #if os(iOS)
@@ -346,109 +336,5 @@ struct PageEditorView: View {
         } else {
             page.content = blocks.map { $0.content }.joined(separator: "\n")
         }
-    }
-}
-
-// MARK: - Live Preview Rendering
-struct PageLivePreview: View {
-    let blocks: [QuestionBlockModel]
-    
-    var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 32) {
-                if blocks.isEmpty {
-                    ContentUnavailableView("Empty Canvas", systemImage: "eye.slash", description: Text("Add blocks in the editor to see them rendered here."))
-                } else {
-                    ForEach(blocks) { block in
-                        renderBlock(block)
-                    }
-                }
-            }
-            .padding(32)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.platformSystemBackground)
-            .cornerRadius(20)
-            .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
-            .padding(24)
-        }
-    }
-    
-    @ViewBuilder
-    private func renderBlock(_ block: QuestionBlockModel) -> some View {
-        if block.type == QuestionBlockType.text.rawValue {
-            Text(block.content)
-                .font(.system(.body, design: .rounded))
-                .foregroundColor(.primary)
-                .lineSpacing(4)
-        } else if block.type == QuestionBlockType.math.rawValue {
-            LatexView(latex: "$$ " + block.content.parsedMathToLatex + " $$")
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding()
-                .background(Color.platformSecondarySystemBackground)
-                .cornerRadius(12)
-        } else if block.type == QuestionBlockType.graph.rawValue {
-            let parsedData = parseGraphData(content: block.content, type: block.graphType ?? "")
-            DynamicGraphView(data: parsedData)
-                .frame(height: 320)
-                .background(Color.platformSecondarySystemBackground)
-                .cornerRadius(12)
-        }
-    }
-    
-    // String to GraphData Translation
-    private func parseGraphData(content: String, type: String) -> GraphData {
-        var xVals: [Double] = []
-        var yVals: [Double] = []
-        
-        let cleaned = content.replacingOccurrences(of: " ", with: "")
-        
-        if type == "equation" || cleaned.starts(with: "y=") || cleaned.starts(with: "x=") {
-            if cleaned.starts(with: "x=") {
-                let cStr = cleaned.replacingOccurrences(of: "x=", with: "")
-                let c = Double(cStr) ?? 0.0
-                xVals = [c, c]
-                yVals = [-10.0, 10.0]
-            } else {
-                let eq = cleaned.replacingOccurrences(of: "y=", with: "")
-                var m: Double = 1.0
-                var b: Double = 0.0
-                
-                if let xRange = eq.range(of: "x") {
-                    let mStr = String(eq[..<xRange.lowerBound])
-                    if mStr == "" { m = 1.0 }
-                    else if mStr == "-" { m = -1.0 }
-                    else { m = Double(mStr) ?? 1.0 }
-                    
-                    let bStr = String(eq[xRange.upperBound...])
-                    if !bStr.isEmpty {
-                        let bClean = bStr.replacingOccurrences(of: "+", with: "")
-                        b = Double(bClean) ?? 0.0
-                    }
-                } else if let c = Double(eq) {
-                    m = 0.0
-                    b = c
-                }
-                
-                // Generate a span of points to graph the line
-                xVals = [-10.0, 10.0]
-                yVals = xVals.map { m * $0 + b }
-            }
-        } else {
-            // Coordinate parsing for scatter plots
-            let points = cleaned.components(separatedBy: "),(")
-            for pt in points {
-                let cleanPt = pt.replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
-                let coords = cleanPt.components(separatedBy: ",")
-                if coords.count == 2, let x = Double(coords[0]), let y = Double(coords[1]) {
-                    xVals.append(x)
-                    yVals.append(y)
-                }
-            }
-            if xVals.isEmpty {
-                xVals = [0.0]; yVals = [0.0]
-            }
-        }
-        
-        return GraphData(xValues: xVals, yValues: yVals)
     }
 }

@@ -184,6 +184,9 @@ struct LessonManagerView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            #if os(macOS)
+            .safeAreaPadding(.top, 56) // Corrects macOS safe area collapse for the list
+            #endif
             .navigationDestination(item: $selectedLesson) { lesson in
                 LessonEditorView(lesson: lesson, subject: subject)
             }

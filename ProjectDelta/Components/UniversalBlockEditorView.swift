@@ -62,64 +62,120 @@ fileprivate struct BlockEditCell: View {
     @Binding var block: QuestionBlockModel
     var onDelete: () -> Void
     
+    @State private var isEditing: Bool = false
     @FocusState private var isFocused: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Header
-            HStack {
-                HStack(spacing: 8) {
-                    Image(systemName: iconForType())
-                    Text(block.type.capitalized)
-                }
-                .font(.subheadline)
-                .fontWeight(.bold)
-                .foregroundColor(colorForType())
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(colorForType().opacity(0.15))
-                .cornerRadius(8)
-                
-                Spacer()
-                
-                Button(role: .destructive, action: onDelete) {
-                    Image(systemName: "trash.fill")
-                        .foregroundColor(.red.opacity(0.8))
-                        .padding(10)
-                        .background(Color.red.opacity(0.1))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-            }
-            
-            // Content Editor Based on Type
-            if block.type == QuestionBlockType.text.rawValue {
-                TextField("Enter instructional prose or context...", text: $block.content, axis: .vertical)
-                    .lineLimit(4...12)
-                    .font(.system(.body, design: .rounded))
+        VStack(alignment: .leading, spacing: 0) {
+            // Live WYSIWYG Representation
+            ZStack(alignment: .topTrailing) {
+                LiveBlockRenderView(block: block)
                     .padding(16)
-                    .background(Color.platformSecondarySystemBackground)
-                    .cornerRadius(12)
-                    .focused($isFocused)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(isFocused ? colorForType() : Color.clear, lineWidth: 2)
-                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(false) // Blocks interaction with live elements while strictly in editing mode structure
                 
-            } else if block.type == QuestionBlockType.math.rawValue {
-                buildMathEditor()
-            } else if block.type == QuestionBlockType.graph.rawValue {
-                buildGraphEditor()
+                if !isEditing {
+                    HStack(spacing: 6) {
+                        Image(systemName: iconForType())
+                        Text(block.type.capitalized)
+                    }
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(colorForType())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(colorForType().opacity(0.15))
+                    .cornerRadius(6)
+                    .padding(12)
+                }
+            }
+            .background(Color.platformSystemBackground)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(
+                        isEditing ? colorForType() : Color.gray.opacity(0.3),
+                        style: StrokeStyle(lineWidth: isEditing ? 3 : 2, dash: isEditing ? [] : [6])
+                    )
+            )
+            .onTapGesture {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    isEditing = true
+                    isFocused = true
+                }
+            }
+
+            // Expanding Editor Controls
+            if isEditing {
+                VStack(alignment: .leading, spacing: 20) {
+                    HStack {
+                        HStack(spacing: 8) {
+                            Image(systemName: iconForType())
+                            Text("Editing \(block.type.capitalized)")
+                        }
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundColor(colorForType())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(colorForType().opacity(0.15))
+                        .cornerRadius(8)
+                        
+                        Spacer()
+                        
+                        Button(role: .destructive, action: onDelete) {
+                            Image(systemName: "trash.fill")
+                                .foregroundColor(.red.opacity(0.8))
+                                .padding(10)
+                                .background(Color.red.opacity(0.1))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isEditing = false
+                                isFocused = false
+                            }
+                        }) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(10)
+                                .background(Color.green)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    if block.type == QuestionBlockType.text.rawValue {
+                        TextField("Enter text or tags (e.g. [MATH]2x+1[/MATH])...", text: $block.content, axis: .vertical)
+                            .lineLimit(4...12)
+                            .font(.system(size: 18, weight: .regular, design: .serif))
+                            .padding(16)
+                            .background(Color.platformSecondarySystemBackground)
+                            .cornerRadius(12)
+                            .focused($isFocused)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(isFocused ? colorForType() : Color.clear, lineWidth: 2)
+                            )
+                    } else if block.type == QuestionBlockType.math.rawValue {
+                        buildMathEditor()
+                    } else if block.type == QuestionBlockType.graph.rawValue {
+                        buildGraphEditor()
+                    }
+                }
+                .padding(20)
+                .background(Color.platformSystemBackground)
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(0.06), radius: 10, y: 6)
+                .padding(.top, 12)
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .padding(20)
-        .background(Color.platformSystemBackground)
-        .cornerRadius(20)
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
+        .padding(.vertical, 4)
     }
     
     // MARK: - Sub-Editors
@@ -133,7 +189,6 @@ fileprivate struct BlockEditCell: View {
                 .textCase(.uppercase)
                 .foregroundColor(.secondary)
             
-            // Input Field
             TextField("e.g. \\frac{1}{2}x + 5", text: $block.content, axis: .vertical)
                 .lineLimit(2...6)
                 .font(.system(size: 16, weight: .semibold, design: .monospaced))
@@ -160,27 +215,9 @@ fileprivate struct BlockEditCell: View {
                                 .foregroundColor(.teal)
                         }
                     }
-                    #endif // os(iOS)
+                    #endif
                 }
             
-            // WebAssign Style Live Preview
-            if !block.content.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Live Render")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.teal)
-                        .textCase(.uppercase)
-                    
-                    LatexView(latex: "$$ " + block.content.parsedMathToLatex + " $$")
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(16)
-                        .background(Color.platformSecondarySystemGroupedBackground)
-                        .cornerRadius(12)
-                }
-            }
-            
-            // Smart Keypad
             if isFocused {
                 MathKeypadView(text: $block.content)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -249,6 +286,194 @@ fileprivate struct BlockEditCell: View {
         default: return .primary
         }
     }
+}
+
+// MARK: - Live Block Rendering Engine
+fileprivate struct LiveBlockRenderView: View {
+    let block: QuestionBlockModel
+    @Environment(\.colorScheme) var colorScheme
+    
+    var body: some View {
+        if block.type == QuestionBlockType.text.rawValue {
+            let parsed = parseEditorContent(block.content)
+            
+            if parsed.isEmpty {
+                Text("Empty Text Block")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(parsed) { pBlock in
+                        switch pBlock.type {
+                        case .text(let text):
+                            TextStylingUtility.styledText(from: text)
+                                .font(.system(size: 21, weight: .regular, design: .serif))
+                                .lineSpacing(12)
+                                .foregroundColor(.primary.opacity(0.9))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        case .math(let latex):
+                            LatexView(latex: "$$\n\(latex)\n$$")
+                                .padding(24)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.platformSecondarySystemBackground)
+                                .cornerRadius(16)
+                        case .graph(let graphStr):
+                            InlineGraphRenderer(graphString: graphStr, themeColor: colorScheme == .dark ? .teal : .blue)
+                        }
+                    }
+                }
+            }
+        } else if block.type == QuestionBlockType.math.rawValue {
+            if block.content.isEmpty {
+                Text("Empty Math Block")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+                    .background(Color.platformSecondarySystemBackground)
+                    .cornerRadius(12)
+            } else {
+                LatexView(latex: "$$ " + block.content.parsedMathToLatex + " $$")
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+                    .background(Color.platformSecondarySystemBackground)
+                    .cornerRadius(12)
+            }
+        } else if block.type == QuestionBlockType.graph.rawValue {
+            let parsedData = parseGraphData(content: block.content, type: block.graphType ?? "")
+            DynamicGraphView(data: parsedData)
+                .frame(height: 320)
+                .background(Color.platformSecondarySystemBackground)
+                .cornerRadius(12)
+        }
+    }
+    
+    // String to GraphData Translation
+    private func parseGraphData(content: String, type: String) -> GraphData {
+        var xVals: [Double] = []
+        var yVals: [Double] = []
+        
+        let cleaned = content.replacingOccurrences(of: " ", with: "")
+        
+        if type == "equation" || cleaned.starts(with: "y=") || cleaned.starts(with: "x=") {
+            if cleaned.starts(with: "x=") {
+                let cStr = cleaned.replacingOccurrences(of: "x=", with: "")
+                let c = Double(cStr) ?? 0.0
+                xVals = [c, c]
+                yVals = [-10.0, 10.0]
+            } else {
+                let eq = cleaned.replacingOccurrences(of: "y=", with: "")
+                var m: Double = 1.0
+                var b: Double = 0.0
+                
+                if let xRange = eq.range(of: "x") {
+                    let mStr = String(eq[..<xRange.lowerBound])
+                    if mStr == "" { m = 1.0 }
+                    else if mStr == "-" { m = -1.0 }
+                    else { m = Double(mStr) ?? 1.0 }
+                    
+                    let bStr = String(eq[xRange.upperBound...])
+                    if !bStr.isEmpty {
+                        let bClean = bStr.replacingOccurrences(of: "+", with: "")
+                        b = Double(bClean) ?? 0.0
+                    }
+                } else if let c = Double(eq) {
+                    m = 0.0
+                    b = c
+                }
+                
+                // Generate a span of points to graph the line
+                xVals = [-10.0, 10.0]
+                yVals = xVals.map { m * $0 + b }
+            }
+        } else {
+            // Coordinate parsing for scatter plots
+            let points = cleaned.components(separatedBy: "),(")
+            for pt in points {
+                let cleanPt = pt.replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
+                let coords = cleanPt.components(separatedBy: ",")
+                if coords.count == 2, let x = Double(coords[0]), let y = Double(coords[1]) {
+                    xVals.append(x)
+                    yVals.append(y)
+                }
+            }
+            if xVals.isEmpty {
+                xVals = [0.0]; yVals = [0.0]
+            }
+        }
+        
+        return GraphData(xValues: xVals, yValues: yVals)
+    }
+}
+
+// MARK: - Editor Text Parsing Engine
+fileprivate struct EditorParsedContentBlock: Identifiable {
+    let id = UUID()
+    let type: BlockType
+
+    enum BlockType {
+        case text(String)
+        case math(String)
+        case graph(String)
+    }
+}
+
+fileprivate func parseEditorContent(_ content: String) -> [EditorParsedContentBlock] {
+    var blocks: [EditorParsedContentBlock] = []
+    var remaining = content
+
+    while !remaining.isEmpty {
+        let mathRange = remaining.range(of: "[MATH]")
+        let graphRange = remaining.range(of: "[GRAPH]")
+
+        var nextTagRange: Range<String.Index>?
+        var isMath = false
+
+        if let m = mathRange, let g = graphRange {
+            if m.lowerBound < g.lowerBound {
+                nextTagRange = m
+                isMath = true
+            } else {
+                nextTagRange = g
+                isMath = false
+            }
+        } else if let m = mathRange {
+            nextTagRange = m
+            isMath = true
+        } else if let g = graphRange {
+            nextTagRange = g
+            isMath = false
+        }
+
+        guard let startTag = nextTagRange else {
+            let text = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty {
+                blocks.append(EditorParsedContentBlock(type: .text(text)))
+            }
+            break
+        }
+
+        let textBefore = String(remaining[..<startTag.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !textBefore.isEmpty {
+            blocks.append(EditorParsedContentBlock(type: .text(textBefore)))
+        }
+
+        remaining = String(remaining[startTag.upperBound...])
+        let endTagStr = isMath ? "[/MATH]" : "[/GRAPH]"
+
+        if let endTagRange = remaining.range(of: endTagStr) {
+            let innerContent = String(remaining[..<endTagRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if isMath {
+                blocks.append(EditorParsedContentBlock(type: .math(innerContent)))
+            } else {
+                blocks.append(EditorParsedContentBlock(type: .graph(innerContent)))
+            }
+            remaining = String(remaining[endTagRange.upperBound...])
+        } else {
+            blocks.append(EditorParsedContentBlock(type: .text(remaining)))
+            break
+        }
+    }
+    return blocks
 }
 
 // MARK: - Advanced Interactive Graph Canvas
