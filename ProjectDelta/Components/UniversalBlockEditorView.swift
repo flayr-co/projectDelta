@@ -150,11 +150,11 @@ fileprivate struct BlockEditCell: View {
                     }
                     
                     if block.type == QuestionBlockType.text.rawValue {
-                        TextField("Enter text or tags (e.g. [MATH]2x+1[/MATH])...", text: $block.content, axis: .vertical)
+                        TextField("Enter instructional prose or context...", text: $block.content, axis: .vertical)
                             .lineLimit(4...12)
                             .font(.system(size: 18, weight: .regular, design: .serif))
                             .padding(16)
-                            .background(Color.platformSecondarySystemBackground)
+                            .background(Color.blue.opacity(0.05)) // Enhanced visual distinction
                             .cornerRadius(12)
                             .focused($isFocused)
                             .overlay(
@@ -257,7 +257,7 @@ fileprivate struct BlockEditCell: View {
                     .lineLimit(1...4)
                     .font(.system(.body, design: .monospaced))
                     .padding(16)
-                    .background(Color.platformSecondarySystemBackground)
+                    .background(Color.purple.opacity(0.05))
                     .cornerRadius(12)
                     .focused($isFocused)
                     .autocorrectionDisabled()
@@ -537,11 +537,14 @@ fileprivate struct InteractiveGraphBuilderView: View {
                         }
                     }
                     
-                    // Interaction Layer
+                    // Interaction Layer separating explicit Taps from Drags to resolve macOS swallowing
                     Color.clear
                         .contentShape(Rectangle())
+                        .onTapGesture { location in
+                            handleTap(location: location, origin: origin, scale: currentScale, step: step)
+                        }
                         .gesture(
-                            DragGesture()
+                            DragGesture(minimumDistance: 10)
                                 .onChanged { val in
                                     currentPan = CGSize(width: lastPan.width + val.translation.width, height: lastPan.height + val.translation.height)
                                 }
@@ -559,9 +562,6 @@ fileprivate struct InteractiveGraphBuilderView: View {
                                     lastScale = currentScale
                                 }
                         )
-                        .onTapGesture { location in
-                            handleTap(location: location, origin: origin, scale: currentScale, step: step)
-                        }
                     
                     // Draggable Points
                     ForEach(points.indices, id: \.self) { index in
@@ -682,7 +682,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
         if graphType == QuestionGraphType.equation.rawValue {
             if points.count >= 2 { points.removeAll() }
             points.append(snappedP)
-            if points.count == 2 { generateLinearEquation() } else { content = "" }
+            if points.count == 2 { generateLinearEquation() }
         } else {
             points.append(snappedP)
             generatePointsString()

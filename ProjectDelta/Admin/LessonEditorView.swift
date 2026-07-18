@@ -325,8 +325,74 @@ struct PageEditorView: View {
             }
         }
         
-        // Final fallback: Raw unformatted string
-        blocks = [QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: textData)]
+        // Final fallback: Parse legacy [MATH] and [GRAPH] tags into proper split QuestionBlockModels
+        blocks = parseLegacyContentToBlocks(textData)
+    }
+
+    private func parseLegacyContentToBlocks(_ content: String) -> [QuestionBlockModel] {
+        var parsedBlocks: [QuestionBlockModel] = []
+        var remaining = content
+
+        while !remaining.isEmpty {
+            let mathRange = remaining.range(of: "[MATH]")
+            let graphRange = remaining.range(of: "[GRAPH]")
+
+            var nextTagRange: Range<String.Index>?
+            var isMath = false
+
+            if let m = mathRange, let g = graphRange {
+                if m.lowerBound < g.lowerBound {
+                    nextTagRange = m
+                    isMath = true
+                } else {
+                    nextTagRange = g
+                    isMath = false
+                }
+            } else if let m = mathRange {
+                nextTagRange = m
+                isMath = true
+            } else if let g = graphRange {
+                nextTagRange = g
+                isMath = false
+            }
+
+            guard let startTag = nextTagRange else {
+                let text = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    parsedBlocks.append(QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: text))
+                }
+                break
+            }
+
+            let textBefore = String(remaining[..<startTag.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !textBefore.isEmpty {
+                parsedBlocks.append(QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: textBefore))
+            }
+
+            remaining = String(remaining[startTag.upperBound...])
+            let endTagStr = isMath ? "[/MATH]" : "[/GRAPH]"
+
+            if let endTagRange = remaining.range(of: endTagStr) {
+                let innerContent = String(remaining[..<endTagRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if isMath {
+                    parsedBlocks.append(QuestionBlockModel(type: QuestionBlockType.math.rawValue, content: innerContent))
+                } else {
+                    let gType = innerContent.contains("type=points") ? "points" : "equation"
+                    var gContent = innerContent
+                    if let eqRange = gContent.range(of: "equation=") {
+                        gContent = String(gContent[eqRange.upperBound...])
+                    } else if let ptRange = gContent.range(of: "points=") {
+                        gContent = String(gContent[ptRange.upperBound...])
+                    }
+                    parsedBlocks.append(QuestionBlockModel(type: QuestionBlockType.graph.rawValue, content: gContent, graphType: gType))
+                }
+                remaining = String(remaining[endTagRange.upperBound...])
+            } else {
+                parsedBlocks.append(QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: remaining))
+                break
+            }
+        }
+        return parsedBlocks.isEmpty ? [QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: content)] : parsedBlocks
     }
 
     private func saveBlocksToPage() {

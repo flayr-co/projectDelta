@@ -96,8 +96,7 @@ struct DynamicGraphView: View {
                         AreaMark(
                             x: .value("X Value", xValue),
                             yStart: .value("Y Start", yStartValue),
-                            yEnd: .value("Y End", yEndValue),
-                            series: .value("Dataset", "Area") // Isolates the area shading
+                            yEnd: .value("Y End", yEndValue)
                         )
                         .foregroundStyle(primaryColor.opacity(0.15))
                     }
@@ -110,12 +109,11 @@ struct DynamicGraphView: View {
                     
                     LineMark(
                         x: .value("X Value", xValue),
-                        y: .value("Y Value", yValue),
-                        series: .value("Dataset", "Primary") // Isolates the primary equation
+                        y: .value("Y Value", yValue)
                     )
                     .interpolationMethod(.catmullRom)
                     .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                    .foregroundStyle(primaryColor)
+                    .foregroundStyle(by: .value("Dataset", primaryEquation))
                     
                     PointMark(
                         x: .value("X Value", xValue),
@@ -123,7 +121,7 @@ struct DynamicGraphView: View {
                     )
                     .symbol(Circle())
                     .symbolSize(60)
-                    .foregroundStyle(primaryColor)
+                    .foregroundStyle(by: .value("Dataset", primaryEquation))
                 }
                 
                 // Secondary data (if exists)
@@ -134,12 +132,11 @@ struct DynamicGraphView: View {
                         
                         LineMark(
                             x: .value("X Value", xValue),
-                            y: .value("Secondary Y Value", yValue),
-                            series: .value("Dataset", "Secondary") // Isolates the secondary equation
+                            y: .value("Secondary Y Value", yValue)
                         )
                         .interpolationMethod(.catmullRom)
                         .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                        .foregroundStyle(secondaryColor)
+                        .foregroundStyle(by: .value("Dataset", secondaryEquation))
                         
                         PointMark(
                             x: .value("X Value", xValue),
@@ -147,10 +144,16 @@ struct DynamicGraphView: View {
                         )
                         .symbol(Circle())
                         .symbolSize(60)
-                        .foregroundStyle(secondaryColor)
+                        .foregroundStyle(by: .value("Dataset", secondaryEquation))
                     }
                 }
             }
+            .chartForegroundStyleScale(
+                data.secondaryYValues == nil
+                ? KeyValuePairs(dictionaryLiteral: (primaryEquation, primaryColor))
+                : KeyValuePairs(dictionaryLiteral: (primaryEquation, primaryColor), (secondaryEquation, secondaryColor))
+            )
+            .chartLegend(position: .bottom, alignment: .center, spacing: 16)
             .chartXScale(domain: (data.xValues.min() ?? 0)...(data.xValues.max() ?? 10))
             .chartYScale(domain: adjustedYDomain())
             .chartXAxis {
@@ -184,27 +187,6 @@ struct DynamicGraphView: View {
             .background(Color.platformSystemBackground)
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
-            
-            // Custom Clean Legend
-            HStack(spacing: 20) {
-                HStack(spacing: 6) {
-                    Circle().fill(primaryColor).frame(width: 8, height: 8)
-                    Text(primaryEquation)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                }
-                
-                if data.secondaryYValues != nil {
-                    HStack(spacing: 6) {
-                        Circle().fill(secondaryColor).frame(width: 8, height: 8)
-                        Text(secondaryEquation)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                    }
-                }
-            }
         }
         .padding(.horizontal)
     }
