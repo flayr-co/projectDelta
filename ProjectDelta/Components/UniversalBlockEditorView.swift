@@ -227,43 +227,98 @@ fileprivate struct BlockEditCell: View {
     
     @ViewBuilder
     private func buildGraphEditor() -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Picker("Mode", selection: Binding(
-                get: { block.graphType ?? QuestionGraphType.equation.rawValue },
+        let selectedGraphType = block.graphType ?? QuestionGraphType.equation.rawValue
+        let generatedLabel = selectedGraphType == QuestionGraphType.equation.rawValue ? "Equation" : "Coordinates"
+        
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .font(.title3)
+                    .foregroundColor(.purple)
+                    .frame(width: 34, height: 34)
+                    .background(Color.purple.opacity(0.12))
+                    .clipShape(Circle())
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Interactive Graph Builder")
+                        .font(.headline)
+                    Text(selectedGraphType == QuestionGraphType.equation.rawValue ? "Tap two points to build a line." : "Tap points to map ordered pairs.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+            
+            Picker("Graph Mode", selection: Binding(
+                get: { selectedGraphType },
                 set: { block.graphType = $0 }
             )) {
-                ForEach(QuestionGraphType.allCases, id: \.rawValue) { type in
-                    Text(type.rawValue.capitalized).tag(type.rawValue)
-                }
+                Text("Line").tag(QuestionGraphType.equation.rawValue)
+                Text("Points").tag(QuestionGraphType.points.rawValue)
             }
             .pickerStyle(.segmented)
             
             InteractiveGraphBuilderView(
                 content: $block.content,
-                graphType: block.graphType ?? QuestionGraphType.equation.rawValue
+                graphType: selectedGraphType
             )
-            .frame(height: 340)
+            .frame(height: 360)
             
-            let placeholder = block.graphType == QuestionGraphType.equation.rawValue ? "Generated Equation (e.g., y = 2x + 1)" : "Generated Coordinates"
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text(placeholder)
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(generatedLabel)
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                    
+                    TextField(selectedGraphType == QuestionGraphType.equation.rawValue ? "y = 2x + 1" : "(0, 0), (2, 3)", text: $block.content, axis: .vertical)
+                        .lineLimit(1...4)
+                        .font(.system(.body, design: .monospaced, weight: .semibold))
+                        .padding(14)
+                        .background(Color.purple.opacity(0.06))
+                        .cornerRadius(12)
+                        .focused($isFocused)
+                        .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
+                }
                 
-                TextField("Data Matrix...", text: $block.content, axis: .vertical)
-                    .lineLimit(1...4)
-                    .font(.system(.body, design: .monospaced))
-                    .padding(16)
+                Menu {
+                    Button("y = x") {
+                        block.graphType = QuestionGraphType.equation.rawValue
+                        block.content = "y = x"
+                    }
+                    Button("y = 0.50x + 3") {
+                        block.graphType = QuestionGraphType.equation.rawValue
+                        block.content = "y = 0.50x + 3"
+                    }
+                    Button("y >= 0.50x + 3") {
+                        block.graphType = QuestionGraphType.equation.rawValue
+                        block.content = "y >= 0.50x + 3"
+                    }
+                    Button("(0, 0), (2, 3), (4, 6)") {
+                        block.graphType = QuestionGraphType.points.rawValue
+                        block.content = "(0, 0), (2, 3), (4, 6)"
+                    }
+                } label: {
+                    Image(systemName: "wand.and.stars")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.purple)
+                .background(Color.purple.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            
+            if !block.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                DynamicGraphView(data: GraphContentParser.graphData(from: block.content, graphType: selectedGraphType))
+                    .padding(.top, 2)
                     .background(Color.purple.opacity(0.05))
                     .cornerRadius(12)
-                    .focused($isFocused)
-                    .autocorrectionDisabled()
-                    #if os(iOS)
-                    .textInputAutocapitalization(.never)
-                    #endif
             }
         }
     }
@@ -339,69 +394,12 @@ fileprivate struct LiveBlockRenderView: View {
                     .cornerRadius(12)
             }
         } else if block.type == QuestionBlockType.graph.rawValue {
-            let parsedData = parseGraphData(content: block.content, type: block.graphType ?? "")
+            let parsedData = GraphContentParser.graphData(from: block.content, graphType: block.graphType)
             DynamicGraphView(data: parsedData)
                 .frame(height: 320)
                 .background(Color.platformSecondarySystemBackground)
                 .cornerRadius(12)
         }
-    }
-    
-    // String to GraphData Translation
-    private func parseGraphData(content: String, type: String) -> GraphData {
-        var xVals: [Double] = []
-        var yVals: [Double] = []
-        
-        let cleaned = content.replacingOccurrences(of: " ", with: "")
-        
-        if type == "equation" || cleaned.starts(with: "y=") || cleaned.starts(with: "x=") {
-            if cleaned.starts(with: "x=") {
-                let cStr = cleaned.replacingOccurrences(of: "x=", with: "")
-                let c = Double(cStr) ?? 0.0
-                xVals = [c, c]
-                yVals = [-10.0, 10.0]
-            } else {
-                let eq = cleaned.replacingOccurrences(of: "y=", with: "")
-                var m: Double = 1.0
-                var b: Double = 0.0
-                
-                if let xRange = eq.range(of: "x") {
-                    let mStr = String(eq[..<xRange.lowerBound])
-                    if mStr == "" { m = 1.0 }
-                    else if mStr == "-" { m = -1.0 }
-                    else { m = Double(mStr) ?? 1.0 }
-                    
-                    let bStr = String(eq[xRange.upperBound...])
-                    if !bStr.isEmpty {
-                        let bClean = bStr.replacingOccurrences(of: "+", with: "")
-                        b = Double(bClean) ?? 0.0
-                    }
-                } else if let c = Double(eq) {
-                    m = 0.0
-                    b = c
-                }
-                
-                // Generate a span of points to graph the line
-                xVals = [-10.0, 10.0]
-                yVals = xVals.map { m * $0 + b }
-            }
-        } else {
-            // Coordinate parsing for scatter plots
-            let points = cleaned.components(separatedBy: "),(")
-            for pt in points {
-                let cleanPt = pt.replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
-                let coords = cleanPt.components(separatedBy: ",")
-                if coords.count == 2, let x = Double(coords[0]), let y = Double(coords[1]) {
-                    xVals.append(x)
-                    yVals.append(y)
-                }
-            }
-            if xVals.isEmpty {
-                xVals = [0.0]; yVals = [0.0]
-            }
-        }
-        
-        return GraphData(xValues: xVals, yValues: yVals)
     }
 }
 
@@ -493,12 +491,10 @@ fileprivate struct InteractiveGraphBuilderView: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Image(systemName: "hand.draw.fill")
-                    .foregroundColor(.purple)
-                Text(graphType == QuestionGraphType.equation.rawValue ? "Plot 2 points to generate line" : "Tap to map coordinates")
+                Label(graphType == QuestionGraphType.equation.rawValue ? "Line Builder" : "Point Mapper", systemImage: "hand.draw.fill")
                     .font(.subheadline)
                     .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.purple)
                 
                 Spacer()
                 
@@ -509,14 +505,9 @@ fileprivate struct InteractiveGraphBuilderView: View {
                             content = ""
                         }
                     }) {
-                        Text("Clear Canvas")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.red)
-                            .cornerRadius(8)
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(.red)
                     }
                     .buttonStyle(.plain)
                 }
@@ -528,8 +519,18 @@ fileprivate struct InteractiveGraphBuilderView: View {
                 let step = calculateGridStep(scale: currentScale)
                 
                 ZStack {
-                    // Background & Adaptive Grid
                     Canvas { context, canvasSize in
+                        let background = Path(roundedRect: CGRect(origin: .zero, size: canvasSize), cornerRadius: 16)
+                        context.fill(background, with: .linearGradient(
+                            Gradient(colors: [
+                                Color.purple.opacity(0.08),
+                                Color.blue.opacity(0.04),
+                                Color.clear
+                            ]),
+                            startPoint: .zero,
+                            endPoint: CGPoint(x: canvasSize.width, y: canvasSize.height)
+                        ))
+                        
                         drawAdaptiveGrid(context: context, size: canvasSize, origin: origin, scale: currentScale, step: step)
                         
                         if graphType == QuestionGraphType.equation.rawValue, points.count == 2 {
@@ -586,10 +587,11 @@ fileprivate struct InteractiveGraphBuilderView: View {
                 }
                 .background(Color.platformSecondarySystemGroupedBackground)
                 .cornerRadius(16)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.3), lineWidth: 2))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.28), lineWidth: 1.5))
                 .clipped()
             }
         }
+        .onAppear { loadPointsFromContent() }
         .onChange(of: graphType) { _, _ in
             points.removeAll()
             content = ""
@@ -642,7 +644,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
             y += step
         }
         
-        context.stroke(minorPath, with: .color(Color.gray.opacity(0.15)), lineWidth: 1)
+        context.stroke(minorPath, with: .color(Color.gray.opacity(0.16)), lineWidth: 1)
         
         var axesPath = Path()
         axesPath.move(to: CGPoint(x: origin.x, y: 0))
@@ -650,7 +652,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
         axesPath.move(to: CGPoint(x: 0, y: origin.y))
         axesPath.addLine(to: CGPoint(x: size.width, y: origin.y))
         
-        context.stroke(axesPath, with: .color(Color.primary.opacity(0.8)), lineWidth: 2)
+        context.stroke(axesPath, with: .color(Color.primary.opacity(0.72)), lineWidth: 2)
     }
     
     private func drawLine(context: GraphicsContext, p1: CGPoint, p2: CGPoint, origin: CGPoint, scale: CGFloat, canvasSize: CGSize) {
@@ -669,7 +671,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
             linePath.addLine(to: CGPoint(x: canvasSize.width, y: m * canvasSize.width + b))
         }
         
-        context.stroke(linePath, with: .color(.purple), lineWidth: 3)
+        context.stroke(linePath, with: .color(.purple), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
     }
     
     private func handleTap(location: CGPoint, origin: CGPoint, scale: CGFloat, step: CGFloat) {
@@ -731,6 +733,31 @@ fileprivate struct InteractiveGraphBuilderView: View {
     
     private func generatePointsString() {
         content = points.map { "(\($0.x.cleanMathString), \($0.y.cleanMathString))" }.joined(separator: ", ")
+    }
+    
+    private func loadPointsFromContent() {
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else { return }
+        
+        if graphType == QuestionGraphType.points.rawValue {
+            let graphData = GraphContentParser.graphData(from: trimmedContent, graphType: graphType)
+            points = zip(graphData.xValues, graphData.yValues).map { CGPoint(x: $0.0, y: $0.1) }
+            return
+        }
+        
+        let cleanedContent = trimmedContent.replacingOccurrences(of: " ", with: "")
+        if cleanedContent.starts(with: "x=") {
+            let xValue = CGFloat(Double(cleanedContent.replacingOccurrences(of: "x=", with: "")) ?? 0.0)
+            points = [CGPoint(x: xValue, y: -4), CGPoint(x: xValue, y: 4)]
+            return
+        }
+        
+        let graphData = GraphContentParser.graphData(from: trimmedContent, graphType: graphType)
+        guard graphData.xValues.count >= 2, graphData.yValues.count >= 2 else { return }
+        points = [
+            CGPoint(x: CGFloat(graphData.xValues[0]), y: CGFloat(graphData.yValues[0])),
+            CGPoint(x: CGFloat(graphData.xValues[1]), y: CGFloat(graphData.yValues[1]))
+        ]
     }
 }
 

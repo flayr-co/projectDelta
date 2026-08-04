@@ -14,7 +14,7 @@ struct ParsedContentBlock: Identifiable {
     enum BlockType {
         case text(String)
         case math(String)
-        case graph(String)
+        case graph(content: String, graphType: String?)
     }
 }
 
@@ -39,6 +39,10 @@ struct LessonContentPage: View {
 
     // Core Parser Engine
     var parsedBlocks: [ParsedContentBlock] {
+        if let modernBlocks = decodeModernBlocks(from: page.content) {
+            return modernBlocks
+        }
+
         var blocks: [ParsedContentBlock] = []
         var remaining = page.content
 
@@ -86,7 +90,7 @@ struct LessonContentPage: View {
                 if isMath {
                     blocks.append(ParsedContentBlock(type: .math(innerContent)))
                 } else {
-                    blocks.append(ParsedContentBlock(type: .graph(innerContent)))
+                    blocks.append(ParsedContentBlock(type: .graph(content: GraphContentParser.graphContent(from: innerContent), graphType: GraphContentParser.graphType(from: innerContent))))
                 }
                 remaining = String(remaining[endTagRange.upperBound...])
             } else {
@@ -95,6 +99,28 @@ struct LessonContentPage: View {
             }
         }
         return blocks
+    }
+
+    private func decodeModernBlocks(from content: String) -> [ParsedContentBlock]? {
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = trimmedContent.data(using: .utf8),
+              let decodedBlocks = try? JSONDecoder().decode([QuestionBlockModel].self, from: data) else {
+            return nil
+        }
+
+        return decodedBlocks.compactMap { block in
+            let trimmedBlockContent = block.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedBlockContent.isEmpty else { return nil }
+
+            switch block.type {
+            case QuestionBlockType.math.rawValue:
+                return ParsedContentBlock(type: .math(trimmedBlockContent))
+            case QuestionBlockType.graph.rawValue:
+                return ParsedContentBlock(type: .graph(content: trimmedBlockContent, graphType: block.graphType))
+            default:
+                return ParsedContentBlock(type: .text(trimmedBlockContent))
+            }
+        }
     }
 
     private func calculateHeight(for latex: String) -> CGFloat {
@@ -131,8 +157,9 @@ struct LessonContentPage: View {
                                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                         }
                         
-                    case .graph(let graphDataStr):
-                        InlineGraphRenderer(graphString: graphDataStr, themeColor: themeColor)
+                    case .graph(let graphContent, let graphType):
+                        DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType))
+                            .padding(.vertical, 16)
                     }
                 }
 

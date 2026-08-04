@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseCore
+import FirebaseFirestore
 
 #if os(iOS)
 import UIKit
@@ -46,6 +47,7 @@ struct ProjectDeltaApp: App {
     init() {
         // 1. Force Firebase to configure absolutely first
         FirebaseApp.configure()
+        Self.configureFirestoreForDebugRuns()
         
         // 2. Initialize ViewModels safely AFTER Firebase is active
         let auth = AuthViewModel()
@@ -53,6 +55,14 @@ struct ProjectDeltaApp: App {
         _testViewModel = State(initialValue: TestSessionViewModel(authViewModel: auth))
         _lessonVM = State(initialValue: LessonViewModel())
         _quizViewModel = State(initialValue: QuizViewModel(authViewModel: auth))
+    }
+    
+    private static func configureFirestoreForDebugRuns() {
+        #if DEBUG && os(macOS)
+        let settings = Firestore.firestore().settings
+        settings.cacheSettings = MemoryCacheSettings()
+        Firestore.firestore().settings = settings
+        #endif
     }
     
     #if os(macOS)
