@@ -4,9 +4,6 @@
 //
 
 import SwiftUI
-#if os(macOS)
-import AppKit
-#endif
 
 struct UniversalBlockEditorView: View {
     @Binding var blocks: [QuestionBlockModel]
@@ -67,29 +64,33 @@ fileprivate struct BlockEditCell: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Live WYSIWYG Representation
-            ZStack(alignment: .topTrailing) {
-                LiveBlockRenderView(block: block)
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .allowsHitTesting(false) // Blocks interaction with live elements while strictly in editing mode structure
-                
-                if !isEditing {
-                    HStack(spacing: 6) {
-                        Image(systemName: iconForType())
-                        Text(block.type.capitalized)
-                    }
-                    .font(.caption2)
-                    .fontWeight(.bold)
+            // Lightweight Non-Live Header Card to prevent performance lag
+            HStack(spacing: 12) {
+                Image(systemName: iconForType())
+                    .font(.title3)
                     .foregroundColor(colorForType())
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(colorForType().opacity(0.15))
-                    .cornerRadius(6)
-                    .padding(12)
+                    .frame(width: 34, height: 34)
+                    .background(colorForType().opacity(0.12))
+                    .clipShape(Circle())
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(block.type.capitalized)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Text(summaryText)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
+                
+                Spacer()
+                
+                Image(systemName: isEditing ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.secondary)
             }
+            .padding(16)
             .background(Color.platformSystemBackground)
             .cornerRadius(16)
             .overlay(
@@ -99,10 +100,11 @@ fileprivate struct BlockEditCell: View {
                         style: StrokeStyle(lineWidth: isEditing ? 3 : 2, dash: isEditing ? [] : [6])
                     )
             )
+            .contentShape(Rectangle())
             .onTapGesture {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    isEditing = true
-                    isFocused = true
+                    isEditing.toggle()
+                    if isEditing { isFocused = true }
                 }
             }
 
@@ -154,7 +156,7 @@ fileprivate struct BlockEditCell: View {
                             .lineLimit(4...12)
                             .font(.system(size: 18, weight: .regular, design: .serif))
                             .padding(16)
-                            .background(Color.blue.opacity(0.05)) // Enhanced visual distinction
+                            .background(Color.blue.opacity(0.05))
                             .cornerRadius(12)
                             .focused($isFocused)
                             .overlay(
@@ -176,6 +178,14 @@ fileprivate struct BlockEditCell: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private var summaryText: String {
+        let trimmed = block.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return "Empty \(block.type.lowercased()) block"
+        }
+        return trimmed
     }
     
     // MARK: - Sub-Editors
@@ -228,7 +238,7 @@ fileprivate struct BlockEditCell: View {
     @ViewBuilder
     private func buildGraphEditor() -> some View {
         let selectedGraphType = block.graphType ?? QuestionGraphType.equation.rawValue
-        let generatedLabel = selectedGraphType == QuestionGraphType.equation.rawValue ? "Equation" : "Coordinates"
+        let expressions = block.content.isEmpty ? [""] : block.content.components(separatedBy: "\n")
         
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .center, spacing: 12) {
@@ -242,7 +252,7 @@ fileprivate struct BlockEditCell: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Interactive Graph Builder")
                         .font(.headline)
-                    Text(selectedGraphType == QuestionGraphType.equation.rawValue ? "Tap two points to build a line." : "Tap points to map ordered pairs.")
+                    Text("Add multiple equations or coordinate sets.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -254,71 +264,86 @@ fileprivate struct BlockEditCell: View {
                 get: { selectedGraphType },
                 set: { block.graphType = $0 }
             )) {
-                Text("Line").tag(QuestionGraphType.equation.rawValue)
+                Text("Equations").tag(QuestionGraphType.equation.rawValue)
                 Text("Points").tag(QuestionGraphType.points.rawValue)
             }
             .pickerStyle(.segmented)
             
+            // The canvas interacts with all equations dynamically
             InteractiveGraphBuilderView(
                 content: $block.content,
                 graphType: selectedGraphType
             )
             .frame(height: 360)
             
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(generatedLabel)
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-                    
-                    TextField(selectedGraphType == QuestionGraphType.equation.rawValue ? "y = 2x + 1" : "(0, 0), (2, 3)", text: $block.content, axis: .vertical)
-                        .lineLimit(1...4)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Expressions")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                
+                // Iterating via stable index to prevent view structural thrashing and losing keyboard focus
+                ForEach(0..<max(1, expressions.count), id: \.self) { index in
+                    HStack {
+                        TextField(selectedGraphType == QuestionGraphType.equation.rawValue ? "y = x^2 + 3" : "(0, 0), (2, 3)", text: Binding(
+                            get: {
+                                guard index < expressions.count else { return "" }
+                                return expressions[index]
+                            },
+                            set: { newValue in
+                                var newExpressions = expressions
+                                if index < newExpressions.count {
+                                    newExpressions[index] = newValue
+                                } else {
+                                    newExpressions.append(newValue)
+                                }
+                                block.content = newExpressions.joined(separator: "\n")
+                            }
+                        ))
                         .font(.system(.body, design: .monospaced, weight: .semibold))
                         .padding(14)
                         .background(Color.purple.opacity(0.06))
                         .cornerRadius(12)
                         .focused($isFocused)
                         .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .onSubmit {
+                            isFocused = false
+                        }
                         #if os(iOS)
                         .textInputAutocapitalization(.never)
                         #endif
+                        
+                        if expressions.count > 1 {
+                            Button(action: {
+                                var newExpressions = expressions
+                                newExpressions.remove(at: index)
+                                block.content = newExpressions.joined(separator: "\n")
+                            }) {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.title2)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
                 
-                Menu {
-                    Button("y = x") {
-                        block.graphType = QuestionGraphType.equation.rawValue
-                        block.content = "y = x"
+                Button(action: {
+                    var newExpressions = expressions
+                    newExpressions.append("")
+                    block.content = newExpressions.joined(separator: "\n")
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add Expression")
                     }
-                    Button("y = 0.50x + 3") {
-                        block.graphType = QuestionGraphType.equation.rawValue
-                        block.content = "y = 0.50x + 3"
-                    }
-                    Button("y >= 0.50x + 3") {
-                        block.graphType = QuestionGraphType.equation.rawValue
-                        block.content = "y >= 0.50x + 3"
-                    }
-                    Button("(0, 0), (2, 3), (4, 6)") {
-                        block.graphType = QuestionGraphType.points.rawValue
-                        block.content = "(0, 0), (2, 3), (4, 6)"
-                    }
-                } label: {
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 16, weight: .bold))
-                        .frame(width: 44, height: 44)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.purple)
+                    .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.purple)
-                .background(Color.purple.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-            
-            if !block.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                DynamicGraphView(data: GraphContentParser.graphData(from: block.content, graphType: selectedGraphType))
-                    .padding(.top, 2)
-                    .background(Color.purple.opacity(0.05))
-                    .cornerRadius(12)
             }
         }
     }
@@ -488,6 +513,10 @@ fileprivate struct InteractiveGraphBuilderView: View {
     @State private var currentPan: CGSize = .zero
     @State private var lastPan: CGSize = .zero
     
+    @State private var tapFeedbackTrigger: Int = 0
+    
+    private let lineColors: [Color] = [.purple, .teal, .pink, .orange, .cyan, .green, .red]
+    
     var body: some View {
         VStack(spacing: 12) {
             HStack {
@@ -498,7 +527,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
                 
                 Spacer()
                 
-                if !points.isEmpty {
+                if !content.isEmpty || !points.isEmpty {
                     Button(action: {
                         withAnimation {
                             points.removeAll()
@@ -533,8 +562,23 @@ fileprivate struct InteractiveGraphBuilderView: View {
                         
                         drawAdaptiveGrid(context: context, size: canvasSize, origin: origin, scale: currentScale, step: step)
                         
-                        if graphType == QuestionGraphType.equation.rawValue, points.count == 2 {
-                            drawLine(context: context, p1: points[0], p2: points[1], origin: origin, scale: currentScale, canvasSize: canvasSize)
+                        if graphType == QuestionGraphType.equation.rawValue {
+                            let expressions = content.components(separatedBy: "\n")
+                            for (index, expr) in expressions.enumerated() {
+                                let color = lineColors[index % lineColors.count]
+                                
+                                // The primary interactive line is tethered to `points` array
+                                if index == 0 && points.count == 2 {
+                                    drawLine(context: context, p1: points[0], p2: points[1], origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
+                                } else if !expr.isEmpty {
+                                    // Extract and draw subsequent standard expressions instantly
+                                    if let (m, b) = parseLinearEquation(expr) {
+                                        let p1 = CGPoint(x: -1000, y: m * -1000 + b)
+                                        let p2 = CGPoint(x: 1000, y: m * 1000 + b)
+                                        drawLine(context: context, p1: p1, p2: p2, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
+                                    }
+                                }
+                            }
                         }
                     }
                     
@@ -564,7 +608,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
                                 }
                         )
                     
-                    // Draggable Points
+                    // Draggable Points only bind to the primary equation (index 0)
                     ForEach(points.indices, id: \.self) { index in
                         DraggablePointView(
                             point: Binding(get: {
@@ -589,6 +633,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
                 .cornerRadius(16)
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.28), lineWidth: 1.5))
                 .clipped()
+                .sensoryFeedback(.impact(weight: .medium), trigger: tapFeedbackTrigger)
             }
         }
         .onAppear { loadPointsFromContent() }
@@ -655,7 +700,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
         context.stroke(axesPath, with: .color(Color.primary.opacity(0.72)), lineWidth: 2)
     }
     
-    private func drawLine(context: GraphicsContext, p1: CGPoint, p2: CGPoint, origin: CGPoint, scale: CGFloat, canvasSize: CGSize) {
+    private func drawLine(context: GraphicsContext, p1: CGPoint, p2: CGPoint, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
         var linePath = Path()
         
         let sp1 = CGPoint(x: origin.x + p1.x * scale, y: origin.y - p1.y * scale)
@@ -671,7 +716,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
             linePath.addLine(to: CGPoint(x: canvasSize.width, y: m * canvasSize.width + b))
         }
         
-        context.stroke(linePath, with: .color(.purple), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+        context.stroke(linePath, with: .color(color), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
     }
     
     private func handleTap(location: CGPoint, origin: CGPoint, scale: CGFloat, step: CGFloat) {
@@ -690,45 +735,44 @@ fileprivate struct InteractiveGraphBuilderView: View {
             generatePointsString()
         }
         
-        #if os(iOS)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        #elseif os(macOS)
-        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
-        #endif
+        tapFeedbackTrigger += 1
     }
     
     private func generateLinearEquation() {
         guard points.count == 2 else {
-            content = ""
             return
         }
         
         let p1 = points[0]
         let p2 = points[1]
         
+        var eq = ""
         if p1.x == p2.x {
-            content = "x = \(p1.x.cleanMathString)"
-            return
+            eq = "x = \(p1.x.cleanMathString)"
+        } else {
+            let m = (p2.y - p1.y) / (p2.x - p1.x)
+            let b = p1.y - m * p1.x
+            
+            eq = "y = "
+            if m != 0 {
+                if m == 1 { eq += "x" }
+                else if m == -1 { eq += "-x" }
+                else { eq += "\(m.cleanMathString)x" }
+            }
+            
+            if b > 0 {
+                eq += (m == 0) ? "\(b.cleanMathString)" : " + \(b.cleanMathString)"
+            } else if b < 0 {
+                eq += (m == 0) ? "\(b.cleanMathString)" : " - \(abs(b).cleanMathString)"
+            } else if m == 0 && b == 0 {
+                eq += "0"
+            }
         }
         
-        let m = (p2.y - p1.y) / (p2.x - p1.x)
-        let b = p1.y - m * p1.x
-        
-        var eq = "y = "
-        if m != 0 {
-            if m == 1 { eq += "x" }
-            else if m == -1 { eq += "-x" }
-            else { eq += "\(m.cleanMathString)x" }
-        }
-        
-        if b > 0 {
-            eq += (m == 0) ? "\(b.cleanMathString)" : " + \(b.cleanMathString)"
-        } else if b < 0 {
-            eq += (m == 0) ? "\(b.cleanMathString)" : " - \(abs(b).cleanMathString)"
-        } else if m == 0 && b == 0 {
-            eq += "0"
-        }
-        content = eq
+        var currentExpressions = content.components(separatedBy: "\n")
+        if currentExpressions.isEmpty { currentExpressions.append(eq) }
+        else { currentExpressions[0] = eq }
+        content = currentExpressions.joined(separator: "\n")
     }
     
     private func generatePointsString() {
@@ -745,19 +789,64 @@ fileprivate struct InteractiveGraphBuilderView: View {
             return
         }
         
-        let cleanedContent = trimmedContent.replacingOccurrences(of: " ", with: "")
+        let expressions = trimmedContent.components(separatedBy: "\n")
+        guard let firstExpr = expressions.first else { return }
+        
+        let cleanedContent = firstExpr.replacingOccurrences(of: " ", with: "")
         if cleanedContent.starts(with: "x=") {
             let xValue = CGFloat(Double(cleanedContent.replacingOccurrences(of: "x=", with: "")) ?? 0.0)
             points = [CGPoint(x: xValue, y: -4), CGPoint(x: xValue, y: 4)]
             return
         }
         
-        let graphData = GraphContentParser.graphData(from: trimmedContent, graphType: graphType)
+        let graphData = GraphContentParser.graphData(from: firstExpr, graphType: graphType)
         guard graphData.xValues.count >= 2, graphData.yValues.count >= 2 else { return }
         points = [
             CGPoint(x: CGFloat(graphData.xValues[0]), y: CGFloat(graphData.yValues[0])),
             CGPoint(x: CGFloat(graphData.xValues[1]), y: CGFloat(graphData.yValues[1]))
         ]
+    }
+    
+    // Core parser to resolve string inputs safely without triggering app logic crashes
+    private func parseLinearEquation(_ expr: String) -> (m: CGFloat, b: CGFloat)? {
+        let clean = expr.replacingOccurrences(of: " ", with: "").lowercased()
+        guard clean.hasPrefix("y=") else { return nil }
+        let rhs = clean.dropFirst(2)
+        if rhs.isEmpty { return nil }
+
+        if !rhs.contains("x") {
+            if let b = Double(rhs) { return (0, CGFloat(b)) }
+            return nil
+        }
+
+        let components = rhs.components(separatedBy: "x")
+        let mStr = components[0]
+        let bStr = components.count > 1 ? components[1] : ""
+
+        var m: CGFloat = 1
+        if mStr == "-" { m = -1 }
+        else if mStr == "" || mStr == "+" { m = 1 }
+        else {
+            if mStr.contains("/") {
+                let parts = mStr.components(separatedBy: "/")
+                if parts.count == 2, let num = Double(parts[0]), let den = Double(parts[1]), den != 0 {
+                    m = CGFloat(num / den)
+                } else { return nil }
+            } else if let parsedM = Double(mStr) {
+                m = CGFloat(parsedM)
+            } else {
+                return nil
+            }
+        }
+
+        var b: CGFloat = 0
+        if !bStr.isEmpty {
+            let sanitizedB = bStr.replacingOccurrences(of: "+", with: "")
+            if let parsedB = Double(sanitizedB) {
+                b = CGFloat(parsedB)
+            }
+        }
+        return (m, b)
     }
 }
 
@@ -961,4 +1050,13 @@ fileprivate extension CGFloat {
     var cleanMathString: String {
         return self.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", self) : String(format: "%.2f", self)
     }
+}
+
+// MARK: - Preview
+#Preview {
+    UniversalBlockEditorView(blocks: .constant([
+        QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: "Identify the slope in the following equation:"),
+        QuestionBlockModel(type: QuestionBlockType.math.rawValue, content: "\\frac{1}{2}x + 5 = y")
+    ]))
+    .padding()
 }

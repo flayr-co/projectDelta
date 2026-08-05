@@ -340,6 +340,49 @@ struct DynamicGraphView: View {
     }
 }
 
+enum MathEvaluator {
+    /// Samples continuous mathematical curves into discrete points for SwiftUI Charts.
+    static func samplePoints(for equation: String, domain: ClosedRange<Double> = -15...15, step: Double = 0.2) -> GraphData.Series? {
+        // Clean the string for NSExpression compatibility
+        let exprString = equation
+            .lowercased()
+            .replacingOccurrences(of: "y=", with: "")
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "^", with: "**") // NSExpression syntax for exponents
+            
+        guard !exprString.isEmpty else { return nil }
+        
+        var xVals: [Double] = []
+        var yVals: [Double] = []
+        
+        // Compile the expression once for performance
+        let expression: NSExpression
+        do {
+            // Attempt to create the expression; will fail safely if syntax is invalid
+            expression = NSExpression(format: exprString)
+        } catch {
+            print("Mathematical syntax error in equation: \(equation)")
+            return nil
+        }
+        
+        for x in stride(from: domain.lowerBound, through: domain.upperBound, by: step) {
+            let context: NSMutableDictionary = ["x": x]
+            
+            // Execute the calculation
+            if let result = expression.expressionValue(with: context, context: nil) as? Double {
+                // Filter out absolute extreme asymptotes (e.g., dividing by zero in rational functions)
+                if !result.isNaN && !result.isInfinite && abs(result) < 1000 {
+                    xVals.append(x)
+                    yVals.append(result)
+                }
+            }
+        }
+        
+        guard !xVals.isEmpty else { return nil }
+        return GraphData.Series(label: equation, xValues: xVals, yValues: yVals)
+    }
+}
+
 enum GraphContentParser {
     static func graphData(from content: String, graphType: String? = nil) -> GraphData {
         let normalizedType = graphType?.lowercased() ?? ""
