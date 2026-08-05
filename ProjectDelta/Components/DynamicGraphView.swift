@@ -450,7 +450,56 @@ enum GraphContentParser {
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "type=equation", with: "")
             .replacingOccurrences(of: "&", with: "")
-
+        
+        let components = cleanedContent.components(separatedBy: "|")
+        if components.count > 1 {
+            var allSeries: [GraphData.Series] = []
+            var primaryX: [Double] = [-10.0, 10.0]
+            var primaryY: [Double] = [-10.0, 10.0]
+            var secondaryY: [Double]? = nil
+            
+            for (index, component) in components.enumerated() {
+                let trimmed = component.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty { continue }
+                
+                let eqString = trimmed.replacingOccurrences(of: "y=", with: "")
+                if let sampled = MathEvaluator.samplePoints(for: eqString) {
+                    allSeries.append(sampled)
+                    if index == 0 {
+                        primaryX = sampled.xValues
+                        primaryY = sampled.yValues
+                    } else if index == 1 {
+                        secondaryY = sampled.yValues
+                    }
+                } else {
+                    let line = lineValues(from: eqString)
+                    let xValues = [-10.0, 10.0]
+                    let yValues = xValues.map { line.slope * $0 + line.intercept }
+                    let label = trimmed.hasPrefix("y=") ? trimmed : "y = \(trimmed)"
+                    allSeries.append(GraphData.Series(label: label, xValues: xValues, yValues: yValues))
+                    
+                    if index == 0 {
+                        primaryX = xValues
+                        primaryY = yValues
+                    } else if index == 1 {
+                        secondaryY = yValues
+                    }
+                }
+            }
+            
+            return GraphData(
+                xValues: primaryX,
+                yValues: primaryY,
+                secondaryYValues: secondaryY,
+                series: allSeries.isEmpty ? nil : allSeries
+            )
+        }
+        
+        let singleEq = cleanedContent.replacingOccurrences(of: "y=", with: "")
+        if let sampled = MathEvaluator.samplePoints(for: singleEq) {
+            return GraphData(xValues: sampled.xValues, yValues: sampled.yValues, series: [sampled])
+        }
+        
         if cleanedContent.starts(with: "x=") {
             let xValue = Double(cleanedContent.replacingOccurrences(of: "x=", with: "")) ?? 0.0
             return GraphData(xValues: [xValue, xValue], yValues: [-10.0, 10.0])
@@ -474,10 +523,10 @@ enum GraphContentParser {
                 )
             }
         }
-
+        
         let equation = cleanedContent.replacingOccurrences(of: "y=", with: "")
         let line = lineValues(from: equation)
-
+        
         let xValues = [-10.0, 10.0]
         let yValues = xValues.map { line.slope * $0 + line.intercept }
         return GraphData(xValues: xValues, yValues: yValues)

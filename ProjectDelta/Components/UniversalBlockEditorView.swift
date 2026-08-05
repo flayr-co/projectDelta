@@ -7,9 +7,29 @@ import SwiftUI
 
 struct UniversalBlockEditorView: View {
     @Binding var blocks: [QuestionBlockModel]
+    var onSave: (() -> Void)? = nil
     
     var body: some View {
         VStack(spacing: 24) {
+            HStack {
+                Spacer()
+                Button(action: { onSave?() }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Save Page")
+                    }
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color.green)
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.2), radius: 6, y: 3)
+                }
+                .buttonStyle(.plain)
+            }
+            
             ForEach($blocks) { $block in
                 let blockId = block.id
                 
@@ -269,7 +289,6 @@ fileprivate struct BlockEditCell: View {
             }
             .pickerStyle(.segmented)
             
-            // The canvas interacts with all equations dynamically
             InteractiveGraphBuilderView(
                 content: $block.content,
                 graphType: selectedGraphType
@@ -283,7 +302,6 @@ fileprivate struct BlockEditCell: View {
                     .foregroundColor(.secondary)
                     .textCase(.uppercase)
                 
-                // Iterating via stable index to prevent view structural thrashing and losing keyboard focus
                 ForEach(0..<max(1, expressions.count), id: \.self) { index in
                     HStack {
                         TextField(selectedGraphType == QuestionGraphType.equation.rawValue ? "y = x^2 + 3" : "(0, 0), (2, 3)", text: Binding(
@@ -567,22 +585,16 @@ fileprivate struct InteractiveGraphBuilderView: View {
                             for (index, expr) in expressions.enumerated() {
                                 let color = lineColors[index % lineColors.count]
                                 
-                                // The primary interactive line is tethered to `points` array
+                                // If it's the primary expression and we have active draggable touch points, use them
                                 if index == 0 && points.count == 2 {
                                     drawLine(context: context, p1: points[0], p2: points[1], origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
                                 } else if !expr.isEmpty {
-                                    // Extract and draw subsequent standard expressions instantly
-                                    if let (m, b) = parseLinearEquation(expr) {
-                                        let p1 = CGPoint(x: -1000, y: m * -1000 + b)
-                                        let p2 = CGPoint(x: 1000, y: m * 1000 + b)
-                                        drawLine(context: context, p1: p1, p2: p2, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
-                                    }
+                                    drawEquationCurve(context: context, expr: expr, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
                                 }
                             }
                         }
                     }
                     
-                    // Interaction Layer separating explicit Taps from Drags to resolve macOS swallowing
                     Color.clear
                         .contentShape(Rectangle())
                         .onTapGesture { location in
@@ -608,7 +620,6 @@ fileprivate struct InteractiveGraphBuilderView: View {
                                 }
                         )
                     
-                    // Draggable Points only bind to the primary equation (index 0)
                     ForEach(points.indices, id: \.self) { index in
                         DraggablePointView(
                             point: Binding(get: {
@@ -719,6 +730,62 @@ fileprivate struct InteractiveGraphBuilderView: View {
         context.stroke(linePath, with: .color(color), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
     }
     
+    // Evaluates and renders curves (such as parabolas like y = x^2) across screen width
+    private func drawEquationCurve(context: GraphicsContext, expr: String, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
+        var path = Path()
+        let stepCount = Int(canvasSize.width)
+        var isFirst = true
+        
+        for screenX in stride(from: 0, through: canvasSize.width, by: 2) {
+            let mathX = (screenX - origin.x) / scale
+            if let mathY = evaluateEquation(expr, x: mathX) {
+                let screenY = origin.y - mathY * scale
+                let pt = CGPoint(x: screenX, y: screenY)
+                
+                // Filter out extreme vertical jumps/asymptotes
+                if screenY >= -500 && screenY <= canvasSize.height + 500 {
+                    if isFirst {
+                        path.move(to: pt)
+                        isFirst = false
+                    } else {
+                        path.addLine(to: pt)
+                    }
+                } else {
+                    isFirst = true
+                }
+            } else {
+                isFirst = true
+            }
+        }
+        
+        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+    }
+    
+    // Flexible evaluator supporting linear components and basic powers like x^2
+    private func evaluateEquation(_ expr: String, x: CGFloat) -> CGFloat? {
+        let clean = expr.replacingOccurrences(of: " ", with: "").lowercased()
+        guard clean.hasPrefix("y=") else { return nil }
+        let rhs = clean.dropFirst(2)
+        if rhs.isEmpty { return nil }
+        
+        // Handle pure quadratic form like x^2
+        if rhs.hasPrefix("x^2") {
+            let rest = rhs.dropFirst(3)
+            var constant: CGFloat = 0
+            if !rest.isEmpty {
+                if let c = Double(rest) { constant = CGFloat(c) }
+            }
+            return (x * x) + constant
+        }
+        
+        // Handle general linear form
+        if let (m, b) = parseLinearEquation(expr) {
+            return m * x + b
+        }
+        
+        return nil
+    }
+    
     private func handleTap(location: CGPoint, origin: CGPoint, scale: CGFloat, step: CGFloat) {
         let mathX = (location.x - origin.x) / scale
         let mathY = (origin.y - location.y) / scale
@@ -739,9 +806,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
     }
     
     private func generateLinearEquation() {
-        guard points.count == 2 else {
-            return
-        }
+        guard points.count == 2 else { return }
         
         let p1 = points[0]
         let p2 = points[1]
@@ -807,7 +872,6 @@ fileprivate struct InteractiveGraphBuilderView: View {
         ]
     }
     
-    // Core parser to resolve string inputs safely without triggering app logic crashes
     private func parseLinearEquation(_ expr: String) -> (m: CGFloat, b: CGFloat)? {
         let clean = expr.replacingOccurrences(of: " ", with: "").lowercased()
         guard clean.hasPrefix("y=") else { return nil }
@@ -1032,7 +1096,7 @@ fileprivate struct MathKeypadView: View {
     @ViewBuilder
     private func actionButton(systemName: String, action: @escaping () -> Void, color: Color, textColor: Color = .primary) -> some View {
         Button(action: action) {
-            Image(systemName: systemName)
+            Image(systemName: nameForSystem(systemName))
                 .font(.system(size: 16, weight: .bold))
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
@@ -1042,6 +1106,10 @@ fileprivate struct MathKeypadView: View {
                 .foregroundColor(textColor)
         }
         .buttonStyle(.plain)
+    }
+    
+    private func nameForSystem(_ name: String) -> String {
+        return name == "space" ? "spacebar" : name
     }
 }
 
