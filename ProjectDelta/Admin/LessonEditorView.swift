@@ -282,14 +282,18 @@ struct PageEditorView: View {
     @Binding var page: Page
     let pageIndex: Int
     @State private var blocks: [QuestionBlockModel] = []
+    @Environment(\.dismiss) var dismiss
 
     var body: some View {
         ZStack(alignment: .top) {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
             
             ScrollView(showsIndicators: false) {
-                UniversalBlockEditorView(blocks: $blocks)
-                    .padding(24)
+                UniversalBlockEditorView(blocks: $blocks, onSave: {
+                    saveBlocksToPage()
+                    dismiss()
+                })
+                .padding(24)
             }
             #if os(macOS)
             .safeAreaPadding(.top, 56)

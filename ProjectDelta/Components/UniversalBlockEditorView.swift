@@ -9,25 +9,38 @@ struct UniversalBlockEditorView: View {
     @Binding var blocks: [QuestionBlockModel]
     var onSave: (() -> Void)? = nil
     
+    @State private var isSaved: Bool = false
+    
     var body: some View {
         VStack(spacing: 24) {
             HStack {
                 Spacer()
-                Button(action: { onSave?() }) {
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        isSaved = true
+                    }
+                    
+                    // Allow the user to register the success feedback before navigating back
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        onSave?()
+                        isSaved = false
+                    }
+                }) {
                     HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Save Page")
+                        Image(systemName: isSaved ? "checkmark.seal.fill" : "square.and.arrow.down.fill")
+                        Text(isSaved ? "Page Saved" : "Save Page")
                     }
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
-                    .background(Color.green)
-                    .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.2), radius: 6, y: 3)
+                    .background(isSaved ? Color.green : Color.teal)
+                    .cornerRadius(14)
+                    .shadow(color: (isSaved ? Color.green : Color.teal).opacity(0.3), radius: 8, y: 4)
                 }
                 .buttonStyle(.plain)
+                .sensoryFeedback(.success, trigger: isSaved)
             }
             
             ForEach($blocks) { $block in
@@ -533,6 +546,8 @@ fileprivate struct InteractiveGraphBuilderView: View {
     
     @State private var tapFeedbackTrigger: Int = 0
     
+    @Environment(\.colorScheme) var colorScheme
+    
     private let lineColors: [Color] = [.purple, .teal, .pink, .orange, .cyan, .green, .red]
     
     var body: some View {
@@ -591,7 +606,6 @@ fileprivate struct InteractiveGraphBuilderView: View {
                                 if index == 0 && points.count == 2 {
                                     drawLine(context: context, p1: points[0], p2: points[1], origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
                                 } else if !expr.isEmpty {
-                                    // Utilizes the new robust Swift Engine directly instead of broken string parsing limits
                                     drawEquationCurve(context: context, expr: expr, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
                                 }
                             }
@@ -643,6 +657,38 @@ fileprivate struct InteractiveGraphBuilderView: View {
                                 }
                             }
                         )
+                    }
+                    
+                    // MARK: - Dynamic Legend Overlay
+                    if graphType == QuestionGraphType.equation.rawValue {
+                        let activeExpressions = content.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                        
+                        if !activeExpressions.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(activeExpressions.enumerated()), id: \.offset) { index, expr in
+                                    let color = lineColors[index % lineColors.count]
+                                    HStack(spacing: 6) {
+                                        Circle()
+                                            .fill(color)
+                                            .frame(width: 8, height: 8)
+                                        Text(expr)
+                                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                                            .foregroundColor(colorScheme == .dark ? color : color.opacity(0.9))
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.75)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(color.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Capsule())
+                                    .shadow(color: Color.black.opacity(0.1), radius: 2, y: 1)
+                                }
+                            }
+                            .padding(16)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            .allowsHitTesting(false)
+                        }
                     }
                 }
                 .background(Color.platformSecondarySystemGroupedBackground)
@@ -717,9 +763,8 @@ fileprivate struct InteractiveGraphBuilderView: View {
     }
     
     private func drawLine(context: GraphicsContext, p1: CGPoint, p2: CGPoint, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
-        // CoreGraphics safeguard: Reject any NaN or Infinite values before drawing
         guard p1.x.isFinite, p1.y.isFinite, p2.x.isFinite, p2.y.isFinite else { return }
-        
+
         var linePath = Path()
         
         let sp1 = CGPoint(x: origin.x + p1.x * scale, y: origin.y - p1.y * scale)
@@ -738,7 +783,6 @@ fileprivate struct InteractiveGraphBuilderView: View {
         context.stroke(linePath, with: .color(color), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
     }
     
-    // Completely replaced legacy naive mapping for dynamic compilation and asymptote handling.
     private func drawEquationCurve(context: GraphicsContext, expr: String, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
         guard let evaluator = MathEngine.compile(expr) else { return }
         
@@ -758,14 +802,12 @@ fileprivate struct InteractiveGraphBuilderView: View {
             
             let screenY = origin.y - mathY * scale
             
-            // Asymptote Discontinuity Detection (e.g. crossing x=0 for 1/x)
             if let prevY = previousScreenY, abs(screenY - prevY) > canvasSize.height {
                 isFirst = true
             }
             
             let pt = CGPoint(x: screenX, y: screenY)
             
-            // Filter out extreme vertical buffer rendering waste safely
             if screenY >= -500 && screenY <= canvasSize.height + 500 {
                 if isFirst {
                     path.move(to: pt)
@@ -841,47 +883,6 @@ fileprivate struct InteractiveGraphBuilderView: View {
         content = points.map { "(\($0.x.cleanMathString), \($0.y.cleanMathString))" }.joined(separator: ", ")
     }
     
-    private func parseLinearEquation(_ expr: String) -> (m: CGFloat, b: CGFloat)? {
-        let clean = expr.replacingOccurrences(of: " ", with: "").lowercased()
-        guard clean.hasPrefix("y=") else { return nil }
-        let rhs = clean.dropFirst(2)
-        if rhs.isEmpty { return nil }
-        
-        if !rhs.contains("x") {
-            if let b = Double(rhs) { return (0, CGFloat(b)) }
-            return nil
-        }
-        
-        let components = rhs.components(separatedBy: "x")
-        let mStr = components[0]
-        let bStr = components.count > 1 ? components[1] : ""
-        
-        var m: CGFloat = 1
-        if mStr == "-" { m = -1 }
-        else if mStr == "" || mStr == "+" { m = 1 }
-        else {
-            if mStr.contains("/") {
-                let parts = mStr.components(separatedBy: "/")
-                if parts.count == 2, let num = Double(parts[0]), let den = Double(parts[1]), den != 0 {
-                    m = CGFloat(num / den)
-                } else { return nil }
-            } else if let parsedM = Double(mStr) {
-                m = CGFloat(parsedM)
-            } else {
-                return nil
-            }
-        }
-        
-        var b: CGFloat = 0
-        if !bStr.isEmpty {
-            let sanitizedB = bStr.replacingOccurrences(of: "+", with: "")
-            if let parsedB = Double(sanitizedB) {
-                b = CGFloat(parsedB)
-            }
-        }
-        return (m, b)
-    }
-    
     private func loadPointsFromContent() {
         let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedContent.isEmpty else { return }
@@ -904,14 +905,53 @@ fileprivate struct InteractiveGraphBuilderView: View {
             return
         }
         
-        // Only map draggable points if it cleanly parses as a linear equation.
-        // Prevents NaNs from complex curve bounds (like y=x^3) from crashing CoreGraphics.
         if let (m, b) = parseLinearEquation(firstExpr) {
             points = [
                 CGPoint(x: -2, y: m * -2 + b),
                 CGPoint(x: 2, y: m * 2 + b)
             ]
         }
+    }
+
+    private func parseLinearEquation(_ expr: String) -> (m: CGFloat, b: CGFloat)? {
+        let clean = expr.replacingOccurrences(of: " ", with: "").lowercased()
+        guard clean.hasPrefix("y=") else { return nil }
+        let rhs = clean.dropFirst(2)
+        if rhs.isEmpty { return nil }
+
+        if !rhs.contains("x") {
+            if let b = Double(rhs) { return (0, CGFloat(b)) }
+            return nil
+        }
+
+        let components = rhs.components(separatedBy: "x")
+        let mStr = components[0]
+        let bStr = components.count > 1 ? components[1] : ""
+
+        var m: CGFloat = 1
+        if mStr == "-" { m = -1 }
+        else if mStr == "" || mStr == "+" { m = 1 }
+        else {
+            if mStr.contains("/") {
+                let parts = mStr.components(separatedBy: "/")
+                if parts.count == 2, let num = Double(parts[0]), let den = Double(parts[1]), den != 0 {
+                    m = CGFloat(num / den)
+                } else { return nil }
+            } else if let parsedM = Double(mStr) {
+                m = CGFloat(parsedM)
+            } else {
+                return nil
+            }
+        }
+
+        var b: CGFloat = 0
+        if !bStr.isEmpty {
+            let sanitizedB = bStr.replacingOccurrences(of: "+", with: "")
+            if let parsedB = Double(sanitizedB) {
+                b = CGFloat(parsedB)
+            }
+        }
+        return (m, b)
     }
 }
 
