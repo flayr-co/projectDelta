@@ -117,8 +117,9 @@ struct HomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
+                    .stroke(Color.cyan.opacity(0.3), lineWidth: 1.5)
             )
+            .shadow(color: Color.cyan.opacity(0.15), radius: 12, y: 4)
         }
     }
     
@@ -164,6 +165,7 @@ struct HomeView: View {
                     .trim(from: 0, to: CGFloat(Double(algebraCorrect) / Double(algebraTotal)))
                     .stroke(Color.cyan, style: StrokeStyle(lineWidth: 32, lineCap: .round))
                     .rotationEffect(.degrees(-90))
+                    .shadow(color: Color.cyan.opacity(0.4), radius: 8, y: 2)
                 
                 VStack(spacing: 4) {
                     Text("\(algebraCorrect)")
@@ -191,8 +193,9 @@ struct HomeView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
+                .stroke(Color.cyan.opacity(0.2), lineWidth: 1.5)
         )
+        .shadow(color: Color.cyan.opacity(0.1), radius: 15, y: 5)
     }
     
     private var statsGrid: some View {
@@ -204,10 +207,10 @@ struct HomeView: View {
         return LazyVGrid(columns: columns, spacing: 24) {
             StatCardView(icon: "bolt.fill", iconColor: .orange, title: "Total Volume", value: "\(totalVolume)")
             StatCardView(icon: "target", iconColor: .green, title: "Overall Accuracy", value: "\(Int(accuracy * 100))%")
-            StatCardView(icon: "function", iconColor: .cyan, title: "Advanced Math", value: "0 / 0")
+            StatCardView(icon: "function", iconColor: .purple, title: "Advanced Math", value: "0 / 0")
             StatCardView(icon: "x.squareroot", iconColor: .cyan, title: "Algebra", value: "\(algebraCorrect) / \(algebraTotal)")
-            StatCardView(icon: "angle", iconColor: .cyan, title: "Geometry & Trig", value: "0 / 0")
-            StatCardView(icon: "chart.bar.fill", iconColor: .cyan, title: "Problem Solving", value: "0 / 0")
+            StatCardView(icon: "angle", iconColor: .indigo, title: "Geometry & Trig", value: "0 / 0")
+            StatCardView(icon: "chart.bar.fill", iconColor: .teal, title: "Problem Solving", value: "0 / 0")
         }
         .frame(maxWidth: .infinity)
     }
@@ -265,6 +268,7 @@ struct HomeView: View {
                     
                     ProgressBar(points: viewModel.currentUser?.points ?? 0)
                         .frame(width: 140, height: 10)
+                        .shadow(color: (colorScheme == .dark ? Color.cyan : Color.blue).opacity(0.3), radius: 6, y: 2)
                 }
             }
             .padding(.horizontal, 24)
@@ -273,7 +277,7 @@ struct HomeView: View {
             .background(
                 (colorScheme == .dark ? Color.customDarkGray : Color.white)
                     .ignoresSafeArea(edges: .top)
-                    .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
             )
             .zIndex(1)
             
@@ -296,16 +300,19 @@ struct HomeView: View {
                             DisplayCards(imageName: "studentdesk", title: "Learn", tintColor: .cyan)
                         }
                         .buttonStyle(.plain)
+                        .shadow(color: Color.cyan.opacity(0.15), radius: 10, y: 4)
                         
                         NavigationLink(destination: SubjectGridView(navigationSource: .practice).navigationBarBackButtonHidden(true)) {
                             DisplayCards(imageName: "pencil", title: "Practice", tintColor: .orange)
                         }
                         .buttonStyle(.plain)
+                        .shadow(color: Color.orange.opacity(0.15), radius: 10, y: 4)
                         
                         NavigationLink(destination: LeaderboardView().navigationBarBackButtonHidden(true)) {
                             DisplayCards(imageName: "trophy", title: "Leaderboard", tintColor: .yellow)
                         }
                         .buttonStyle(.plain)
+                        .shadow(color: Color.yellow.opacity(0.15), radius: 10, y: 4)
                     }
                     .padding(.horizontal, 24)
                     
@@ -332,6 +339,7 @@ struct LegendItemView: View {
                 .fill(color)
                 .frame(width: 10, height: 10)
                 .padding(.top, 4)
+                .shadow(color: color.opacity(0.5), radius: 4, y: 1)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -362,6 +370,7 @@ struct StatCardView: View {
                     .frame(width: 36, height: 36)
                     .background(iconColor.opacity(0.15))
                     .clipShape(Circle())
+                    .shadow(color: iconColor.opacity(0.3), radius: 6, y: 2)
                 
                 Spacer()
             }
@@ -386,8 +395,9 @@ struct StatCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
+                .stroke(iconColor.opacity(0.25), lineWidth: 1.5)
         )
+        .shadow(color: iconColor.opacity(0.12), radius: 12, y: 4)
     }
 }
 
@@ -414,12 +424,13 @@ struct ActionCardButton<Destination: View>: View {
             .contentShape(Rectangle())
             .background(
                 LinearGradient(
-                    colors: [color.opacity(0.85), color.opacity(0.65)],
+                    colors: [color.opacity(0.9), color.opacity(0.7)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             )
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: color.opacity(0.25), radius: 15, y: 6)
         }
         .buttonStyle(.plain)
     }

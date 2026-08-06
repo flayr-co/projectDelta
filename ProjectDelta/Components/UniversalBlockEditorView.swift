@@ -668,7 +668,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
                                         Circle()
                                             .fill(color)
                                             .frame(width: 8, height: 8)
-                                        Text(expr)
+                                        Text(expr.formatAsMathPower)
                                             .font(.system(size: 13, weight: .bold, design: .rounded))
                                             .foregroundColor(colorScheme == .dark ? color : color.opacity(0.9))
                                             .lineLimit(1)
@@ -690,8 +690,9 @@ fileprivate struct InteractiveGraphBuilderView: View {
                 }
                 .background(Color.platformSecondarySystemGroupedBackground)
                 .cornerRadius(16)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.28), lineWidth: 1.5))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.4), lineWidth: 1.5))
                 .clipped()
+                .shadow(color: Color.purple.opacity(0.2), radius: 12, y: 4)
                 .sensoryFeedback(.impact(weight: .medium), trigger: tapFeedbackTrigger)
             }
         }

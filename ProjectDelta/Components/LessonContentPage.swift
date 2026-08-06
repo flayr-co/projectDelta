@@ -159,12 +159,14 @@ struct LessonContentPage: View {
                         
                     case .graph(let graphContent, let graphType):
                         DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType))
+                            .frame(minHeight: 450)
                             .padding(.vertical, 16)
                     }
                 }
 
                 if let graphData = page.graphData {
                     DynamicGraphView(data: graphData)
+                        .frame(minHeight: 450)
                         .padding(.vertical, 16)
                 }
 

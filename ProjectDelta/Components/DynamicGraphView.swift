@@ -265,7 +265,7 @@ struct DynamicGraphView: View {
                                 Circle()
                                     .fill(color)
                                     .frame(width: 8, height: 8)
-                                Text(series.label)
+                                Text(series.label.formatAsMathPower)
                                     .font(.system(size: 13, weight: .bold, design: .rounded))
                                     .foregroundColor(colorScheme == .dark ? color : color.opacity(0.9))
                                     .lineLimit(1)
@@ -313,9 +313,9 @@ struct DynamicGraphView: View {
             }
             .background(Color.platformSecondarySystemGroupedBackground)
             .cornerRadius(16)
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08), lineWidth: 1.5))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(primaryColor.opacity(0.4), lineWidth: 1.5))
             .clipped()
-            .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
+            .shadow(color: primaryColor.opacity(0.2), radius: 12, y: 4)
         }
         .frame(minHeight: 320, idealHeight: 400, maxHeight: 500)
         .padding(.horizontal)
@@ -1003,6 +1003,33 @@ extension Double {
 extension CGFloat {
     var cleanMathString: String {
         abs(self.truncatingRemainder(dividingBy: 1)) < 0.0001 ? String(format: "%.0f", self) : String(format: "%.2f", self)
+    }
+}
+
+extension String {
+    var formatAsMathPower: String {
+        let superscripts: [Character: Character] = [
+            "0":"⁰", "1":"¹", "2":"²", "3":"³", "4":"⁴",
+            "5":"⁵", "6":"⁶", "7":"⁷", "8":"⁸", "9":"⁹",
+            "-":"⁻", "+":"⁺", "x":"ˣ", "y":"ʸ", "n":"ⁿ"
+        ]
+        var result = ""
+        var i = self.startIndex
+        while i < self.endIndex {
+            let char = self[i]
+            if char == "^" {
+                i = self.index(after: i)
+                while i < self.endIndex, let sup = superscripts[self[i]] {
+                    result.append(sup)
+                    i = self.index(after: i)
+                }
+                continue
+            } else {
+                result.append(char)
+            }
+            i = self.index(after: i)
+        }
+        return result
     }
 }
 

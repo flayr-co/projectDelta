@@ -80,6 +80,7 @@ struct LessonView: View {
                     Spacer()
                     ProgressView("Loading curriculum...")
                         .controlSize(.large)
+                        .tint(.teal)
                     Spacer()
                 }
             } else if lessonVM.lessonPages.isEmpty {
@@ -165,6 +166,7 @@ struct LessonView: View {
             Text(lessonVM.currentLessonName)
                 .font(.system(.title3, design: .rounded, weight: .heavy))
                 .foregroundColor(.primary)
+                .shadow(color: colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.05), radius: 2, y: 1)
 
             Spacer()
 
@@ -195,8 +197,9 @@ struct LessonView: View {
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(lessonVM.isCurrentPageBookmarked ? .teal : .secondary)
                         .frame(width: 36, height: 36)
-                        .background(Color.primary.opacity(0.05))
+                        .background(lessonVM.isCurrentPageBookmarked ? Color.teal.opacity(0.15) : Color.primary.opacity(0.05))
                         .clipShape(Circle())
+                        .shadow(color: lessonVM.isCurrentPageBookmarked ? Color.teal.opacity(0.3) : .clear, radius: 6, y: 2)
                 }
                 .buttonStyle(.plain)
             }
@@ -206,6 +209,7 @@ struct LessonView: View {
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial)
         .overlay(Divider(), alignment: .bottom)
+        .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
     }
 
     private var macOSNavigationControls: some View {
@@ -252,7 +256,7 @@ struct LessonView: View {
                         .background(Color.teal)
                         .foregroundColor(.white)
                         .clipShape(Capsule())
-                        .shadow(color: Color.teal.opacity(0.3), radius: 10, y: 4)
+                        .shadow(color: Color.teal.opacity(0.4), radius: 12, y: 4)
                     }
                     .buttonStyle(.plain)
                 } else {
@@ -280,6 +284,7 @@ struct LessonView: View {
             .padding(.vertical, 20)
             .frame(maxWidth: .infinity)
             .background(.ultraThinMaterial)
+            .shadow(color: .black.opacity(0.05), radius: 8, y: -4)
         }
     }
     #endif
@@ -344,7 +349,7 @@ struct LessonView: View {
                     .frame(width: 320)
                     .background(Color.platformSystemBackground)
                     .cornerRadius(24)
-                    .shadow(color: .black.opacity(0.2), radius: 20)
+                    .shadow(color: .black.opacity(0.25), radius: 25, x: -5, y: 0)
                     .transition(.move(edge: .trailing))
                     .padding(.trailing, 16)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -399,8 +404,9 @@ struct LessonView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.teal)
                         .frame(width: 40, height: 40)
-                        .background(Color.teal.opacity(0.1))
+                        .background(Color.teal.opacity(0.15))
                         .clipShape(Circle())
+                        .shadow(color: Color.teal.opacity(0.2), radius: 6, y: 2)
                 }
                 .buttonStyle(.plain)
 
@@ -411,8 +417,9 @@ struct LessonView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(lessonVM.isCurrentPageBookmarked ? .teal : .secondary)
                         .frame(width: 40, height: 40)
-                        .background(Color.secondary.opacity(0.15))
+                        .background(lessonVM.isCurrentPageBookmarked ? Color.teal.opacity(0.15) : Color.secondary.opacity(0.15))
                         .clipShape(Circle())
+                        .shadow(color: lessonVM.isCurrentPageBookmarked ? Color.teal.opacity(0.3) : .clear, radius: 6, y: 2)
                 }
                 .buttonStyle(.plain)
             }
@@ -420,7 +427,7 @@ struct LessonView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
         .background(.ultraThinMaterial)
-        .shadow(color: .black.opacity(0.05), radius: 10, y: 5)
+        .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
     }
 
     private var lessonNavigationControls: some View {
@@ -438,7 +445,7 @@ struct LessonView: View {
                     .background(Color.teal)
                     .foregroundColor(.white)
                     .clipShape(Capsule())
-                    .shadow(color: Color.teal.opacity(0.4), radius: 10, y: 4)
+                    .shadow(color: Color.teal.opacity(0.4), radius: 12, y: 4)
                 }
                 .padding(.horizontal, 24)
             }
@@ -481,7 +488,7 @@ struct LessonView: View {
             .padding(.vertical, 8)
             .background(.ultraThinMaterial)
             .clipShape(Capsule())
-            .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
+            .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
         }
