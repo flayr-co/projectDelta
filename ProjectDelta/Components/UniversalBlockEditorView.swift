@@ -602,10 +602,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
                             for (index, expr) in expressions.enumerated() {
                                 let color = lineColors[index % lineColors.count]
                                 
-                                // If it's the primary expression and we have active draggable touch points, use them
-                                if index == 0 && points.count == 2 {
-                                    drawLine(context: context, p1: points[0], p2: points[1], origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
-                                } else if !expr.isEmpty {
+                                if !expr.isEmpty {
                                     drawEquationCurve(context: context, expr: expr, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
                                 }
                             }
@@ -707,7 +704,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
     
     // MARK: Adaptive Grid System
     private func calculateGridStep(scale: CGFloat) -> CGFloat {
-        let targetSpacing: CGFloat = 60.0
+        let targetSpacing: CGFloat = 85.0 // Widened spacing for clean, uncluttered axes on all screens
         let rawStep = targetSpacing / scale
         let mag = pow(10.0, floor(log10(rawStep)))
         let normalized = rawStep / mag
@@ -716,7 +713,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
         if normalized < 5.0 { return 2.0 * mag }
         return 5.0 * mag
     }
-    
+        
     private func drawAdaptiveGrid(context: GraphicsContext, size: CGSize, origin: CGPoint, scale: CGFloat, step: CGFloat) {
         let minXMath = -origin.x / scale
         let maxXMath = (size.width - origin.x) / scale
@@ -731,9 +728,9 @@ fileprivate struct InteractiveGraphBuilderView: View {
             minorPath.move(to: CGPoint(x: sx, y: 0))
             minorPath.addLine(to: CGPoint(x: sx, y: size.height))
             
-            if x != 0 {
-                let text = Text(x.cleanMathString).font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
-                context.draw(text, at: CGPoint(x: sx, y: origin.y + 6), anchor: .top)
+            if abs(x) > 0.0001 { // Prevent drawing 0 here to avoid axis overlap
+                let text = Text(x.cleanMathString).font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundColor(.secondary.opacity(0.8))
+                context.draw(text, at: CGPoint(x: sx, y: origin.y + 8), anchor: .top)
             }
             x += step
         }
@@ -744,14 +741,14 @@ fileprivate struct InteractiveGraphBuilderView: View {
             minorPath.move(to: CGPoint(x: 0, y: sy))
             minorPath.addLine(to: CGPoint(x: size.width, y: sy))
             
-            if y != 0 {
-                let text = Text(y.cleanMathString).font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
-                context.draw(text, at: CGPoint(x: origin.x - 6, y: sy), anchor: .trailing)
+            if abs(y) > 0.0001 {
+                let text = Text(y.cleanMathString).font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundColor(.secondary.opacity(0.8))
+                context.draw(text, at: CGPoint(x: origin.x - 8, y: sy), anchor: .trailing)
             }
             y += step
         }
         
-        context.stroke(minorPath, with: .color(Color.gray.opacity(0.16)), lineWidth: 1)
+        context.stroke(minorPath, with: .color(Color.gray.opacity(0.18)), lineWidth: 1)
         
         var axesPath = Path()
         axesPath.move(to: CGPoint(x: origin.x, y: 0))
@@ -759,7 +756,11 @@ fileprivate struct InteractiveGraphBuilderView: View {
         axesPath.move(to: CGPoint(x: 0, y: origin.y))
         axesPath.addLine(to: CGPoint(x: size.width, y: origin.y))
         
-        context.stroke(axesPath, with: .color(Color.primary.opacity(0.72)), lineWidth: 2)
+        context.stroke(axesPath, with: .color(Color.primary.opacity(0.55)), lineWidth: 1.5)
+        
+        // Draw crisp origin zero
+        let zeroText = Text("0").font(.system(size: 10, weight: .bold, design: .rounded)).foregroundColor(.secondary.opacity(0.9))
+        context.draw(zeroText, at: CGPoint(x: origin.x - 6, y: origin.y + 6), anchor: .topTrailing)
     }
     
     private func drawLine(context: GraphicsContext, p1: CGPoint, p2: CGPoint, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
@@ -780,7 +781,8 @@ fileprivate struct InteractiveGraphBuilderView: View {
             linePath.addLine(to: CGPoint(x: canvasSize.width, y: m * canvasSize.width + b))
         }
         
-        context.stroke(linePath, with: .color(color), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+        // Change `path` back to `linePath`
+        context.stroke(linePath, with: .color(color), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
     }
     
     private func drawEquationCurve(context: GraphicsContext, expr: String, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
@@ -822,7 +824,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
             }
         }
         
-        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
     }
     
     private func handleTap(location: CGPoint, origin: CGPoint, scale: CGFloat, step: CGFloat) {
@@ -1151,13 +1153,6 @@ fileprivate struct MathKeypadView: View {
     
     private func nameForSystem(_ name: String) -> String {
         return name == "space" ? "spacebar" : name
-    }
-}
-
-// MARK: - Math Formatter Extension
-fileprivate extension CGFloat {
-    var cleanMathString: String {
-        return self.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", self) : String(format: "%.2f", self)
     }
 }
 

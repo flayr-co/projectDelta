@@ -61,10 +61,16 @@ struct DynamicGraphView: View {
     var data: GraphData
     @Environment(\.colorScheme) var colorScheme
 
+    // Viewport and Interaction State
+    @State private var currentScale: CGFloat = 30.0
+    @State private var lastScale: CGFloat = 30.0
+    
+    @State private var currentPan: CGSize = .zero
+    @State private var lastPan: CGSize = .zero
+
     var primaryColor: Color { colorScheme == .dark ? .teal : .blue }
     var secondaryColor: Color { colorScheme == .dark ? .orange : .purple }
     private var surfaceColor: Color { colorScheme == .dark ? Color.black.opacity(0.28) : Color.white }
-    private var plotSurfaceColor: Color { colorScheme == .dark ? Color.white.opacity(0.045) : Color.blue.opacity(0.035) }
     private var borderColor: Color { colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.07) }
     private var seriesColors: [Color] {
         colorScheme == .dark
@@ -103,10 +109,6 @@ struct DynamicGraphView: View {
         }
     }
 
-    private var hasSecondarySeries: Bool {
-        activeSeries.count > 1 || data.secondaryYValues?.isEmpty == false
-    }
-    
     private var activeSeries: [GraphData.Series] {
         if let series = data.series, !series.isEmpty {
             return series
@@ -130,158 +132,136 @@ struct DynamicGraphView: View {
         }
         return "Primary Line"
     }
-    
-    private var sortedPrimaryIndices: [Int] {
-        let validCount = min(data.xValues.count, data.yValues.count)
-        return (0..<validCount).sorted { data.xValues[$0] < data.xValues[$1] }
-    }
-        
-    private var sortedSecondaryIndices: [Int]? {
-        guard let secondaryY = data.secondaryYValues else { return nil }
-        let validCount = min(data.xValues.count, secondaryY.count)
-        return (0..<validCount).sorted { data.xValues[$0] < data.xValues[$1] }
-    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Graph", systemImage: "chart.xyaxis.line")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .textCase(.uppercase)
-                        .foregroundColor(.secondary)
-                    
-                    HStack(spacing: 8) {
-                        ForEach(Array(activeSeries.prefix(4).enumerated()), id: \.offset) { index, series in
-                            equationPill(series.label, color: colorForSeries(at: index))
+        VStack(alignment: .leading, spacing: 0) {
+            GeometryReader { geo in
+                let size = geo.size
+                let safeWidth = max(size.width, 100)
+                let safeHeight = max(size.height, 100)
+                let origin = CGPoint(x: safeWidth / 2 + currentPan.width, y: safeHeight / 2 + currentPan.height)
+                let step = calculateGridStep(scale: currentScale)
+                
+                ZStack {
+                    Canvas { context, canvasSize in
+                        let background = Path(roundedRect: CGRect(origin: .zero, size: canvasSize), cornerRadius: 16)
+                        context.fill(background, with: .linearGradient(
+                            Gradient(colors: [
+                                Color.purple.opacity(0.08),
+                                Color.blue.opacity(0.04),
+                                Color.clear
+                            ]),
+                            startPoint: .zero,
+                            endPoint: CGPoint(x: canvasSize.width, y: canvasSize.height)
+                        ))
+                        
+                        drawAdaptiveGrid(context: context, size: canvasSize, origin: origin, scale: currentScale, step: step)
+                        
+                        if let inequality = data.inequality {
+                            drawInequality(context: context, inequality: inequality, origin: origin, scale: currentScale, canvasSize: canvasSize, color: primaryColor)
                         }
                         
-                        if activeSeries.count > 4 {
-                            Text("+\(activeSeries.count - 4)")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 7)
-                                .background(Color.secondary.opacity(0.12))
-                                .foregroundColor(.secondary)
+                        for (index, series) in activeSeries.enumerated() {
+                            let color = colorForSeries(at: index)
+                            
+                            // Check if the label represents a viable mathematical expression for deep compilation mapping
+                            let cleanLabel = series.label.lowercased().replacingOccurrences(of: " ", with: "")
+                            let isEquation = cleanLabel.hasPrefix("y=") || cleanLabel.contains("x") || Double(cleanLabel) != nil
+                            
+                            if isEquation, let evaluator = MathEngine.compile(series.label) {
+                                drawEquationCurve(context: context, evaluator: evaluator, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
+                            } else {
+                                drawDiscreteSeries(context: context, series: series, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
+                            }
+                        }
+                    }
+                    
+                    // Invisible interaction layer mapping Pan & Zoom capabilities
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .gesture(
+                                DragGesture(minimumDistance: 12) // Allows standard iOS scrolling to pass through
+                                    .onChanged { val in
+                                    currentPan = CGSize(width: lastPan.width + val.translation.width, height: lastPan.height + val.translation.height)
+                                }
+                                .onEnded { _ in
+                                    lastPan = currentPan
+                                }
+                        )
+                        .simultaneousGesture(
+                            MagnifyGesture()
+                                .onChanged { val in
+                                    let newScale = lastScale * val.magnification
+                                    if newScale.isFinite && newScale > 0 {
+                                        currentScale = max(5.0, min(newScale, 300.0))
+                                    }
+                                }
+                                .onEnded { _ in
+                                    lastScale = currentScale
+                                }
+                        )
+                    
+                    // MARK: - Dynamic Legend Overlay
+                    if !activeSeries.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(activeSeries.enumerated()), id: \.offset) { index, series in
+                                let color = colorForSeries(at: index)
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(color)
+                                        .frame(width: 8, height: 8)
+                                    Text(series.label)
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                        .foregroundColor(colorScheme == .dark ? color : color.opacity(0.9))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.75)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(color.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                                .background(.ultraThinMaterial)
                                 .clipShape(Capsule())
+                                .shadow(color: Color.black.opacity(0.1), radius: 2, y: 1)
+                            }
                         }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .allowsHitTesting(false)
                     }
-                }
-                
-                Spacer(minLength: 12)
-                
-                if let inequality = data.inequality {
-                    Label(inequality.shadeAbove ? "Above" : "Below", systemImage: "switch.2")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(primaryColor.opacity(0.11))
-                        .foregroundColor(primaryColor)
-                        .clipShape(Capsule())
-                }
-            }
-            
-            Chart {
-                if adjustedXDomain().contains(0) {
-                    RuleMark(x: .value("Y Axis", 0))
-                        .foregroundStyle(Color.secondary.opacity(0.35))
-                        .lineStyle(StrokeStyle(lineWidth: 1.2))
-                }
-                
-                if adjustedYDomain().contains(0) {
-                    RuleMark(y: .value("X Axis", 0))
-                        .foregroundStyle(Color.secondary.opacity(0.35))
-                        .lineStyle(StrokeStyle(lineWidth: 1.2))
-                }
-                
-                if let inequality = data.inequality {
-                    ForEach(sortedPrimaryIndices, id: \.self) { index in
-                        let xValue = data.xValues[index]
-                        let yLineValue = inequality.slope * xValue + inequality.intercept
-                        let yStartValue = inequality.shadeAbove ? yLineValue : adjustedYDomain().lowerBound
-                        let yEndValue = inequality.shadeAbove ? adjustedYDomain().upperBound : yLineValue
-                        
-                        AreaMark(
-                            x: .value("X Value", xValue),
-                            yStart: .value("Y Start", yStartValue),
-                            yEnd: .value("Y End", yEndValue)
-                        )
-                        .foregroundStyle(primaryColor.opacity(colorScheme == .dark ? 0.24 : 0.14))
-                    }
-                }
-                
-                ForEach(Array(activeSeries.enumerated()), id: \.offset) { seriesIndex, series in
-                    let validCount = min(series.xValues.count, series.yValues.count)
-                    let sortedIndices = (0..<validCount).sorted { series.xValues[$0] < series.xValues[$1] }
-                    let seriesColor = colorForSeries(at: seriesIndex)
                     
-                    ForEach(sortedIndices, id: \.self) { pointIndex in
-                        let xValue = series.xValues[pointIndex]
-                        let yValue = series.yValues[pointIndex]
-                        
-                        // LineMark inherently handles Double.nan by breaking the line, which is perfect for asymptotes
-                        LineMark(
-                            x: .value("X Value", xValue),
-                            y: .value("Y Value", yValue),
-                            series: .value("Series", series.label)
-                        )
-                        .interpolationMethod(.linear)
-                        .lineStyle(StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
-                        .foregroundStyle(seriesColor)
-                        
-                        if validCount <= 24 && !yValue.isNaN {
-                            PointMark(
-                                x: .value("X Value", xValue),
-                                y: .value("Y Value", yValue)
-                            )
-                            .symbol(Circle())
-                            .symbolSize(72)
-                            .foregroundStyle(seriesColor)
+                    // Reset Viewport Control
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            if currentScale != 30.0 || currentPan != .zero {
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        currentScale = 30.0
+                                        lastScale = 30.0
+                                        currentPan = .zero
+                                        lastPan = .zero
+                                    }
+                                }) {
+                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.secondary)
+                                        .padding(10)
+                                        .background(.ultraThinMaterial)
+                                        .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                                }
+                                .padding(16)
+                            }
                         }
                     }
                 }
+                .background(Color.platformSecondarySystemGroupedBackground)
+                .cornerRadius(16)
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.28), lineWidth: 1.5))
+                .clipped()
             }
-            .chartForegroundStyleScale(
-                domain: activeSeries.map { $0.label },
-                range: activeSeries.indices.map { colorForSeries(at: $0) }
-            )
-            .chartLegend(.hidden)
-            .chartXScale(domain: adjustedXDomain())
-            .chartYScale(domain: adjustedYDomain())
-            .chartXAxis {
-                AxisMarks(position: .bottom) { value in
-                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.16))
-                    AxisTick().foregroundStyle(Color.secondary.opacity(0.32))
-                    AxisValueLabel() {
-                        if let axisValue = value.as(Double.self) {
-                            Text(axisValue.cleanGraphString)
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisGridLine().foregroundStyle(Color.secondary.opacity(0.16))
-                    AxisTick().foregroundStyle(Color.secondary.opacity(0.32))
-                    AxisValueLabel() {
-                        if let axisValue = value.as(Double.self) {
-                            Text(axisValue.cleanGraphString)
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            }
-            .chartPlotStyle { plotArea in
-                plotArea
-                    .background(plotSurfaceColor)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .frame(height: 270)
+            .frame(height: 340)
         }
         .padding(18)
         .background(surfaceColor)
@@ -298,46 +278,174 @@ struct DynamicGraphView: View {
         seriesColors[index % seriesColors.count]
     }
 
-    @ViewBuilder
-    private func equationPill(_ equation: String, color: Color) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text(equation)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(color.opacity(colorScheme == .dark ? 0.18 : 0.11))
-        .foregroundColor(color)
-        .clipShape(Capsule())
-    }
-
-    func adjustedXDomain() -> ClosedRange<Double> {
-        let validX = activeSeries.flatMap { $0.xValues }.filter { !$0.isNaN }
-        guard let minX = validX.min(), let maxX = validX.max() else { return 0...10 }
+    // MARK: Adaptive Grid System
+    private func calculateGridStep(scale: CGFloat) -> CGFloat {
+        let targetSpacing: CGFloat = 85.0 // Widened spacing for clean, uncluttered axes on all screens
+        let rawStep = targetSpacing / scale
+        let mag = pow(10.0, floor(log10(rawStep)))
+        let normalized = rawStep / mag
         
-        if minX == maxX {
-            return (minX - 1)...(maxX + 1)
-        } else {
-            let xRange = maxX - minX
-            return (minX - 0.15 * xRange)...(maxX + 0.15 * xRange)
-        }
+        if normalized < 2.0 { return 1.0 * mag }
+        if normalized < 5.0 { return 2.0 * mag }
+        return 5.0 * mag
     }
-
-    func adjustedYDomain() -> ClosedRange<Double> {
-        let allYValues = activeSeries.flatMap { $0.yValues }.filter { !$0.isNaN && !$0.isInfinite && abs($0) < 1000 }
-        guard let minY = allYValues.min(), let maxY = allYValues.max() else { return -10...10 }
         
-        if minY == maxY {
-            return (minY - 1)...(maxY + 1)
-        } else {
-            let yRange = maxY - minY
-            return (minY - 0.15 * yRange)...(maxY + 0.15 * yRange)
+    private func drawAdaptiveGrid(context: GraphicsContext, size: CGSize, origin: CGPoint, scale: CGFloat, step: CGFloat) {
+        let minXMath = -origin.x / scale
+        let maxXMath = (size.width - origin.x) / scale
+        let minYMath = (origin.y - size.height) / scale
+        let maxYMath = origin.y / scale
+        
+        var minorPath = Path()
+        
+        var x = floor(minXMath / step) * step
+        while x <= maxXMath {
+            let sx = origin.x + x * scale
+            minorPath.move(to: CGPoint(x: sx, y: 0))
+            minorPath.addLine(to: CGPoint(x: sx, y: size.height))
+            
+            if abs(x) > 0.0001 { // Prevent drawing 0 here to avoid axis overlap
+                let text = Text(x.cleanMathString).font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundColor(.secondary.opacity(0.8))
+                context.draw(text, at: CGPoint(x: sx, y: origin.y + 8), anchor: .top)
+            }
+            x += step
         }
+        
+        var y = floor(minYMath / step) * step
+        while y <= maxYMath {
+            let sy = origin.y - y * scale
+            minorPath.move(to: CGPoint(x: 0, y: sy))
+            minorPath.addLine(to: CGPoint(x: size.width, y: sy))
+            
+            if abs(y) > 0.0001 {
+                let text = Text(y.cleanMathString).font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundColor(.secondary.opacity(0.8))
+                context.draw(text, at: CGPoint(x: origin.x - 8, y: sy), anchor: .trailing)
+            }
+            y += step
+        }
+        
+        context.stroke(minorPath, with: .color(Color.gray.opacity(0.18)), lineWidth: 1)
+        
+        var axesPath = Path()
+        axesPath.move(to: CGPoint(x: origin.x, y: 0))
+        axesPath.addLine(to: CGPoint(x: origin.x, y: size.height))
+        axesPath.move(to: CGPoint(x: 0, y: origin.y))
+        axesPath.addLine(to: CGPoint(x: size.width, y: origin.y))
+        
+        context.stroke(axesPath, with: .color(Color.primary.opacity(0.55)), lineWidth: 1.5)
+        
+        // Draw crisp origin zero
+        let zeroText = Text("0").font(.system(size: 10, weight: .bold, design: .rounded)).foregroundColor(.secondary.opacity(0.9))
+        context.draw(zeroText, at: CGPoint(x: origin.x - 6, y: origin.y + 6), anchor: .topTrailing)
+    }
+    
+    private func drawEquationCurve(context: GraphicsContext, evaluator: @escaping (Double) -> Double, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
+        var path = Path()
+        var isFirst = true
+        var previousScreenY: CGFloat? = nil
+        
+        for screenX in stride(from: 0, through: canvasSize.width, by: 2) {
+            let mathX = Double((screenX - origin.x) / scale)
+            let mathY = evaluator(mathX)
+            
+            if mathY.isNaN || mathY.isInfinite {
+                isFirst = true
+                previousScreenY = nil
+                continue
+            }
+            
+            let screenY = origin.y - CGFloat(mathY) * scale
+            
+            if let prevY = previousScreenY, abs(screenY - prevY) > canvasSize.height {
+                isFirst = true
+            }
+            
+            let pt = CGPoint(x: screenX, y: screenY)
+            
+            if screenY >= -500 && screenY <= canvasSize.height + 500 {
+                if isFirst {
+                    path.move(to: pt)
+                    isFirst = false
+                } else {
+                    path.addLine(to: pt)
+                }
+                previousScreenY = screenY
+            } else {
+                isFirst = true
+                previousScreenY = nil
+            }
+        }
+        
+// Change from lineWidth: 4 to lineWidth: 3
+        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+    }
+    
+    private func drawDiscreteSeries(context: GraphicsContext, series: GraphData.Series, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
+        let validCount = min(series.xValues.count, series.yValues.count)
+        guard validCount > 0 else { return }
+        
+        var path = Path()
+        var isFirst = true
+        
+        let sortedIndices = (0..<validCount).sorted { series.xValues[$0] < series.xValues[$1] }
+        
+        for index in sortedIndices {
+            let x = series.xValues[index]
+            let y = series.yValues[index]
+            
+            if x.isNaN || y.isNaN || x.isInfinite || y.isInfinite {
+                isFirst = true
+                continue
+            }
+            
+            let screenX = origin.x + CGFloat(x) * scale
+            let screenY = origin.y - CGFloat(y) * scale
+            let pt = CGPoint(x: screenX, y: screenY)
+            
+            if isFirst {
+                path.move(to: pt)
+                isFirst = false
+            } else {
+                path.addLine(to: pt)
+            }
+            
+            if validCount <= 24 {
+                let rect = CGRect(x: screenX - 4, y: screenY - 4, width: 8, height: 8)
+                let pointPath = Path(ellipseIn: rect)
+                context.fill(pointPath, with: .color(color))
+            }
+        }
+        
+        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+    }
+    
+    private func drawInequality(context: GraphicsContext, inequality: GraphData.Inequality, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
+        var path = Path()
+        let m = CGFloat(inequality.slope)
+        let b = CGFloat(inequality.intercept)
+        
+        let mathX1 = (0 - origin.x) / scale
+        let mathX2 = (canvasSize.width - origin.x) / scale
+        
+        let mathY1 = m * mathX1 + b
+        let mathY2 = m * mathX2 + b
+        
+        let screenY1 = origin.y - mathY1 * scale
+        let screenY2 = origin.y - mathY2 * scale
+        
+        path.move(to: CGPoint(x: 0, y: screenY1))
+        path.addLine(to: CGPoint(x: canvasSize.width, y: screenY2))
+        
+        if inequality.shadeAbove {
+            path.addLine(to: CGPoint(x: canvasSize.width, y: 0))
+            path.addLine(to: CGPoint(x: 0, y: 0))
+        } else {
+            path.addLine(to: CGPoint(x: canvasSize.width, y: canvasSize.height))
+            path.addLine(to: CGPoint(x: 0, y: canvasSize.height))
+        }
+        path.closeSubpath()
+        
+        context.fill(path, with: .color(color.opacity(colorScheme == .dark ? 0.24 : 0.14)))
     }
 }
 
@@ -789,6 +897,12 @@ enum GraphContentParser {
 
 extension Double {
     var cleanGraphString: String {
+        abs(self.truncatingRemainder(dividingBy: 1)) < 0.0001 ? String(format: "%.0f", self) : String(format: "%.2f", self)
+    }
+}
+
+extension CGFloat {
+    var cleanMathString: String {
         abs(self.truncatingRemainder(dividingBy: 1)) < 0.0001 ? String(format: "%.0f", self) : String(format: "%.2f", self)
     }
 }
