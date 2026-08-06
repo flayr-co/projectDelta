@@ -335,30 +335,57 @@ struct DynamicGraphView: View {
             return (minY - 1)...(maxY + 1)
         } else {
             let yRange = maxY - minY
-            return (minY - 0.15 * yRange)...(maxY + 0.15 * yRange) // 15% padding for cleaner visual
+            return (minY - 0.15 * yRange)...(maxY + 0.15 * yRange)
         }
     }
 }
 
 enum MathEvaluator {
-    /// Samples continuous mathematical curves into discrete points for SwiftUI Charts.
+    /// Samples continuous mathematical curves into discrete points for SwiftUI Charts safely.
     static func samplePoints(for equation: String, domain: ClosedRange<Double> = -15...15, step: Double = 0.2) -> GraphData.Series? {
-        // Clean the string for NSExpression compatibility
-        let exprString = equation
+        var exprString = equation
             .lowercased()
             .replacingOccurrences(of: "y=", with: "")
             .replacingOccurrences(of: " ", with: "")
-            .replacingOccurrences(of: "^", with: "**") // NSExpression syntax for exponents
             
-        guard !exprString.isEmpty else { return nil }
+        guard !exprString.isEmpty, !exprString.contains("==") else { return nil }
+        
+        // Fix implicit multiplication (e.g., "2x" -> "2*x") before NSExpression evaluates
+        exprString = exprString.replacingOccurrences(of: "([0-9])x", with: "$1*x", options: .regularExpression)
+        exprString = exprString.replacingOccurrences(of: "x([0-9])", with: "x*$1", options: .regularExpression)
+        exprString = exprString.replacingOccurrences(of: "^", with: "**")
+        
+        // Validate expression string to prevent NSExpression from throwing an uncatchable NSException
+        let allowedCharacterSet = CharacterSet(charactersIn: "0123456789x.*+-/()")
+        guard exprString.unicodeScalars.allSatisfy({ allowedCharacterSet.contains($0) }) else { return nil }
+        
+        var balance = 0
+        var lastChar: Character = " "
+        for char in exprString {
+            if char == "(" { balance += 1 }
+            if char == ")" { balance -= 1 }
+            if balance < 0 { return nil } // Catch unmatched closing parenthesis
+            
+            let isOp = "+-*/".contains(char)
+            let wasOp = "+-*/".contains(lastChar)
+            
+            // Prevent consecutive operators (except "**" for exponents)
+            if isOp && wasOp {
+                if !(char == "*" && lastChar == "*") { return nil }
+            }
+            lastChar = char
+        }
+        
+        guard balance == 0 else { return nil } // Catch unmatched opening parenthesis
+        guard let first = exprString.first, !("*/.)".contains(first)) else { return nil }
+        guard let last = exprString.last, !("+-*/.(".contains(last)) else { return nil }
+        guard !exprString.contains("()"), !exprString.contains("*)"), !exprString.contains("/)") else { return nil }
         
         var xVals: [Double] = []
         var yVals: [Double] = []
         
-        // Compile the expression once for performance
         let expression: NSExpression
         do {
-            // Attempt to create the expression; will fail safely if syntax is invalid
             expression = NSExpression(format: exprString)
         } catch {
             print("Mathematical syntax error in equation: \(equation)")
@@ -367,10 +394,7 @@ enum MathEvaluator {
         
         for x in stride(from: domain.lowerBound, through: domain.upperBound, by: step) {
             let context: NSMutableDictionary = ["x": x]
-            
-            // Execute the calculation
-            if let result = expression.expressionValue(with: context, context: nil) as? Double {
-                // Filter out absolute extreme asymptotes (e.g., dividing by zero in rational functions)
+            if let result = evaluateSafely(expression: expression, context: context) {
                 if !result.isNaN && !result.isInfinite && abs(result) < 1000 {
                     xVals.append(x)
                     yVals.append(result)
@@ -380,6 +404,20 @@ enum MathEvaluator {
         
         guard !xVals.isEmpty else { return nil }
         return GraphData.Series(label: equation, xValues: xVals, yValues: yVals)
+    }
+    
+    private static func evaluateSafely(expression: NSExpression, context: NSMutableDictionary) -> Double? {
+        @objcMembers class EvaluatorHelper: NSObject {
+            var value: Double?
+            func evaluate(_ expr: NSExpression, ctx: NSDictionary) {
+                if let res = expr.expressionValue(with: ctx, context: nil) as? Double {
+                    value = res
+                }
+            }
+        }
+        let helper = EvaluatorHelper()
+        helper.evaluate(expression, ctx: context)
+        return helper.value
     }
 }
 
@@ -422,6 +460,7 @@ enum GraphContentParser {
             .replacingOccurrences(of: "type=points", with: "")
             .replacingOccurrences(of: "points=", with: "")
             .replacingOccurrences(of: "&", with: "")
+            .replacingOccurrences(of: "\n", with: "") // Strip newlines to prevent parsing failures
 
         var xValues: [Double] = []
         var yValues: [Double] = []
@@ -450,8 +489,10 @@ enum GraphContentParser {
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "type=equation", with: "")
             .replacingOccurrences(of: "&", with: "")
+            .replacingOccurrences(of: "\n", with: "|") // Added to split multiline editor arrays
         
         let components = cleanedContent.components(separatedBy: "|")
+        
         if components.count > 1 {
             var allSeries: [GraphData.Series] = []
             var primaryX: [Double] = [-10.0, 10.0]
@@ -533,29 +574,31 @@ enum GraphContentParser {
     }
     
     private static func lineValues(from equation: String) -> (slope: Double, intercept: Double) {
-        var slope: Double = 1.0
-        var intercept: Double = 0.0
-        
-        if let xRange = equation.range(of: "x") {
-            let slopeString = String(equation[..<xRange.lowerBound])
-            if slopeString.isEmpty || slopeString == "+" {
-                slope = 1.0
-            } else if slopeString == "-" {
-                slope = -1.0
-            } else {
-                slope = Double(slopeString) ?? 1.0
-            }
-            
-            let interceptString = String(equation[xRange.upperBound...])
-            if !interceptString.isEmpty {
-                intercept = Double(interceptString.replacingOccurrences(of: "+", with: "")) ?? 0.0
-            }
-        } else if let constant = Double(equation) {
-            slope = 0.0
-            intercept = constant
+        let cleaned = equation.replacingOccurrences(of: " ", with: "")
+        if cleaned.contains("x**") || cleaned.contains("x^") {
+            return (slope: 0.0, intercept: 0.0)
         }
         
-        return (slope, intercept)
+        let components = cleaned.components(separatedBy: "x")
+        guard components.count == 2 else {
+            let intercept = Double(cleaned) ?? 0.0
+            return (slope: 0.0, intercept: intercept)
+        }
+        
+        let slopeStr = components[0]
+        let slope: Double
+        if slopeStr.isEmpty || slopeStr == "+" {
+            slope = 1.0
+        } else if slopeStr == "-" {
+            slope = -1.0
+        } else {
+            slope = Double(slopeStr) ?? 1.0
+        }
+        
+        let interceptStr = components[1]
+        let intercept = Double(interceptStr) ?? 0.0
+        
+        return (slope: slope, intercept: intercept)
     }
 }
 
@@ -576,7 +619,7 @@ func linearRegression(x: [Double], y: [Double]) -> (slope: Double, intercept: Do
     let sumXSquare = x.map { $0 * $0 }.reduce(0, +)
     
     let denominator = (n * sumXSquare - sumX * sumX)
-    if denominator == 0 { return (0, 0) } // Prevent division by zero
+    if denominator == 0 { return (0, 0) }
     
     let slope = (n * sumXY - sumX * sumY) / denominator
     let intercept = (sumY - slope * sumX) / n

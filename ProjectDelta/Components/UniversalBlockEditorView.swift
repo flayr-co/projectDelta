@@ -562,7 +562,9 @@ fileprivate struct InteractiveGraphBuilderView: View {
             
             GeometryReader { geo in
                 let size = geo.size
-                let origin = CGPoint(x: size.width / 2 + currentPan.width, y: size.height / 2 + currentPan.height)
+                let safeWidth = max(size.width, 100)
+                let safeHeight = max(size.height, 100)
+                let origin = CGPoint(x: safeWidth / 2 + currentPan.width, y: safeHeight / 2 + currentPan.height)
                 let step = calculateGridStep(scale: currentScale)
                 
                 ZStack {
@@ -613,7 +615,9 @@ fileprivate struct InteractiveGraphBuilderView: View {
                             MagnifyGesture()
                                 .onChanged { val in
                                     let newScale = lastScale * val.magnification
-                                    currentScale = max(10.0, min(newScale, 150.0))
+                                    if newScale.isFinite && newScale > 0 {
+                                        currentScale = max(10.0, min(newScale, 150.0))
+                                    }
                                 }
                                 .onEnded { _ in
                                     lastScale = currentScale
@@ -1127,4 +1131,4 @@ fileprivate extension CGFloat {
         QuestionBlockModel(type: QuestionBlockType.math.rawValue, content: "\\frac{1}{2}x + 5 = y")
     ]))
     .padding()
-}
+} 
