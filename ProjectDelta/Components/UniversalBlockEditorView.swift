@@ -591,6 +591,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
                                 if index == 0 && points.count == 2 {
                                     drawLine(context: context, p1: points[0], p2: points[1], origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
                                 } else if !expr.isEmpty {
+                                    // Utilizes the new robust Swift Engine directly instead of broken string parsing limits
                                     drawEquationCurve(context: context, expr: expr, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
                                 }
                             }
@@ -716,6 +717,9 @@ fileprivate struct InteractiveGraphBuilderView: View {
     }
     
     private func drawLine(context: GraphicsContext, p1: CGPoint, p2: CGPoint, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
+        // CoreGraphics safeguard: Reject any NaN or Infinite values before drawing
+        guard p1.x.isFinite, p1.y.isFinite, p2.x.isFinite, p2.y.isFinite else { return }
+        
         var linePath = Path()
         
         let sp1 = CGPoint(x: origin.x + p1.x * scale, y: origin.y - p1.y * scale)
@@ -734,60 +738,49 @@ fileprivate struct InteractiveGraphBuilderView: View {
         context.stroke(linePath, with: .color(color), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
     }
     
-    // Evaluates and renders curves (such as parabolas like y = x^2) across screen width
+    // Completely replaced legacy naive mapping for dynamic compilation and asymptote handling.
     private func drawEquationCurve(context: GraphicsContext, expr: String, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
+        guard let evaluator = MathEngine.compile(expr) else { return }
+        
         var path = Path()
-        let stepCount = Int(canvasSize.width)
         var isFirst = true
+        var previousScreenY: CGFloat? = nil
         
         for screenX in stride(from: 0, through: canvasSize.width, by: 2) {
             let mathX = (screenX - origin.x) / scale
-            if let mathY = evaluateEquation(expr, x: mathX) {
-                let screenY = origin.y - mathY * scale
-                let pt = CGPoint(x: screenX, y: screenY)
-                
-                // Filter out extreme vertical jumps/asymptotes
-                if screenY >= -500 && screenY <= canvasSize.height + 500 {
-                    if isFirst {
-                        path.move(to: pt)
-                        isFirst = false
-                    } else {
-                        path.addLine(to: pt)
-                    }
+            let mathY = CGFloat(evaluator(mathX))
+            
+            if mathY.isNaN || mathY.isInfinite {
+                isFirst = true
+                previousScreenY = nil
+                continue
+            }
+            
+            let screenY = origin.y - mathY * scale
+            
+            // Asymptote Discontinuity Detection (e.g. crossing x=0 for 1/x)
+            if let prevY = previousScreenY, abs(screenY - prevY) > canvasSize.height {
+                isFirst = true
+            }
+            
+            let pt = CGPoint(x: screenX, y: screenY)
+            
+            // Filter out extreme vertical buffer rendering waste safely
+            if screenY >= -500 && screenY <= canvasSize.height + 500 {
+                if isFirst {
+                    path.move(to: pt)
+                    isFirst = false
                 } else {
-                    isFirst = true
+                    path.addLine(to: pt)
                 }
+                previousScreenY = screenY
             } else {
                 isFirst = true
+                previousScreenY = nil
             }
         }
         
         context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
-    }
-    
-    // Flexible evaluator supporting linear components and basic powers like x^2
-    private func evaluateEquation(_ expr: String, x: CGFloat) -> CGFloat? {
-        let clean = expr.replacingOccurrences(of: " ", with: "").lowercased()
-        guard clean.hasPrefix("y=") else { return nil }
-        let rhs = clean.dropFirst(2)
-        if rhs.isEmpty { return nil }
-        
-        // Handle pure quadratic form like x^2
-        if rhs.hasPrefix("x^2") {
-            let rest = rhs.dropFirst(3)
-            var constant: CGFloat = 0
-            if !rest.isEmpty {
-                if let c = Double(rest) { constant = CGFloat(c) }
-            }
-            return (x * x) + constant
-        }
-        
-        // Handle general linear form
-        if let (m, b) = parseLinearEquation(expr) {
-            return m * x + b
-        }
-        
-        return nil
     }
     
     private func handleTap(location: CGPoint, origin: CGPoint, scale: CGFloat, step: CGFloat) {
@@ -848,49 +841,21 @@ fileprivate struct InteractiveGraphBuilderView: View {
         content = points.map { "(\($0.x.cleanMathString), \($0.y.cleanMathString))" }.joined(separator: ", ")
     }
     
-    private func loadPointsFromContent() {
-        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedContent.isEmpty else { return }
-        
-        if graphType == QuestionGraphType.points.rawValue {
-            let graphData = GraphContentParser.graphData(from: trimmedContent, graphType: graphType)
-            points = zip(graphData.xValues, graphData.yValues).map { CGPoint(x: $0.0, y: $0.1) }
-            return
-        }
-        
-        let expressions = trimmedContent.components(separatedBy: "\n")
-        guard let firstExpr = expressions.first else { return }
-        
-        let cleanedContent = firstExpr.replacingOccurrences(of: " ", with: "")
-        if cleanedContent.starts(with: "x=") {
-            let xValue = CGFloat(Double(cleanedContent.replacingOccurrences(of: "x=", with: "")) ?? 0.0)
-            points = [CGPoint(x: xValue, y: -4), CGPoint(x: xValue, y: 4)]
-            return
-        }
-        
-        let graphData = GraphContentParser.graphData(from: firstExpr, graphType: graphType)
-        guard graphData.xValues.count >= 2, graphData.yValues.count >= 2 else { return }
-        points = [
-            CGPoint(x: CGFloat(graphData.xValues[0]), y: CGFloat(graphData.yValues[0])),
-            CGPoint(x: CGFloat(graphData.xValues[1]), y: CGFloat(graphData.yValues[1]))
-        ]
-    }
-    
     private func parseLinearEquation(_ expr: String) -> (m: CGFloat, b: CGFloat)? {
         let clean = expr.replacingOccurrences(of: " ", with: "").lowercased()
         guard clean.hasPrefix("y=") else { return nil }
         let rhs = clean.dropFirst(2)
         if rhs.isEmpty { return nil }
-
+        
         if !rhs.contains("x") {
             if let b = Double(rhs) { return (0, CGFloat(b)) }
             return nil
         }
-
+        
         let components = rhs.components(separatedBy: "x")
         let mStr = components[0]
         let bStr = components.count > 1 ? components[1] : ""
-
+        
         var m: CGFloat = 1
         if mStr == "-" { m = -1 }
         else if mStr == "" || mStr == "+" { m = 1 }
@@ -906,7 +871,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
                 return nil
             }
         }
-
+        
         var b: CGFloat = 0
         if !bStr.isEmpty {
             let sanitizedB = bStr.replacingOccurrences(of: "+", with: "")
@@ -915,6 +880,38 @@ fileprivate struct InteractiveGraphBuilderView: View {
             }
         }
         return (m, b)
+    }
+    
+    private func loadPointsFromContent() {
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else { return }
+        
+        if graphType == QuestionGraphType.points.rawValue {
+            let graphData = GraphContentParser.graphData(from: trimmedContent, graphType: graphType)
+            points = zip(graphData.xValues, graphData.yValues)
+                .filter { !$0.0.isNaN && !$0.1.isNaN && !$0.0.isInfinite && !$0.1.isInfinite }
+                .map { CGPoint(x: $0.0, y: $0.1) }
+            return
+        }
+        
+        let expressions = trimmedContent.components(separatedBy: "\n")
+        guard let firstExpr = expressions.first else { return }
+        
+        let cleanedContent = firstExpr.replacingOccurrences(of: " ", with: "")
+        if cleanedContent.starts(with: "x=") {
+            let xValue = CGFloat(Double(cleanedContent.replacingOccurrences(of: "x=", with: "")) ?? 0.0)
+            points = [CGPoint(x: xValue, y: -4), CGPoint(x: xValue, y: 4)]
+            return
+        }
+        
+        // Only map draggable points if it cleanly parses as a linear equation.
+        // Prevents NaNs from complex curve bounds (like y=x^3) from crashing CoreGraphics.
+        if let (m, b) = parseLinearEquation(firstExpr) {
+            points = [
+                CGPoint(x: -2, y: m * -2 + b),
+                CGPoint(x: 2, y: m * 2 + b)
+            ]
+        }
     }
 }
 
@@ -1131,4 +1128,4 @@ fileprivate extension CGFloat {
         QuestionBlockModel(type: QuestionBlockType.math.rawValue, content: "\\frac{1}{2}x + 5 = y")
     ]))
     .padding()
-} 
+}

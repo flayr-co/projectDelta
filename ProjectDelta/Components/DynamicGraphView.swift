@@ -221,6 +221,7 @@ struct DynamicGraphView: View {
                         let xValue = series.xValues[pointIndex]
                         let yValue = series.yValues[pointIndex]
                         
+                        // LineMark inherently handles Double.nan by breaking the line, which is perfect for asymptotes
                         LineMark(
                             x: .value("X Value", xValue),
                             y: .value("Y Value", yValue),
@@ -230,7 +231,7 @@ struct DynamicGraphView: View {
                         .lineStyle(StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
                         .foregroundStyle(seriesColor)
                         
-                        if validCount <= 24 {
+                        if validCount <= 24 && !yValue.isNaN {
                             PointMark(
                                 x: .value("X Value", xValue),
                                 y: .value("Y Value", yValue)
@@ -243,9 +244,8 @@ struct DynamicGraphView: View {
                 }
             }
             .chartForegroundStyleScale(
-                data.secondaryYValues == nil
-                ? KeyValuePairs(dictionaryLiteral: (primaryEquation, primaryColor))
-                : KeyValuePairs(dictionaryLiteral: (primaryEquation, primaryColor), (secondaryEquation, secondaryColor))
+                domain: activeSeries.map { $0.label },
+                range: activeSeries.indices.map { colorForSeries(at: $0) }
             )
             .chartLegend(.hidden)
             .chartXScale(domain: adjustedXDomain())
@@ -317,8 +317,9 @@ struct DynamicGraphView: View {
     }
 
     func adjustedXDomain() -> ClosedRange<Double> {
-        guard let minX = data.xValues.min(), let maxX = data.xValues.max() else { return 0...10 }
-
+        let validX = activeSeries.flatMap { $0.xValues }.filter { !$0.isNaN }
+        guard let minX = validX.min(), let maxX = validX.max() else { return 0...10 }
+        
         if minX == maxX {
             return (minX - 1)...(maxX + 1)
         } else {
@@ -328,8 +329,8 @@ struct DynamicGraphView: View {
     }
 
     func adjustedYDomain() -> ClosedRange<Double> {
-        let allYValues = data.yValues + (data.secondaryYValues ?? [])
-        guard let minY = allYValues.min(), let maxY = allYValues.max() else { return 0...10 }
+        let allYValues = activeSeries.flatMap { $0.yValues }.filter { !$0.isNaN && !$0.isInfinite && abs($0) < 1000 }
+        guard let minY = allYValues.min(), let maxY = allYValues.max() else { return -10...10 }
         
         if minY == maxY {
             return (minY - 1)...(maxY + 1)
@@ -340,84 +341,269 @@ struct DynamicGraphView: View {
     }
 }
 
-enum MathEvaluator {
-    /// Samples continuous mathematical curves into discrete points for SwiftUI Charts safely.
-    static func samplePoints(for equation: String, domain: ClosedRange<Double> = -15...15, step: Double = 0.2) -> GraphData.Series? {
-        var exprString = equation
-            .lowercased()
-            .replacingOccurrences(of: "y=", with: "")
-            .replacingOccurrences(of: " ", with: "")
-            
-        guard !exprString.isEmpty, !exprString.contains("==") else { return nil }
-        
-        // Fix implicit multiplication (e.g., "2x" -> "2*x") before NSExpression evaluates
-        exprString = exprString.replacingOccurrences(of: "([0-9])x", with: "$1*x", options: .regularExpression)
-        exprString = exprString.replacingOccurrences(of: "x([0-9])", with: "x*$1", options: .regularExpression)
-        exprString = exprString.replacingOccurrences(of: "^", with: "**")
-        
-        // Validate expression string to prevent NSExpression from throwing an uncatchable NSException
-        let allowedCharacterSet = CharacterSet(charactersIn: "0123456789x.*+-/()")
-        guard exprString.unicodeScalars.allSatisfy({ allowedCharacterSet.contains($0) }) else { return nil }
-        
-        var balance = 0
-        var lastChar: Character = " "
-        for char in exprString {
-            if char == "(" { balance += 1 }
-            if char == ")" { balance -= 1 }
-            if balance < 0 { return nil } // Catch unmatched closing parenthesis
-            
-            let isOp = "+-*/".contains(char)
-            let wasOp = "+-*/".contains(lastChar)
-            
-            // Prevent consecutive operators (except "**" for exponents)
-            if isOp && wasOp {
-                if !(char == "*" && lastChar == "*") { return nil }
-            }
-            lastChar = char
+// MARK: - Advanced High-Performance Swift Math Engine
+public enum MathEngine {
+    
+    enum Token: Equatable {
+        case number(Double)
+        case variable
+        case op(Operator)
+        case function(MathFunction)
+        case openParen
+        case closeParen
+    }
+    
+    enum Operator: Character {
+        case add = "+", sub = "-", mul = "*", div = "/", pow = "^"
+        var precedence: Int {
+            switch self { case .add, .sub: return 1; case .mul, .div: return 2; case .pow: return 3 }
         }
+        var isRightAssociative: Bool { self == .pow }
+    }
+    
+    enum MathFunction: String {
+        case sin, cos, tan, ln, log, sqrt, abs
+    }
+    
+    /// Compiles a math expression string into an ultra-fast `(Double) -> Double` closure using RPN architecture.
+    public static func compile(_ equation: String) -> ((Double) -> Double)? {
+        let tokens = tokenize(equation)
+        guard !tokens.isEmpty else { return nil }
+        let rpn = toRPN(tokens)
         
-        guard balance == 0 else { return nil } // Catch unmatched opening parenthesis
-        guard let first = exprString.first, !("*/.)".contains(first)) else { return nil }
-        guard let last = exprString.last, !("+-*/.(".contains(last)) else { return nil }
-        guard !exprString.contains("()"), !exprString.contains("*)"), !exprString.contains("/)") else { return nil }
+        return { x in
+            evaluateRPN(rpn, x: x)
+        }
+    }
+    
+    /// Safely samples continuous mathematical curves into discrete series data for SwiftUI Charts.
+    public static func samplePoints(for equation: String, domain: ClosedRange<Double> = -15...15, step: Double = 0.1) -> GraphData.Series? {
+        guard let evaluator = compile(equation) else { return nil }
         
         var xVals: [Double] = []
         var yVals: [Double] = []
-        
-        let expression: NSExpression
-        do {
-            expression = NSExpression(format: exprString)
-        } catch {
-            print("Mathematical syntax error in equation: \(equation)")
-            return nil
-        }
+        var previousY: Double? = nil
         
         for x in stride(from: domain.lowerBound, through: domain.upperBound, by: step) {
-            let context: NSMutableDictionary = ["x": x]
-            if let result = evaluateSafely(expression: expression, context: context) {
-                if !result.isNaN && !result.isInfinite && abs(result) < 1000 {
-                    xVals.append(x)
-                    yVals.append(result)
+            let y = evaluator(x)
+            
+            // Asymptote & Infinity Discontinuity Break
+            if y.isNaN || y.isInfinite || abs(y) > 2000 {
+                xVals.append(x)
+                yVals.append(.nan)
+                previousY = nil
+            } else {
+                // High-velocity slope break detection (e.g., jump from 1/x at x=0)
+                if let prev = previousY, abs(y - prev) > 50 {
+                    xVals.append(x - step/2) // Insert midpoint nan break
+                    yVals.append(.nan)
                 }
+                xVals.append(x)
+                yVals.append(y)
+                previousY = y
             }
         }
         
         guard !xVals.isEmpty else { return nil }
-        return GraphData.Series(label: equation, xValues: xVals, yValues: yVals)
+        let label = equation.lowercased().hasPrefix("y=") ? equation : "y = \(equation)"
+        return GraphData.Series(label: label, xValues: xVals, yValues: yVals)
     }
     
-    private static func evaluateSafely(expression: NSExpression, context: NSMutableDictionary) -> Double? {
-        @objcMembers class EvaluatorHelper: NSObject {
-            var value: Double?
-            func evaluate(_ expr: NSExpression, ctx: NSDictionary) {
-                if let res = expr.expressionValue(with: ctx, context: nil) as? Double {
-                    value = res
+    private static func tokenize(_ eq: String) -> [Token] {
+        var tokens: [Token] = []
+        let cleanEq = eq.lowercased().replacingOccurrences(of: "y=", with: "").replacingOccurrences(of: " ", with: "")
+        let chars = Array(cleanEq)
+        var index = 0
+        
+        while index < chars.count {
+            let char = chars[index]
+            
+            // Numbers
+            if char.isNumber || char == "." {
+                var numStr = ""
+                while index < chars.count && (chars[index].isNumber || chars[index] == ".") {
+                    numStr.append(chars[index])
+                    index += 1
+                }
+                if let val = Double(numStr) {
+                    tokens.append(.number(val))
+                    // Implicit Multiplication (e.g. 2x -> 2 * x, 2(x) -> 2 * (x))
+                    if index < chars.count && (chars[index] == "x" || chars[index] == "(" || chars[index].isLetter) {
+                        tokens.append(.op(.mul))
+                    }
+                }
+                continue
+            }
+            
+            // Variable x
+            if char == "x" {
+                tokens.append(.variable)
+                index += 1
+                // Implicit Multiplication (e.g. x( -> x * (, xx -> x * x)
+                if index < chars.count && (chars[index] == "(" || chars[index].isNumber || chars[index].isLetter) {
+                    tokens.append(.op(.mul))
+                }
+                continue
+            }
+            
+            // Euler's Number
+            if char == "e" {
+                tokens.append(.number(M_E))
+                index += 1
+                if index < chars.count && (chars[index] == "(" || chars[index].isNumber || chars[index] == "x" || chars[index].isLetter) {
+                    tokens.append(.op(.mul))
+                }
+                continue
+            }
+            
+            // Pi
+            if char == "p" && index + 1 < chars.count && chars[index+1] == "i" {
+                tokens.append(.number(.pi))
+                index += 2
+                if index < chars.count && (chars[index] == "(" || chars[index].isNumber || chars[index] == "x" || chars[index].isLetter) {
+                    tokens.append(.op(.mul))
+                }
+                continue
+            }
+            
+            // Math Functions (sin, cos, ln, sqrt, etc.)
+            if char.isLetter {
+                var fnStr = ""
+                while index < chars.count && chars[index].isLetter {
+                    fnStr.append(chars[index])
+                    index += 1
+                }
+                if let fn = MathFunction(rawValue: fnStr) {
+                    tokens.append(.function(fn))
+                }
+                continue
+            }
+            
+            // Operators (+, -, *, /, ^)
+            if let op = Operator(rawValue: char) {
+                // Detect Unary Minus
+                if op == .sub {
+                    let isUnary = tokens.isEmpty ||
+                    (tokens.last != .variable && tokens.last != .closeParen &&
+                     (tokens.last == .openParen || isOperator(tokens.last)))
+                    
+                    if isUnary {
+                        tokens.append(.number(-1))
+                        tokens.append(.op(.mul))
+                        index += 1
+                        continue
+                    }
+                }
+                tokens.append(.op(op))
+                index += 1
+                continue
+            }
+            
+            // Parentheses
+            if char == "(" {
+                tokens.append(.openParen)
+                index += 1
+                continue
+            }
+            if char == ")" {
+                tokens.append(.closeParen)
+                index += 1
+                // Implicit Multiplication mapping for trailing parens (e.g., (2+2)x -> (2+2)*x)
+                if index < chars.count && (chars[index] == "x" || chars[index].isNumber || chars[index] == "(" || chars[index].isLetter) {
+                    tokens.append(.op(.mul))
+                }
+                continue
+            }
+            index += 1
+        }
+        return tokens
+    }
+    
+    private static func isOperator(_ token: Token?) -> Bool {
+        guard let token = token else { return false }
+        if case .op = token { return true }
+        return false
+    }
+    
+    private static func toRPN(_ tokens: [Token]) -> [Token] {
+        var output: [Token] = []
+        var opStack: [Token] = []
+        
+        for token in tokens {
+            switch token {
+            case .number, .variable:
+                output.append(token)
+            case .function:
+                opStack.append(token)
+            case .op(let o1):
+                while let last = opStack.last {
+                    if case .function = last {
+                        output.append(opStack.removeLast())
+                        continue
+                    }
+                    if case .op(let o2) = last {
+                        if (!o1.isRightAssociative && o1.precedence <= o2.precedence) ||
+                           (o1.isRightAssociative && o1.precedence < o2.precedence) {
+                            output.append(opStack.removeLast())
+                            continue
+                        }
+                    }
+                    break
+                }
+                opStack.append(token)
+            case .openParen:
+                opStack.append(token)
+            case .closeParen:
+                while let last = opStack.last, last != .openParen {
+                    output.append(opStack.removeLast())
+                }
+                if opStack.last == .openParen {
+                    opStack.removeLast()
+                }
+                if let last = opStack.last, case .function = last {
+                    output.append(opStack.removeLast())
                 }
             }
         }
-        let helper = EvaluatorHelper()
-        helper.evaluate(expression, ctx: context)
-        return helper.value
+        while let last = opStack.last {
+            output.append(opStack.removeLast())
+        }
+        return output
+    }
+    
+    private static func evaluateRPN(_ rpn: [Token], x: Double) -> Double {
+        var stack: [Double] = []
+        for token in rpn {
+            switch token {
+            case .number(let val):
+                stack.append(val)
+            case .variable:
+                stack.append(x)
+            case .op(let op):
+                let b = stack.popLast() ?? 0
+                let a = stack.popLast() ?? 0
+                switch op {
+                case .add: stack.append(a + b)
+                case .sub: stack.append(a - b)
+                case .mul: stack.append(a * b)
+                case .div: stack.append(a / b)
+                case .pow: stack.append(pow(a, b))
+                }
+            case .function(let fn):
+                let a = stack.popLast() ?? 0
+                switch fn {
+                case .sin: stack.append(sin(a))
+                case .cos: stack.append(cos(a))
+                case .tan: stack.append(tan(a))
+                case .ln: stack.append(log(a))
+                case .log: stack.append(log10(a))
+                case .sqrt: stack.append(a < 0 ? .nan : sqrt(a))
+                case .abs: stack.append(abs(a))
+                }
+            default: break
+            }
+        }
+        return stack.first ?? .nan
     }
 }
 
@@ -460,7 +646,7 @@ enum GraphContentParser {
             .replacingOccurrences(of: "type=points", with: "")
             .replacingOccurrences(of: "points=", with: "")
             .replacingOccurrences(of: "&", with: "")
-            .replacingOccurrences(of: "\n", with: "") // Strip newlines to prevent parsing failures
+            .replacingOccurrences(of: "\n", with: "")
 
         var xValues: [Double] = []
         var yValues: [Double] = []
@@ -489,10 +675,9 @@ enum GraphContentParser {
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "type=equation", with: "")
             .replacingOccurrences(of: "&", with: "")
-            .replacingOccurrences(of: "\n", with: "|") // Added to split multiline editor arrays
+            .replacingOccurrences(of: "\n", with: "|") // Handle multi-line blocks safely
         
         let components = cleanedContent.components(separatedBy: "|")
-        
         if components.count > 1 {
             var allSeries: [GraphData.Series] = []
             var primaryX: [Double] = [-10.0, 10.0]
@@ -504,7 +689,7 @@ enum GraphContentParser {
                 if trimmed.isEmpty { continue }
                 
                 let eqString = trimmed.replacingOccurrences(of: "y=", with: "")
-                if let sampled = MathEvaluator.samplePoints(for: eqString) {
+                if let sampled = MathEngine.samplePoints(for: eqString) {
                     allSeries.append(sampled)
                     if index == 0 {
                         primaryX = sampled.xValues
@@ -537,7 +722,7 @@ enum GraphContentParser {
         }
         
         let singleEq = cleanedContent.replacingOccurrences(of: "y=", with: "")
-        if let sampled = MathEvaluator.samplePoints(for: singleEq) {
+        if let sampled = MathEngine.samplePoints(for: singleEq) {
             return GraphData(xValues: sampled.xValues, yValues: sampled.yValues, series: [sampled])
         }
         
