@@ -2,8 +2,6 @@
 //  DynamicGraphView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 5/23/24.
-//
 
 import Foundation
 import SwiftUI
@@ -67,11 +65,12 @@ struct DynamicGraphView: View {
     
     @State private var currentPan: CGSize = .zero
     @State private var lastPan: CGSize = .zero
+    
+    // Tap and Hold Probe State
+    @State private var probeLocation: CGPoint? = nil
 
     var primaryColor: Color { colorScheme == .dark ? .teal : .blue }
     var secondaryColor: Color { colorScheme == .dark ? .orange : .purple }
-    private var surfaceColor: Color { colorScheme == .dark ? Color.black.opacity(0.28) : Color.white }
-    private var borderColor: Color { colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.07) }
     private var seriesColors: [Color] {
         colorScheme == .dark
         ? [.teal, .orange, .pink, .cyan, .mint, .yellow]
@@ -134,153 +133,252 @@ struct DynamicGraphView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            GeometryReader { geo in
-                let size = geo.size
-                let safeWidth = max(size.width, 100)
-                let safeHeight = max(size.height, 100)
-                let origin = CGPoint(x: safeWidth / 2 + currentPan.width, y: safeHeight / 2 + currentPan.height)
-                let step = calculateGridStep(scale: currentScale)
-                
-                ZStack {
-                    Canvas { context, canvasSize in
-                        let background = Path(roundedRect: CGRect(origin: .zero, size: canvasSize), cornerRadius: 16)
-                        context.fill(background, with: .linearGradient(
-                            Gradient(colors: [
-                                Color.purple.opacity(0.08),
-                                Color.blue.opacity(0.04),
-                                Color.clear
-                            ]),
-                            startPoint: .zero,
-                            endPoint: CGPoint(x: canvasSize.width, y: canvasSize.height)
-                        ))
-                        
-                        drawAdaptiveGrid(context: context, size: canvasSize, origin: origin, scale: currentScale, step: step)
-                        
-                        if let inequality = data.inequality {
-                            drawInequality(context: context, inequality: inequality, origin: origin, scale: currentScale, canvasSize: canvasSize, color: primaryColor)
-                        }
-                        
-                        for (index, series) in activeSeries.enumerated() {
-                            let color = colorForSeries(at: index)
-                            
-                            // Check if the label represents a viable mathematical expression for deep compilation mapping
-                            let cleanLabel = series.label.lowercased().replacingOccurrences(of: " ", with: "")
-                            let isEquation = cleanLabel.hasPrefix("y=") || cleanLabel.contains("x") || Double(cleanLabel) != nil
-                            
-                            if isEquation, let evaluator = MathEngine.compile(series.label) {
-                                drawEquationCurve(context: context, evaluator: evaluator, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
-                            } else {
-                                drawDiscreteSeries(context: context, series: series, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
-                            }
-                        }
+        GeometryReader { geo in
+            let size = geo.size
+            let safeWidth = max(size.width, 100)
+            let safeHeight = max(size.height, 100)
+            let origin = CGPoint(x: safeWidth / 2 + currentPan.width, y: safeHeight / 2 + currentPan.height)
+            let step = calculateGridStep(scale: currentScale)
+            
+            ZStack {
+                Canvas { context, canvasSize in
+                    let background = Path(roundedRect: CGRect(origin: .zero, size: canvasSize), cornerRadius: 16)
+                    context.fill(background, with: .linearGradient(
+                        Gradient(colors: [
+                            Color.purple.opacity(0.08),
+                            Color.blue.opacity(0.04),
+                            Color.clear
+                        ]),
+                        startPoint: .zero,
+                        endPoint: CGPoint(x: canvasSize.width, y: canvasSize.height)
+                    ))
+                    
+                    drawAdaptiveGrid(context: context, size: canvasSize, origin: origin, scale: currentScale, step: step)
+                    
+                    if let inequality = data.inequality {
+                        drawInequality(context: context, inequality: inequality, origin: origin, scale: currentScale, canvasSize: canvasSize, color: primaryColor)
                     }
                     
-                    // Invisible interaction layer mapping Pan & Zoom capabilities
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 12) // Allows standard iOS scrolling to pass through
-                                    .onChanged { val in
-                                    currentPan = CGSize(width: lastPan.width + val.translation.width, height: lastPan.height + val.translation.height)
-                                }
-                                .onEnded { _ in
-                                    lastPan = currentPan
-                                }
-                        )
-                        .simultaneousGesture(
-                            MagnifyGesture()
-                                .onChanged { val in
-                                    let newScale = lastScale * val.magnification
-                                    if newScale.isFinite && newScale > 0 {
-                                        currentScale = max(5.0, min(newScale, 300.0))
-                                    }
-                                }
-                                .onEnded { _ in
-                                    lastScale = currentScale
-                                }
-                        )
-                    
-                    // MARK: - Dynamic Legend Overlay
-                    if !activeSeries.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(activeSeries.enumerated()), id: \.offset) { index, series in
-                                let color = colorForSeries(at: index)
-                                HStack(spacing: 6) {
-                                    Circle()
-                                        .fill(color)
-                                        .frame(width: 8, height: 8)
-                                    Text(series.label)
-                                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                                        .foregroundColor(colorScheme == .dark ? color : color.opacity(0.9))
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.75)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(color.opacity(colorScheme == .dark ? 0.22 : 0.12))
-                                .background(.ultraThinMaterial)
-                                .clipShape(Capsule())
-                                .shadow(color: Color.black.opacity(0.1), radius: 2, y: 1)
-                            }
-                        }
-                        .padding(16)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .allowsHitTesting(false)
-                    }
-                    
-                    // Reset Viewport Control
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            if currentScale != 30.0 || currentPan != .zero {
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        currentScale = 30.0
-                                        lastScale = 30.0
-                                        currentPan = .zero
-                                        lastPan = .zero
-                                    }
-                                }) {
-                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(.secondary)
-                                        .padding(10)
-                                        .background(.ultraThinMaterial)
-                                        .clipShape(Circle())
-                                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
-                                }
-                                .padding(16)
-                            }
+                    for (index, series) in activeSeries.enumerated() {
+                        let color = colorForSeries(at: index)
+                        
+                        let cleanLabel = series.label.lowercased().replacingOccurrences(of: " ", with: "")
+                        let isEquation = cleanLabel.hasPrefix("y=") || cleanLabel.contains("x") || Double(cleanLabel) != nil
+                        
+                        if isEquation, let evaluator = MathEngine.compile(series.label) {
+                            drawEquationCurve(context: context, evaluator: evaluator, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
+                        } else {
+                            drawDiscreteSeries(context: context, series: series, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
                         }
                     }
                 }
-                .background(Color.platformSecondarySystemGroupedBackground)
-                .cornerRadius(16)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.purple.opacity(0.28), lineWidth: 1.5))
-                .clipped()
+                
+                // MARK: Invisible Gestures Layer
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 12)
+                            .onChanged { val in
+                                currentPan = CGSize(width: lastPan.width + val.translation.width, height: lastPan.height + val.translation.height)
+                            }
+                            .onEnded { _ in
+                                lastPan = currentPan
+                            }
+                    )
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 0.25)
+                            .sequenced(before: DragGesture(minimumDistance: 0))
+                            .onChanged { value in
+                                switch value {
+                                case .second(true, let drag):
+                                    if let location = drag?.location {
+                                        probeLocation = location
+                                        // Trigger haptic on initial press engagement
+                                        #if os(iOS)
+                                        if probeLocation == nil {
+                                            let generator = UIImpactFeedbackGenerator(style: .light)
+                                            generator.impactOccurred()
+                                        }
+                                        #endif
+                                    }
+                                default:
+                                    break
+                                }
+                            }
+                            .onEnded { _ in
+                                probeLocation = nil
+                            }
+                    )
+                    .simultaneousGesture(
+                        MagnifyGesture()
+                            .onChanged { val in
+                                let newScale = lastScale * val.magnification
+                                if newScale.isFinite && newScale > 0 {
+                                    currentScale = max(5.0, min(newScale, 300.0))
+                                }
+                            }
+                            .onEnded { _ in
+                                lastScale = currentScale
+                            }
+                    )
+                
+                // MARK: Tap and Hold Probe Overlay
+                if let probe = probeLocation {
+                    let mathX = Double((probe.x - origin.x) / currentScale)
+                    if let closestData = findClosestPoint(to: probe, mathX: mathX, origin: origin, scale: currentScale) {
+                        
+                        // Vertical Guide Line
+                        Path { p in
+                            p.move(to: CGPoint(x: closestData.screenPoint.x, y: 0))
+                            p.addLine(to: CGPoint(x: closestData.screenPoint.x, y: size.height))
+                        }
+                        .stroke(closestData.color.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+                        
+                        // Origin Guide Ring
+                        Circle()
+                            .fill(Color.platformSecondarySystemGroupedBackground)
+                            .frame(width: 14, height: 14)
+                            .overlay(Circle().stroke(closestData.color, lineWidth: 3.5))
+                            .shadow(color: .black.opacity(0.2), radius: 4)
+                            .position(closestData.screenPoint)
+                        
+                        // Coordinate Label
+                        Text("(\(mathX.cleanGraphString), \(closestData.mathY.cleanGraphString))")
+                            .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                            .foregroundColor(colorScheme == .dark ? closestData.color : closestData.color.opacity(0.9))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(closestData.color.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                            .background(.ultraThinMaterial)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.black.opacity(0.15), radius: 4, y: 2)
+                            .position(x: closestData.screenPoint.x, y: closestData.screenPoint.y - 32)
+                    }
+                }
+                
+                // MARK: Dynamic Legend Overlay
+                if !activeSeries.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(activeSeries.enumerated()), id: \.offset) { index, series in
+                            let color = colorForSeries(at: index)
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 8, height: 8)
+                                Text(series.label)
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundColor(colorScheme == .dark ? color : color.opacity(0.9))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(color.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                            .background(.ultraThinMaterial)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.black.opacity(0.1), radius: 2, y: 1)
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .allowsHitTesting(false)
+                }
+                
+                // Reset Viewport Control
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        if currentScale != 30.0 || currentPan != .zero {
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    currentScale = 30.0
+                                    lastScale = 30.0
+                                    currentPan = .zero
+                                    lastPan = .zero
+                                }
+                            }) {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.secondary)
+                                    .padding(10)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Circle())
+                                    .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                            }
+                            .padding(16)
+                        }
+                    }
+                }
             }
-            .frame(height: 340)
+            .background(Color.platformSecondarySystemGroupedBackground)
+            .cornerRadius(16)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08), lineWidth: 1.5))
+            .clipped()
+            .shadow(color: Color.black.opacity(0.05), radius: 10, y: 4)
         }
-        .padding(18)
-        .background(surfaceColor)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(borderColor, lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.22 : 0.08), radius: 18, x: 0, y: 10)
+        .frame(minHeight: 320, idealHeight: 400, maxHeight: 500)
         .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 
     private func colorForSeries(at index: Int) -> Color {
         seriesColors[index % seriesColors.count]
     }
+    
+    // MARK: - Mathematical Probe Calculator
+    private func findClosestPoint(to probe: CGPoint, mathX: Double, origin: CGPoint, scale: CGFloat) -> (screenPoint: CGPoint, mathY: Double, color: Color)? {
+        var closestPoint: CGPoint? = nil
+        var closestMathY: Double? = nil
+        var minDistance: CGFloat = .infinity
+        var closestColor: Color = .primary
+        
+        for (index, series) in activeSeries.enumerated() {
+            let color = colorForSeries(at: index)
+            let cleanLabel = series.label.lowercased().replacingOccurrences(of: " ", with: "")
+            let isEquation = cleanLabel.hasPrefix("y=") || cleanLabel.contains("x") || Double(cleanLabel) != nil
+            
+            if isEquation, let evaluator = MathEngine.compile(series.label) {
+                let mathY = evaluator(mathX)
+                if !mathY.isNaN && !mathY.isInfinite {
+                    let screenY = origin.y - CGFloat(mathY) * scale
+                    let dist = abs(screenY - probe.y)
+                    if dist < minDistance {
+                        minDistance = dist
+                        closestPoint = CGPoint(x: origin.x + CGFloat(mathX) * scale, y: screenY)
+                        closestMathY = mathY
+                        closestColor = color
+                    }
+                }
+            } else if !series.xValues.isEmpty {
+                // Discrete Point Snapping
+                if let closestIndex = series.xValues.enumerated().min(by: { abs($0.element - mathX) < abs($1.element - mathX) })?.offset {
+                    let cMathX = series.xValues[closestIndex]
+                    let cMathY = series.yValues[closestIndex]
+                    
+                    let screenX = origin.x + CGFloat(cMathX) * scale
+                    let screenY = origin.y - CGFloat(cMathY) * scale
+                    
+                    let dist = abs(screenX - probe.x) + abs(screenY - probe.y)
+                    if dist < minDistance {
+                        minDistance = dist
+                        closestPoint = CGPoint(x: screenX, y: screenY)
+                        closestMathY = cMathY
+                        closestColor = color
+                    }
+                }
+            }
+        }
+        
+        if let cp = closestPoint, let cmy = closestMathY {
+            return (screenPoint: cp, mathY: cmy, color: closestColor)
+        }
+        return nil
+    }
 
-    // MARK: Adaptive Grid System
+    // MARK: - Adaptive Grid System
     private func calculateGridStep(scale: CGFloat) -> CGFloat {
-        let targetSpacing: CGFloat = 85.0 // Widened spacing for clean, uncluttered axes on all screens
+        let targetSpacing: CGFloat = 85.0
         let rawStep = targetSpacing / scale
         let mag = pow(10.0, floor(log10(rawStep)))
         let normalized = rawStep / mag
@@ -289,7 +387,7 @@ struct DynamicGraphView: View {
         if normalized < 5.0 { return 2.0 * mag }
         return 5.0 * mag
     }
-        
+    
     private func drawAdaptiveGrid(context: GraphicsContext, size: CGSize, origin: CGPoint, scale: CGFloat, step: CGFloat) {
         let minXMath = -origin.x / scale
         let maxXMath = (size.width - origin.x) / scale
@@ -304,7 +402,7 @@ struct DynamicGraphView: View {
             minorPath.move(to: CGPoint(x: sx, y: 0))
             minorPath.addLine(to: CGPoint(x: sx, y: size.height))
             
-            if abs(x) > 0.0001 { // Prevent drawing 0 here to avoid axis overlap
+            if abs(x) > 0.0001 {
                 let text = Text(x.cleanMathString).font(.system(size: 10, weight: .semibold, design: .rounded)).foregroundColor(.secondary.opacity(0.8))
                 context.draw(text, at: CGPoint(x: sx, y: origin.y + 8), anchor: .top)
             }
@@ -334,7 +432,6 @@ struct DynamicGraphView: View {
         
         context.stroke(axesPath, with: .color(Color.primary.opacity(0.55)), lineWidth: 1.5)
         
-        // Draw crisp origin zero
         let zeroText = Text("0").font(.system(size: 10, weight: .bold, design: .rounded)).foregroundColor(.secondary.opacity(0.9))
         context.draw(zeroText, at: CGPoint(x: origin.x - 6, y: origin.y + 6), anchor: .topTrailing)
     }
@@ -376,7 +473,6 @@ struct DynamicGraphView: View {
             }
         }
         
-// Change from lineWidth: 4 to lineWidth: 3
         context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
     }
     
@@ -473,7 +569,6 @@ public enum MathEngine {
         case sin, cos, tan, ln, log, sqrt, abs
     }
     
-    /// Compiles a math expression string into an ultra-fast `(Double) -> Double` closure using RPN architecture.
     public static func compile(_ equation: String) -> ((Double) -> Double)? {
         let tokens = tokenize(equation)
         guard !tokens.isEmpty else { return nil }
@@ -484,7 +579,6 @@ public enum MathEngine {
         }
     }
     
-    /// Safely samples continuous mathematical curves into discrete series data for SwiftUI Charts.
     public static func samplePoints(for equation: String, domain: ClosedRange<Double> = -15...15, step: Double = 0.1) -> GraphData.Series? {
         guard let evaluator = compile(equation) else { return nil }
         
@@ -495,15 +589,13 @@ public enum MathEngine {
         for x in stride(from: domain.lowerBound, through: domain.upperBound, by: step) {
             let y = evaluator(x)
             
-            // Asymptote & Infinity Discontinuity Break
             if y.isNaN || y.isInfinite || abs(y) > 2000 {
                 xVals.append(x)
                 yVals.append(.nan)
                 previousY = nil
             } else {
-                // High-velocity slope break detection (e.g., jump from 1/x at x=0)
                 if let prev = previousY, abs(y - prev) > 50 {
-                    xVals.append(x - step/2) // Insert midpoint nan break
+                    xVals.append(x - step/2)
                     yVals.append(.nan)
                 }
                 xVals.append(x)
@@ -526,7 +618,6 @@ public enum MathEngine {
         while index < chars.count {
             let char = chars[index]
             
-            // Numbers
             if char.isNumber || char == "." {
                 var numStr = ""
                 while index < chars.count && (chars[index].isNumber || chars[index] == ".") {
@@ -535,7 +626,6 @@ public enum MathEngine {
                 }
                 if let val = Double(numStr) {
                     tokens.append(.number(val))
-                    // Implicit Multiplication (e.g. 2x -> 2 * x, 2(x) -> 2 * (x))
                     if index < chars.count && (chars[index] == "x" || chars[index] == "(" || chars[index].isLetter) {
                         tokens.append(.op(.mul))
                     }
@@ -543,18 +633,15 @@ public enum MathEngine {
                 continue
             }
             
-            // Variable x
             if char == "x" {
                 tokens.append(.variable)
                 index += 1
-                // Implicit Multiplication (e.g. x( -> x * (, xx -> x * x)
                 if index < chars.count && (chars[index] == "(" || chars[index].isNumber || chars[index].isLetter) {
                     tokens.append(.op(.mul))
                 }
                 continue
             }
             
-            // Euler's Number
             if char == "e" {
                 tokens.append(.number(M_E))
                 index += 1
@@ -564,7 +651,6 @@ public enum MathEngine {
                 continue
             }
             
-            // Pi
             if char == "p" && index + 1 < chars.count && chars[index+1] == "i" {
                 tokens.append(.number(.pi))
                 index += 2
@@ -574,7 +660,6 @@ public enum MathEngine {
                 continue
             }
             
-            // Math Functions (sin, cos, ln, sqrt, etc.)
             if char.isLetter {
                 var fnStr = ""
                 while index < chars.count && chars[index].isLetter {
@@ -587,9 +672,7 @@ public enum MathEngine {
                 continue
             }
             
-            // Operators (+, -, *, /, ^)
             if let op = Operator(rawValue: char) {
-                // Detect Unary Minus
                 if op == .sub {
                     let isUnary = tokens.isEmpty ||
                     (tokens.last != .variable && tokens.last != .closeParen &&
@@ -607,7 +690,6 @@ public enum MathEngine {
                 continue
             }
             
-            // Parentheses
             if char == "(" {
                 tokens.append(.openParen)
                 index += 1
@@ -616,7 +698,6 @@ public enum MathEngine {
             if char == ")" {
                 tokens.append(.closeParen)
                 index += 1
-                // Implicit Multiplication mapping for trailing parens (e.g., (2+2)x -> (2+2)*x)
                 if index < chars.count && (chars[index] == "x" || chars[index].isNumber || chars[index] == "(" || chars[index].isLetter) {
                     tokens.append(.op(.mul))
                 }
@@ -783,7 +864,7 @@ enum GraphContentParser {
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "type=equation", with: "")
             .replacingOccurrences(of: "&", with: "")
-            .replacingOccurrences(of: "\n", with: "|") // Handle multi-line blocks safely
+            .replacingOccurrences(of: "\n", with: "|")
         
         let components = cleanedContent.components(separatedBy: "|")
         if components.count > 1 {
@@ -895,19 +976,6 @@ enum GraphContentParser {
     }
 }
 
-extension Double {
-    var cleanGraphString: String {
-        abs(self.truncatingRemainder(dividingBy: 1)) < 0.0001 ? String(format: "%.0f", self) : String(format: "%.2f", self)
-    }
-}
-
-extension CGFloat {
-    var cleanMathString: String {
-        abs(self.truncatingRemainder(dividingBy: 1)) < 0.0001 ? String(format: "%.0f", self) : String(format: "%.2f", self)
-    }
-}
-
-// Helper mathematical functions
 func linearRegression(x: [Double], y: [Double]) -> (slope: Double, intercept: Double)? {
     guard x.count == y.count && x.count > 1 else { return nil }
     
@@ -924,6 +992,18 @@ func linearRegression(x: [Double], y: [Double]) -> (slope: Double, intercept: Do
     let intercept = (sumY - slope * sumX) / n
     
     return (slope, intercept)
+}
+
+extension Double {
+    var cleanGraphString: String {
+        abs(self.truncatingRemainder(dividingBy: 1)) < 0.0001 ? String(format: "%.0f", self) : String(format: "%.2f", self)
+    }
+}
+
+extension CGFloat {
+    var cleanMathString: String {
+        abs(self.truncatingRemainder(dividingBy: 1)) < 0.0001 ? String(format: "%.0f", self) : String(format: "%.2f", self)
+    }
 }
 
 #Preview {
