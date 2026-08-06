@@ -877,7 +877,7 @@ fileprivate struct InteractiveGraphBuilderView: View {
         
         var currentExpressions = content.components(separatedBy: "\n")
         if currentExpressions.isEmpty { currentExpressions.append(eq) }
-        else { currentExpressions[0] = eq }
+        else { currentExpressions[currentExpressions.count - 1] = eq }
         content = currentExpressions.joined(separator: "\n")
     }
     
@@ -889,29 +889,12 @@ fileprivate struct InteractiveGraphBuilderView: View {
         let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedContent.isEmpty else { return }
         
+        // Only load points if the graph is explicitly in "Points" mode
         if graphType == QuestionGraphType.points.rawValue {
             let graphData = GraphContentParser.graphData(from: trimmedContent, graphType: graphType)
             points = zip(graphData.xValues, graphData.yValues)
                 .filter { !$0.0.isNaN && !$0.1.isNaN && !$0.0.isInfinite && !$0.1.isInfinite }
                 .map { CGPoint(x: $0.0, y: $0.1) }
-            return
-        }
-        
-        let expressions = trimmedContent.components(separatedBy: "\n")
-        guard let firstExpr = expressions.first else { return }
-        
-        let cleanedContent = firstExpr.replacingOccurrences(of: " ", with: "")
-        if cleanedContent.starts(with: "x=") {
-            let xValue = CGFloat(Double(cleanedContent.replacingOccurrences(of: "x=", with: "")) ?? 0.0)
-            points = [CGPoint(x: xValue, y: -4), CGPoint(x: xValue, y: 4)]
-            return
-        }
-        
-        if let (m, b) = parseLinearEquation(firstExpr) {
-            points = [
-                CGPoint(x: -2, y: m * -2 + b),
-                CGPoint(x: 2, y: m * 2 + b)
-            ]
         }
     }
 

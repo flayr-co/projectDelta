@@ -245,10 +245,9 @@ struct LessonContentPage: View {
             #endif
         }
         .scrollIndicators(.hidden)
-        .background(
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture { onBackgroundTap() }
+        .background(Color.clear)
+        .simultaneousGesture(
+            TapGesture().onEnded { onBackgroundTap() }
         )
     }
 }
