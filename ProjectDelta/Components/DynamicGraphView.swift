@@ -175,52 +175,80 @@ struct DynamicGraphView: View {
                 }
                 
                 // MARK: Invisible Gestures Layer
-                Color.clear
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { val in
-                                // Determine intent on initial touch
-                                if probeLocation == nil && !isProbing {
-                                    let mathX = Double((val.startLocation.x - origin.x) / currentScale)
-                                    if let closest = findClosestPoint(to: val.startLocation, mathX: mathX, origin: origin, scale: currentScale) {
-                                        let dist = hypot(closest.screenPoint.x - val.startLocation.x, closest.screenPoint.y - val.startLocation.y)
-                                        if dist < 30 { // 30pt hit target radius
-                                            isProbing = true
-                                            #if os(iOS)
-                                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                            #endif
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(
+                    LongPressGesture(minimumDuration: 0.25)
+                        .sequenced(before: DragGesture(minimumDistance: 0))
+                        .onChanged { value in
+                            switch value {
+                            case .second(true, let drag):
+                                if let location = drag?.location {
+                                    let mathX = Double((location.x - origin.x) / currentScale)
+                                    if let closest = findClosestPoint(to: location, mathX: mathX, origin: origin, scale: currentScale) {
+                                        let dist = hypot(closest.screenPoint.x - location.x, closest.screenPoint.y - location.y)
+                                        
+                                        // 45pt generous hit target for finger precision
+                                        if dist < 45 {
+                                            if !isProbing {
+                                                isProbing = true
+#if os(iOS)
+                                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+#endif
+                                            }
+                                            probeLocation = location
                                         }
                                     }
                                 }
-                                
-                                // Route the gesture based on intent
-                                if isProbing {
-                                    probeLocation = val.location
-                                } else {
-                                    currentPan = CGSize(
-                                        width: lastPan.width + val.translation.width,
-                                        height: lastPan.height + val.translation.height
-                                    )
-                                }
+                            default:
+                                break
                             }
-                            .onEnded { _ in
-                                probeLocation = nil
-                                isProbing = false
+                        }
+                        .onEnded { _ in
+                            probeLocation = nil
+                            isProbing = false
+                        }
+                )
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 12)
+                        .onChanged { val in
+                            // Only pan if we aren't actively probing a line
+                            if !isProbing {
+                                currentPan = CGSize(
+                                    width: lastPan.width + val.translation.width,
+                                    height: lastPan.height + val.translation.height
+                                )
+                            }
+                        }
+                        .onEnded { _ in
+                            if !isProbing {
                                 lastPan = currentPan
                             }
-                    )
-                    .simultaneousGesture(
-                        MagnifyGesture()
-                            .onChanged { val in
-                                let newScale = lastScale * val.magnification
-                                if newScale.isFinite && newScale > 0 {
-                                    currentScale = max(5.0, min(newScale, 300.0))
-                                }
+                        }
+                )
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { val in
+                            let newScale = lastScale * val.magnification
+                            if newScale.isFinite && newScale > 0 {
+                                currentScale = max(5.0, min(newScale, 300.0))
                             }
-                            .onEnded { _ in
-                                lastScale = currentScale
+                        }
+                        .onEnded { _ in
+                            lastScale = currentScale
+                        }
+                )
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { val in
+                            let newScale = lastScale * val.magnification
+                            if newScale.isFinite && newScale > 0 {
+                                currentScale = max(5.0, min(newScale, 300.0))
                             }
+                        }
+                        .onEnded { _ in
+                            lastScale = currentScale
+                        }
                     )
                 
                 // MARK: Tap and Hold Probe Overlay

@@ -159,16 +159,16 @@ struct LessonContentPage: View {
                         
                     case .graph(let graphContent, let graphType):
                         DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType))
-                            .aspectRatio(4/3, contentMode: .fit)
-                            .frame(maxHeight: 400) // Caps height on larger screens
+                            .aspectRatio(1.0, contentMode: .fit)
+                            .padding(.horizontal, -8) // Expands into the parent padding
                             .padding(.vertical, 16)
                     }
                 }
 
                 if let graphData = page.graphData {
                     DynamicGraphView(data: graphData)
-                        .aspectRatio(4/3, contentMode: .fit)
-                        .frame(maxHeight: 400)
+                        .aspectRatio(1.0, contentMode: .fit)
+                        .padding(.horizontal, -8)
                         .padding(.vertical, 16)
                 }
 
@@ -244,8 +244,7 @@ struct LessonContentPage: View {
             .frame(maxWidth: .infinity, alignment: .center)
             #else
             .padding(.horizontal, 24)
-            .padding(.top, 40)
-            .padding(.bottom, 120)
+            .padding(.vertical, 24)
             #endif
         }
         .scrollIndicators(.hidden)

@@ -30,6 +30,9 @@ struct LessonView: View {
         }
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
+        // Dynamically collapses the tab bar when UI controls are visible
+        .toolbar(showUIControls ? .hidden : .visible, for: .tabBar)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showUIControls)
         #endif
         .task {
             lessonVM.subjectName = subjectName
@@ -327,6 +330,18 @@ struct LessonView: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .id(lessonVM.currentLessonId)
                 .ignoresSafeArea(edges: .bottom)
+                .safeAreaInset(edge: .top) {
+                    if showUIControls && !lessonVM.isLoading {
+                        headerView
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .safeAreaInset(edge: .bottom) {
+                    if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
+                        lessonNavigationControls
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
                 .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                     if lessonVM.lessonPages.indices.contains(newPageIndex) {
                         let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
@@ -355,21 +370,6 @@ struct LessonView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .zIndex(3)
             }
-            
-            VStack {
-                if showUIControls && !lessonVM.isLoading {
-                    headerView
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                
-                Spacer()
-                
-                if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
-                    lessonNavigationControls
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .zIndex(1)
         }
     }
 
