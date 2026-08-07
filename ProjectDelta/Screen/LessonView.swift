@@ -31,6 +31,9 @@ struct LessonView: View {
         }
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
+        // Dynamically collapses the tab bar when UI controls are visible
+        .toolbar(showUIControls ? .hidden : .visible, for: .tabBar)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showUIControls)
         #endif
         .onAppear { hideCustomTabBar = showUIControls }
         .onDisappear { hideCustomTabBar = false }

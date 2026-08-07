@@ -353,6 +353,7 @@ struct DynamicGraphView: View {
         .frame(minHeight: isFullScreenMode ? nil : 320, idealHeight: isFullScreenMode ? nil : 400, maxHeight: isFullScreenMode ? .infinity : 500)
         .padding(.horizontal, isFullScreenMode ? 0 : nil)
         .padding(.vertical, isFullScreenMode ? 0 : 8)
+#if os(iOS)
         .fullScreenCover(isPresented: $showFullScreen) {
             NavigationStack {
                 ZStack {
@@ -372,6 +373,27 @@ struct DynamicGraphView: View {
                 }
             }
         }
+#elseif os(macOS)
+        .sheet(isPresented: $showFullScreen) {
+            NavigationStack {
+                ZStack {
+                    Color.platformSystemGroupedBackground.ignoresSafeArea()
+                    DynamicGraphView(data: data, isFullScreenMode: true)
+                }
+                .navigationTitle(primaryEquation)
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: { showFullScreen = false }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                }
+                .frame(minWidth: 600, minHeight: 500)
+            }
+        }
+#endif
     }
 
     private func colorForSeries(at index: Int) -> Color {
