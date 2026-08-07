@@ -21,6 +21,7 @@ struct ParsedContentBlock: Identifiable {
 // MARK: - LessonContentPage
 struct LessonContentPage: View {
     let page: Page
+    let isLastPage: Bool
     @Binding var isInteractingWithExplanation: Bool
     var onBackgroundTap: () -> Void
 
@@ -140,13 +141,14 @@ struct LessonContentPage: View {
                     switch block.type {
                     case .text(let textContent):
                         TextStylingUtility.styledText(from: textContent)
-                            .font(.system(size: 21, weight: .regular, design: .serif))
-                            .lineSpacing(12)
-                            .foregroundColor(.primary.opacity(0.9))
+                            .font(.system(size: 18, weight: .medium, design: .rounded))
+                            .lineSpacing(8)
+                            .foregroundColor(.primary.opacity(0.85))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                         
                     case .math(let latexContent):
+                        #if os(macOS)
                         VStack(spacing: 0) {
                             LatexView(latex: "$$\n\(latexContent)\n$$")
                                 .frame(minHeight: calculateHeight(for: latexContent))
@@ -156,11 +158,24 @@ struct LessonContentPage: View {
                                 .cornerRadius(16)
                                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                         }
+                        #else
+                        HStack {
+                            LatexView(latex: "$$\n\(latexContent)\n$$")
+                                .frame(minHeight: calculateHeight(for: latexContent) * 0.75)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .background(Color.platformSecondarySystemBackground)
+                                .cornerRadius(12)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                            
+                            Spacer(minLength: 0)
+                        }
+                        #endif
                         
                     case .graph(let graphContent, let graphType):
                         DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType))
                             .aspectRatio(1.0, contentMode: .fit)
-                            .padding(.horizontal, -8) // Expands into the parent padding
+                            .padding(.horizontal, -8)
                             .padding(.vertical, 16)
                     }
                 }
@@ -207,12 +222,9 @@ struct LessonContentPage: View {
                     .padding(.top, 16)
                 }
 
-                if page.readyButtonDisplayed {
-                    VStack(spacing: 20) {
-                        Button(action: {}) {
-                            AnimatedActionButton()
-                        }
-                        .buttonStyle(.plain)
+                if isLastPage {
+                    VStack(spacing: 16) {
+                        AnimatedActionButton()
 
                         NavigationLink {
                             UniversalTestView(mode: .practice(
@@ -221,15 +233,31 @@ struct LessonContentPage: View {
                                 lessonId: lessonVM.currentLessonId
                             ))
                         } label: {
-                            Text("Jump to Practice Session")
-                                .font(.headline)
-                                .fontWeight(.bold)
-                                .padding(.horizontal, 32)
-                                .padding(.vertical, 16)
-                                .background(themeColor)
-                                .foregroundColor(.white)
-                                .clipShape(Capsule())
-                                .shadow(color: themeColor.opacity(0.3), radius: 10, y: 5)
+                            HStack(spacing: 6) {
+                                Text("Jump to Practice Session")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                                
+                                Image(systemName: "bolt.fill")
+                                    .font(.headline)
+                            }
+                            .frame(maxWidth: 320, minHeight: 52)
+                            .background(
+                                LinearGradient(
+                                    colors: [themeColor, secondaryThemeColor],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .foregroundColor(.white)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
+                            )
+                            .shadow(color: themeColor.opacity(0.4), radius: 6, y: 4)
                         }
                         .buttonStyle(.plain)
                     }
@@ -244,14 +272,16 @@ struct LessonContentPage: View {
             .frame(maxWidth: .infinity, alignment: .center)
             #else
             .padding(.horizontal, 24)
-            .padding(.vertical, 24)
+            .padding(.top, 48) // Increased top padding to prevent hugging the screen edge
+            .padding(.bottom, 160) // Extra padding to guarantee content clears the floating controls
             #endif
         }
         .scrollIndicators(.hidden)
         .background(Color.clear)
-        .simultaneousGesture(
-            TapGesture().onEnded { onBackgroundTap() }
-        )
+        .onTapGesture {
+            // Allows buttons to consume taps normally while intercepting unhandled background taps
+            onBackgroundTap()
+        }
     }
 }
 

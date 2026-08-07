@@ -57,6 +57,8 @@ let sampleData = GraphData(
 
 struct DynamicGraphView: View {
     var data: GraphData
+    var isFullScreenMode: Bool = false
+    @State private var showFullScreen: Bool = false
     @Environment(\.colorScheme) var colorScheme
 
     // Viewport and Interaction State
@@ -175,80 +177,68 @@ struct DynamicGraphView: View {
                 }
                 
                 // MARK: Invisible Gestures Layer
-            Color.clear
-                .contentShape(Rectangle())
-                .gesture(
-                    LongPressGesture(minimumDuration: 0.25)
-                        .sequenced(before: DragGesture(minimumDistance: 0))
-                        .onChanged { value in
-                            switch value {
-                            case .second(true, let drag):
-                                if let location = drag?.location {
-                                    let mathX = Double((location.x - origin.x) / currentScale)
-                                    if let closest = findClosestPoint(to: location, mathX: mathX, origin: origin, scale: currentScale) {
-                                        let dist = hypot(closest.screenPoint.x - location.x, closest.screenPoint.y - location.y)
-                                        
-                                        // 45pt generous hit target for finger precision
-                                        if dist < 45 {
-                                            if !isProbing {
-                                                isProbing = true
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(
+                        LongPressGesture(minimumDuration: 0.25)
+                            .sequenced(before: DragGesture(minimumDistance: 0))
+                            .onChanged { value in
+                                switch value {
+                                case .second(true, let drag):
+                                    if let location = drag?.location {
+                                        let mathX = Double((location.x - origin.x) / currentScale)
+                                        if let closest = findClosestPoint(to: location, mathX: mathX, origin: origin, scale: currentScale) {
+                                            let dist = hypot(closest.screenPoint.x - location.x, closest.screenPoint.y - location.y)
+                                            
+                                            // 45pt generous hit target for finger precision
+                                            if dist < 45 {
+                                                if !isProbing {
+                                                    isProbing = true
 #if os(iOS)
-                                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 #endif
+                                                }
+                                                probeLocation = location
                                             }
-                                            probeLocation = location
                                         }
                                     }
+                                default:
+                                    break
                                 }
-                            default:
-                                break
                             }
-                        }
-                        .onEnded { _ in
-                            probeLocation = nil
-                            isProbing = false
-                        }
-                )
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 12)
-                        .onChanged { val in
-                            // Only pan if we aren't actively probing a line
-                            if !isProbing {
-                                currentPan = CGSize(
-                                    width: lastPan.width + val.translation.width,
-                                    height: lastPan.height + val.translation.height
-                                )
+                            .onEnded { _ in
+                                probeLocation = nil
+                                isProbing = false
                             }
-                        }
-                        .onEnded { _ in
-                            if !isProbing {
-                                lastPan = currentPan
+                    )
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 12)
+                            .onChanged { val in
+                                // Only pan if we aren't actively probing a line
+                                if !isProbing {
+                                    currentPan = CGSize(
+                                        width: lastPan.width + val.translation.width,
+                                        height: lastPan.height + val.translation.height
+                                    )
+                                }
                             }
-                        }
-                )
-                .simultaneousGesture(
-                    MagnifyGesture()
-                        .onChanged { val in
-                            let newScale = lastScale * val.magnification
-                            if newScale.isFinite && newScale > 0 {
-                                currentScale = max(5.0, min(newScale, 300.0))
+                            .onEnded { _ in
+                                if !isProbing {
+                                    lastPan = currentPan
+                                }
                             }
-                        }
-                        .onEnded { _ in
-                            lastScale = currentScale
-                        }
-                )
-                .simultaneousGesture(
-                    MagnifyGesture()
-                        .onChanged { val in
-                            let newScale = lastScale * val.magnification
-                            if newScale.isFinite && newScale > 0 {
-                                currentScale = max(5.0, min(newScale, 300.0))
+                    )
+                    .simultaneousGesture(
+                        MagnifyGesture()
+                            .onChanged { val in
+                                let newScale = lastScale * val.magnification
+                                if newScale.isFinite && newScale > 0 {
+                                    currentScale = max(5.0, min(newScale, 300.0))
+                                }
                             }
-                        }
-                        .onEnded { _ in
-                            lastScale = currentScale
-                        }
+                            .onEnded { _ in
+                                lastScale = currentScale
+                            }
                     )
                 
                 // MARK: Tap and Hold Probe Overlay
@@ -313,10 +303,10 @@ struct DynamicGraphView: View {
                     .allowsHitTesting(false)
                 }
                 
-                // Reset Viewport Control
+                // Viewport & Full Screen Controls
                 VStack {
                     Spacer()
-                    HStack {
+                    HStack(spacing: 12) {
                         Spacer()
                         if currentScale != 30.0 || currentPan != .zero {
                             Button(action: {
@@ -327,17 +317,31 @@ struct DynamicGraphView: View {
                                     lastPan = .zero
                                 }
                             }) {
-                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                Image(systemName: "scope")
                                     .font(.system(size: 14, weight: .bold))
                                     .foregroundColor(.secondary)
-                                    .padding(10)
+                                    .padding(12)
                                     .background(.ultraThinMaterial)
                                     .clipShape(Circle())
                                     .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
                             }
-                            .padding(16)
+                        }
+                        
+                        if !isFullScreenMode {
+                            Button(action: {
+                                showFullScreen = true
+                            }) {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(primaryColor)
+                                    .padding(12)
+                                    .background(.ultraThinMaterial)
+                                    .clipShape(Circle())
+                                    .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                            }
                         }
                     }
+                    .padding(16)
                 }
             }
             .background(Color.platformSecondarySystemGroupedBackground)
@@ -346,9 +350,28 @@ struct DynamicGraphView: View {
             .clipped()
             .shadow(color: primaryColor.opacity(0.2), radius: 12, y: 4)
         }
-        .frame(minHeight: 320, idealHeight: 400, maxHeight: 500)
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .frame(minHeight: isFullScreenMode ? nil : 320, idealHeight: isFullScreenMode ? nil : 400, maxHeight: isFullScreenMode ? .infinity : 500)
+        .padding(.horizontal, isFullScreenMode ? 0 : nil)
+        .padding(.vertical, isFullScreenMode ? 0 : 8)
+        .fullScreenCover(isPresented: $showFullScreen) {
+            NavigationStack {
+                ZStack {
+                    Color.platformSystemGroupedBackground.ignoresSafeArea()
+                    DynamicGraphView(data: data, isFullScreenMode: true)
+                }
+                .navigationTitle(primaryEquation)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: { showFullScreen = false }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private func colorForSeries(at index: Int) -> Color {

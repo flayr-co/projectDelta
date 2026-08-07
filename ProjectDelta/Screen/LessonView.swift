@@ -15,6 +15,7 @@ struct LessonView: View {
     @State private var showTableOfContents = false
     @State private var isInteractingWithExplanation: Bool = false
     @State private var showUIControls = true
+    @AppStorage("hideCustomTabBar") private var hideCustomTabBar: Bool = false
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
 
@@ -30,10 +31,12 @@ struct LessonView: View {
         }
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
-        // Dynamically collapses the tab bar when UI controls are visible
-        .toolbar(showUIControls ? .hidden : .visible, for: .tabBar)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showUIControls)
         #endif
+        .onAppear { hideCustomTabBar = showUIControls }
+        .onDisappear { hideCustomTabBar = false }
+        .onChange(of: showUIControls) { _, isVisible in
+            hideCustomTabBar = isVisible
+        }
         .task {
             lessonVM.subjectName = subjectName
             await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
@@ -103,6 +106,7 @@ struct LessonView: View {
                         let page = lessonVM.lessonPages[lessonVM.currentPageIndex]
                         LessonContentPage(
                             page: page,
+                            isLastPage: lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1,
                             isInteractingWithExplanation: $isInteractingWithExplanation,
                             onBackgroundTap: {}
                         )
@@ -229,7 +233,7 @@ struct LessonView: View {
                         Text("Previous")
                     }
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(lessonVM.currentPageIndex == 0 ? .gray.opacity(0.3) : .primary)
+                    .foregroundColor(lessonVM.currentPageIndex == 0 ? .gray.opacity(0.3) : .teal)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
                     .background(Color.primary.opacity(0.05))
@@ -273,7 +277,7 @@ struct LessonView: View {
                             Image(systemName: "arrow.right")
                         }
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .gray.opacity(0.3) : .primary)
+                        .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .gray.opacity(0.3) : .teal)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
                         .background(Color.primary.opacity(0.05))
@@ -317,6 +321,7 @@ struct LessonView: View {
                         let page = lessonVM.lessonPages[index]
                         LessonContentPage(
                             page: page,
+                            isLastPage: index == lessonVM.lessonPages.count - 1,
                             isInteractingWithExplanation: $isInteractingWithExplanation,
                             onBackgroundTap: {
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -457,8 +462,8 @@ struct LessonView: View {
                     }
                 }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(lessonVM.currentPageIndex == 0 ? .gray.opacity(0.3) : .primary)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(lessonVM.currentPageIndex == 0 ? .gray.opacity(0.3) : .teal)
                         .frame(width: 50, height: 50)
                 }
                 .disabled(lessonVM.currentPageIndex == 0)
@@ -478,8 +483,8 @@ struct LessonView: View {
                     }
                 }) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .gray.opacity(0.3) : .primary)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .gray.opacity(0.3) : .teal)
                         .frame(width: 50, height: 50)
                 }
                 .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)

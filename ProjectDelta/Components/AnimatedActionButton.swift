@@ -5,40 +5,76 @@
 //  Created by Jake Meissner on 3/11/24.
 //
 
-// AnimatedActionButton.swift
 import SwiftUI
 
 struct AnimatedActionButton: View {
     @State private var isActivated: Bool = false
+    @State private var isPulsing: Bool = false
     @Environment(\.colorScheme) var colorScheme
+    
+    // Dynamically match the app's established theme
+    var themeColor: Color {
+        colorScheme == .dark ? .teal : .blue
+    }
 
     var body: some View {
         Button(action: {
-            withAnimation(.easeInOut(duration: 0.5)) {
+            #if os(iOS)
+            let generator = UIImpactFeedbackGenerator(style: .heavy)
+            generator.impactOccurred()
+            #endif
+            
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.5)) {
                 self.isActivated.toggle()
             }
         }) {
-            Text(isActivated ? "LET'S GO!" : "READY?")
-                .fontWeight(.bold)
-                .font(.title)
-                .foregroundStyle(isActivated ? .white : colorScheme == .dark ? .teal : .gray)
-                .frame(maxWidth: .infinity, maxHeight: 50)
-                .background(self.isActivated ? Color.HuluGreen : colorScheme == .dark ? .black : .white)
-                .mask(RoundedRectangle(cornerRadius: 25))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 25)
-                        .stroke(Color.HuluGreen, lineWidth: 2)
-                )
-                .scaleEffect(isActivated ? 1.1 : 1.0)
+            HStack(spacing: 8) {
+                Text(isActivated ? "Let's Go!" : "Ready?")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                
+                Image(systemName: isActivated ? "checkmark.seal.fill" : "sparkles")
+                    .font(.headline)
+                    .rotationEffect(.degrees(isActivated ? 360 : 0))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: 320, minHeight: 52)
+            .background(
+                ZStack {
+                    if isActivated {
+                        LinearGradient(
+                            colors: [Color.green, Color.mint],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    } else {
+                        LinearGradient(
+                            colors: [themeColor, themeColor.opacity(0.6)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    }
+                }
+            )
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
+            )
+            .shadow(
+                color: isActivated ? Color.green.opacity(0.4) : themeColor.opacity(0.4),
+                radius: isActivated ? 8 : 6,
+                y: 4
+            )
+            .scaleEffect(isActivated ? 1.05 : (isPulsing ? 1.02 : 1.0))
         }
-        .frame(width: 220)
-        .padding(.horizontal)
+        .buttonStyle(.plain)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                isPulsing = true
+            }
+        }
     }
-}
-
-// Extension to hold the custom Hulu Green color
-extension Color {
-    static let HuluGreen = Color(red: 0/255, green: 186/255, blue: 124/255) // Hulu's brand green color
 }
 
 #Preview {
@@ -47,4 +83,3 @@ extension Color {
         .padding()
         .preferredColorScheme(.dark)
 }
-

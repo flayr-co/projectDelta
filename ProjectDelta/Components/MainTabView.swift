@@ -14,6 +14,7 @@ struct MainTabView: View {
     @State private var homeRefreshKey = UUID()
     @State private var cardRefreshKey = UUID()
     @State private var profileRefreshKey = UUID()
+    @AppStorage("hideCustomTabBar") private var hideCustomTabBar: Bool = false
     
     var body: some View {
         #if os(macOS)
@@ -109,8 +110,14 @@ struct MainTabView: View {
             )
             .padding(.horizontal, 24)
             .padding(.bottom, 8)
+            .offset(y: hideCustomTabBar ? 150 : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: hideCustomTabBar)
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onAppear {
+            // Explicitly reset the AppStorage value so the tab bar is never permanently hidden upon restart
+            hideCustomTabBar = false
+        }
         #endif
     }
     
