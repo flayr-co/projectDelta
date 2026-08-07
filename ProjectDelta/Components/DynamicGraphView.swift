@@ -62,12 +62,13 @@ struct DynamicGraphView: View {
     // Viewport and Interaction State
     @State private var currentScale: CGFloat = 30.0
     @State private var lastScale: CGFloat = 30.0
-    
+
     @State private var currentPan: CGSize = .zero
     @State private var lastPan: CGSize = .zero
-    
+
     // Tap and Hold Probe State
     @State private var probeLocation: CGPoint? = nil
+    @State private var isProbing: Bool = false
 
     var primaryColor: Color { colorScheme == .dark ? .teal : .blue }
     var secondaryColor: Color { colorScheme == .dark ? .orange : .purple }
@@ -177,36 +178,36 @@ struct DynamicGraphView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(
-                        DragGesture(minimumDistance: 12)
+                        DragGesture(minimumDistance: 0)
                             .onChanged { val in
-                                currentPan = CGSize(width: lastPan.width + val.translation.width, height: lastPan.height + val.translation.height)
-                            }
-                            .onEnded { _ in
-                                lastPan = currentPan
-                            }
-                    )
-                    .simultaneousGesture(
-                        LongPressGesture(minimumDuration: 0.25)
-                            .sequenced(before: DragGesture(minimumDistance: 0))
-                            .onChanged { value in
-                                switch value {
-                                case .second(true, let drag):
-                                    if let location = drag?.location {
-                                        probeLocation = location
-                                        // Trigger haptic on initial press engagement
-                                        #if os(iOS)
-                                        if probeLocation == nil {
-                                            let generator = UIImpactFeedbackGenerator(style: .light)
-                                            generator.impactOccurred()
+                                // Determine intent on initial touch
+                                if probeLocation == nil && !isProbing {
+                                    let mathX = Double((val.startLocation.x - origin.x) / currentScale)
+                                    if let closest = findClosestPoint(to: val.startLocation, mathX: mathX, origin: origin, scale: currentScale) {
+                                        let dist = hypot(closest.screenPoint.x - val.startLocation.x, closest.screenPoint.y - val.startLocation.y)
+                                        if dist < 30 { // 30pt hit target radius
+                                            isProbing = true
+                                            #if os(iOS)
+                                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                            #endif
                                         }
-                                        #endif
                                     }
-                                default:
-                                    break
+                                }
+                                
+                                // Route the gesture based on intent
+                                if isProbing {
+                                    probeLocation = val.location
+                                } else {
+                                    currentPan = CGSize(
+                                        width: lastPan.width + val.translation.width,
+                                        height: lastPan.height + val.translation.height
+                                    )
                                 }
                             }
                             .onEnded { _ in
                                 probeLocation = nil
+                                isProbing = false
+                                lastPan = currentPan
                             }
                     )
                     .simultaneousGesture(
