@@ -27,6 +27,7 @@ struct LessonContentPage: View {
 
     @State private var isExplanationVisible: Bool = false
     @Environment(LessonViewModel.self) var lessonVM
+    @Environment(AuthViewModel.self) var authVM
     @Environment(\.colorScheme) var colorScheme
     
     // Dynamic Theme Logic
@@ -258,6 +259,25 @@ struct LessonContentPage: View {
                                     .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
                             )
                             .shadow(color: themeColor.opacity(0.4), radius: 6, y: 4)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: {
+                            Task {
+                                await lessonVM.advanceToNextLesson(authVM: authVM)
+                            }
+                        }) {
+                            HStack {
+                                Text("Next Lesson")
+                                Image(systemName: "arrow.right")
+                            }
+                            .font(.headline)
+                            .padding()
+                            .frame(maxWidth: 320, minHeight: 52)
+                            .background(Color.accentColor.gradient)
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
                         }
                         .buttonStyle(.plain)
                     }

@@ -22,14 +22,17 @@ class LessonViewModel {
     var currentPageDocumentId: String?
     var isLoading: Bool = true
     var isCurrentPageBookmarked: Bool = false
-
+    
     private let db = Firestore.firestore()
-
+    
     // MARK: - Core Initialization
     
     func initializeLesson(subjectName: String, authVM: AuthViewModel) async {
         self.isLoading = true
         defer { self.isLoading = false }
+        
+        // Silently fetch curriculum in the background so "Next Lesson" navigation works seamlessly
+        self.fetchAllLessons(for: subjectName)
         
         print("Starting to fetch the first incomplete lesson for \(subjectName).")
         let (lessonName, lessonId) = await fetchFirstIncompleteLesson(for: subjectName)
@@ -44,14 +47,14 @@ class LessonViewModel {
             print("Content fetching completed for lesson \(lessonName).")
             
             if let initialPageNumber = self.lessonPages.first?.pageNumber {
-                self.navigateToPage(lessonName: lessonName, pageNumber: initialPageNumber, authVM: authVM)
+                await self.navigateToPage(lessonName: lessonName, pageNumber: initialPageNumber, authVM: authVM)
             }
         } else {
             print("No lesson found or fetch failed for subject \(subjectName).")
             self.lessonPages = []
         }
     }
-
+    
     // MARK: - Ghost Subject Resolver
     
     /// Deep-scans the database to find the actual subject document containing populated pages,
@@ -94,9 +97,9 @@ class LessonViewModel {
         
         return uniqueCandidates.first
     }
-
+    
     // MARK: - Fetch Logic
-
+    
     func fetchLessonContent(for subjectName: String, lessonName: String) async {
         do {
             guard let subjectId = await resolveSubjectId(for: subjectName) else {
@@ -107,18 +110,21 @@ class LessonViewModel {
             let lessonQuerySnapshot = try await db.collection("Subjects").document(subjectId)
                 .collection("Lessons").whereField("name", isEqualTo: lessonName).getDocuments()
             guard let lessonDocument = lessonQuerySnapshot.documents.first,
-                  let lesson = try? lessonDocument.data(as: Lesson.self) else {
+                  var lesson = try? lessonDocument.data(as: Lesson.self) else {
                 print("Lesson \(lessonName) not found within \(subjectName).")
                 return
             }
+            
+            lesson.id = lessonDocument.documentID
             
             var fetchedPages: [Page] = []
             
             // NEW ARCHITECTURE: Read from embedded array
             if let embeddedPages = lesson.pages, !embeddedPages.isEmpty {
-                fetchedPages = embeddedPages.map { page in
+                // Generate cryptographically unique IDs to prevent SwiftUI layout crashes from DB corruption
+                fetchedPages = embeddedPages.enumerated().map { index, page in
                     var p = page
-                    if p.id == nil { p.id = "page_\(p.pageNumber)" }
+                    if p.id == nil { p.id = "page_\(index)_\(UUID().uuidString.prefix(6))" }
                     return p
                 }.sorted { $0.pageNumber < $1.pageNumber }
             } else {
@@ -134,12 +140,19 @@ class LessonViewModel {
                 }
                 
                 fetchedPages = pagesQuerySnapshot.documents.compactMap { document -> Page? in
-                    return try? document.data(as: Page.self)
+                    var p = try? document.data(as: Page.self)
+                    if p?.id == nil { p?.id = document.documentID }
+                    return p
                 }
             }
             
+            // Forcefully map the state to eliminate logic desyncs during async fetching
             self.lessonPages = fetchedPages
-            self.currentLesson?.pages = fetchedPages
+            lesson.pages = fetchedPages
+            self.currentLesson = lesson
+            self.currentLessonId = lesson.id ?? ""
+            self.currentLessonName = lesson.name
+            
             if !fetchedPages.isEmpty {
                 print("Fetched \(fetchedPages.count) pages for lesson \(lessonName) within \(subjectName).")
             } else {
@@ -150,7 +163,7 @@ class LessonViewModel {
             print("Firestore query error: \(error.localizedDescription)")
         }
     }
-
+    
     func fetchAllLessons(for subjectName: String) {
         Task {
             do {
@@ -174,9 +187,9 @@ class LessonViewModel {
                     
                     // NEW ARCHITECTURE: Read from embedded array
                     if let embeddedPages = lesson.pages, !embeddedPages.isEmpty {
-                        lesson.pages = embeddedPages.map { page in
+                        lesson.pages = embeddedPages.enumerated().map { index, page in
                             var p = page
-                            if p.id == nil { p.id = "page_\(p.pageNumber)" }
+                            if p.id == nil { p.id = "page_\(index)_\(UUID().uuidString.prefix(6))" }
                             return p
                         }
                     } else {
@@ -192,7 +205,9 @@ class LessonViewModel {
                         }
                         
                         let legacyPages = pageSnapshot?.documents.compactMap { doc -> Page? in
-                            return try? doc.data(as: Page.self)
+                            var p = try? doc.data(as: Page.self)
+                            if p?.id == nil { p?.id = doc.documentID }
+                            return p
                         } ?? []
                         
                         lesson.pages = legacyPages
@@ -202,16 +217,6 @@ class LessonViewModel {
                 }
                 
                 self.currentSubjectLessons = lessonsWithPages.sorted { $0.lessonNumber < $1.lessonNumber }
-                
-                // FIXED: Synchronize active lesson state with current view state instead of resetting it
-                if let activeLesson = lessonsWithPages.first(where: { $0.name == self.currentLessonName || $0.id == self.currentLessonId }) {
-                    self.currentLesson = activeLesson
-                    self.currentLessonId = activeLesson.id ?? ""
-                } else if let firstIncomplete = lessonsWithPages.first(where: { !$0.completed }) {
-                    self.currentLesson = firstIncomplete
-                    self.currentLessonId = firstIncomplete.id ?? "default_id"
-                    self.currentLessonName = firstIncomplete.name
-                }
                 print("Fetched all lessons and pages for subject \(subjectName)")
                 
             } catch {
@@ -219,7 +224,7 @@ class LessonViewModel {
             }
         }
     }
-
+    
     func fetchFirstIncompleteLesson(for subjectName: String) async -> (name: String, id: String) {
         do {
             guard let subjectId = await resolveSubjectId(for: subjectName) else {
@@ -267,10 +272,11 @@ class LessonViewModel {
             return ("", "")
         }
     }
-
+    
     // MARK: - Navigation
-
-    func navigateToPage(lessonName: String, pageNumber: Int, authVM: AuthViewModel) {
+    
+    @MainActor
+    func navigateToPage(lessonName: String, pageNumber: Int, authVM: AuthViewModel) async {
         if let currentLesson = self.currentLesson, currentLesson.name == lessonName {
             if let pageIndex = currentLesson.pages?.firstIndex(where: { $0.pageNumber == pageNumber }) {
                 self.currentPageIndex = pageIndex
@@ -278,40 +284,43 @@ class LessonViewModel {
                 self.updateBookmarkStatus(authVM: authVM)
             }
         } else {
-            Task {
-                if let newLesson = self.currentSubjectLessons.first(where: { $0.name == lessonName }) {
-                    self.currentLesson = newLesson
-                    self.currentLessonName = newLesson.name
-                    self.currentLessonId = newLesson.id ?? ""
-                } else {
-                    self.currentLessonName = lessonName
-                }
-                
-                await fetchLessonContent(for: self.subjectName, lessonName: lessonName)
-                
-                if let newLesson = self.currentSubjectLessons.first(where: { $0.name == lessonName }) {
-                    self.currentLesson = newLesson
-                    self.currentLessonName = newLesson.name
-                    self.currentLessonId = newLesson.id ?? ""
-                }
-                
-                if let pageIndex = self.lessonPages.firstIndex(where: { $0.pageNumber == pageNumber }) {
-                    self.currentPageIndex = pageIndex
-                    self.currentPageDocumentId = self.lessonPages[pageIndex].id
-                    self.updateBookmarkStatus(authVM: authVM)
-                }
+            // Predictively update the name to trigger loading states
+            self.currentLessonName = lessonName
+            
+            await fetchLessonContent(for: self.subjectName, lessonName: lessonName)
+            
+            if let pageIndex = self.lessonPages.firstIndex(where: { $0.pageNumber == pageNumber }) {
+                self.currentPageIndex = pageIndex
+                self.currentPageDocumentId = self.lessonPages[pageIndex].id
+                self.updateBookmarkStatus(authVM: authVM)
+            } else {
+                // Safely fallback to index 0 to guarantee UI doesn't blank out
+                self.currentPageIndex = 0
+                self.currentPageDocumentId = self.lessonPages.first?.id
+                self.updateBookmarkStatus(authVM: authVM)
             }
         }
     }
     
+    // MARK: - Lesson Progression
+    
+    @MainActor
+    func advanceToNextLesson(authVM: AuthViewModel) async {
+        guard let currentIndex = currentSubjectLessons.firstIndex(where: { $0.id == currentLessonId }),
+              currentIndex + 1 < currentSubjectLessons.count else { return }
+        
+        let nextLesson = currentSubjectLessons[currentIndex + 1]
+        await navigateToPage(lessonName: nextLesson.name, pageNumber: 1, authVM: authVM)
+    }
+    
     // MARK: - Bookmarks
-
+    
     func updateBookmarkStatus(authVM: AuthViewModel) {
         if let lessonId = currentLesson?.id, let pageId = currentPageDocumentId {
             self.isCurrentPageBookmarked = authVM.isPageBookmarked(subjectId: self.subjectName, lessonId: lessonId, pageId: pageId)
         }
     }
-
+    
     func toggleBookmark(authVM: AuthViewModel) {
         if let lessonId = currentLesson?.id, let pageId = currentPageDocumentId {
             if authVM.isPageBookmarked(subjectId: subjectName, lessonId: lessonId, pageId: pageId) {

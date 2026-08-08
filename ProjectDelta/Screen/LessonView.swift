@@ -104,19 +104,22 @@ struct LessonView: View {
                     Spacer()
                 }
             } else {
+                // Stack pages to defeat WebKit suspension, matching iOS trick
                 ZStack(alignment: .bottom) {
-                    if lessonVM.lessonPages.indices.contains(lessonVM.currentPageIndex) {
-                        let page = lessonVM.lessonPages[lessonVM.currentPageIndex]
+                    // Safe enumeration permanently prevents out-of-bounds index crashes. Keyed by .offset to bypass DB ID corruption.
+                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
                         LessonContentPage(
                             page: page,
-                            isLastPage: lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1,
+                            isLastPage: index == lessonVM.lessonPages.count - 1,
                             isInteractingWithExplanation: $isInteractingWithExplanation,
                             onBackgroundTap: {}
                         )
-                        .id(page.id)
-                        .transition(.opacity)
+                        .opacity(lessonVM.currentPageIndex == index ? 1.0 : 0.0) // 0.0 eliminates ghosting bleed-through
+                        .allowsHitTesting(lessonVM.currentPageIndex == index)
+                        .zIndex(lessonVM.currentPageIndex == index ? 1 : 0)
                     }
                 }
+                .id(lessonVM.currentLessonId)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .safeAreaInset(edge: .top) {
                     if showUIControls { macOSHeaderView }
@@ -124,10 +127,11 @@ struct LessonView: View {
                 .safeAreaInset(edge: .bottom) {
                     if showUIControls { macOSNavigationControls }
                 }
+                // Update bookmarks when pages shift locally without triggering recursive network calls
                 .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                     if lessonVM.lessonPages.indices.contains(newPageIndex) {
-                        let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
-                        lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
+                        lessonVM.currentPageDocumentId = lessonVM.lessonPages[newPageIndex].id
+                        lessonVM.updateBookmarkStatus(authVM: authVM)
                     }
                 }
             }
@@ -319,9 +323,11 @@ struct LessonView: View {
                         .foregroundColor(.secondary)
                 }
             } else {
-                TabView(selection: Bindable(lessonVM).currentPageIndex) {
-                    ForEach(lessonVM.lessonPages.indices, id: \.self) { index in
-                        let page = lessonVM.lessonPages[index]
+                // Stack pages directly on top of each other to defeat WKWebView's off-screen suspension.
+                // An opacity of 0.0 physically forces the engine to keep equations loaded without rendering visible ghosting.
+                ZStack {
+                    // Safe enumeration permanently prevents out-of-bounds index crashes. Keyed by .offset to bypass DB ID corruption.
+                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
                         LessonContentPage(
                             page: page,
                             isLastPage: index == lessonVM.lessonPages.count - 1,
@@ -332,11 +338,28 @@ struct LessonView: View {
                                 }
                             }
                         )
-                        .tag(index)
+                        .opacity(lessonVM.currentPageIndex == index ? 1.0 : 0.0) // 0.0 eliminates ghosting bleed-through
+                        .allowsHitTesting(lessonVM.currentPageIndex == index)
+                        .zIndex(lessonVM.currentPageIndex == index ? 1 : 0)
                     }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
                 .id(lessonVM.currentLessonId)
+                .gesture(
+                    DragGesture(minimumDistance: 30)
+                        .onEnded { value in
+                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                            
+                            if value.translation.width < -40 && lessonVM.currentPageIndex < lessonVM.lessonPages.count - 1 {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    lessonVM.currentPageIndex += 1
+                                }
+                            } else if value.translation.width > 40 && lessonVM.currentPageIndex > 0 {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    lessonVM.currentPageIndex -= 1
+                                }
+                            }
+                        }
+                )
                 .ignoresSafeArea(edges: .bottom)
                 .safeAreaInset(edge: .top) {
                     if showUIControls && !lessonVM.isLoading {
@@ -350,10 +373,11 @@ struct LessonView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
+                // Update bookmarks when pages shift locally without triggering recursive network calls
                 .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                     if lessonVM.lessonPages.indices.contains(newPageIndex) {
-                        let newPageNumber = lessonVM.lessonPages[newPageIndex].pageNumber
-                        lessonVM.navigateToPage(lessonName: lessonVM.currentLessonName, pageNumber: newPageNumber, authVM: authVM)
+                        lessonVM.currentPageDocumentId = lessonVM.lessonPages[newPageIndex].id
+                        lessonVM.updateBookmarkStatus(authVM: authVM)
                     }
                 }
             }
