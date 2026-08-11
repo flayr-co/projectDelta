@@ -189,8 +189,8 @@ struct ElectromagneticWaveAnalyzerView: View {
     var body: some View {
         GeometryReader { geo in
             let isWide = geo.size.width > 850
-            let contentPadding: CGFloat = isWide ? 32 : 16
-            let itemSpacing: CGFloat = isWide ? 10 : 16
+            let contentPadding: CGFloat = isWide ? 32 : 20
+            let itemSpacing: CGFloat = isWide ? 24 : 16
             
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .center, spacing: itemSpacing) {
@@ -297,88 +297,92 @@ struct ElectromagneticWaveAnalyzerView: View {
     
     private var metricsBox: some View {
         PremiumCard(baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors) {
-            Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
                 GridRow {
                     Text("Frequency (f):")
-                        .font(.body)
+                        .font(.headline)
                         .foregroundStyle(.secondary)
                     Text("\(frequency.formatted(.number.notation(.scientific))) Hz")
-                        .font(.title3.weight(.bold))
+                        .font(.headline.weight(.bold))
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                 }
                 GridRow {
                     Text("Wavelength (λ):")
-                        .font(.body)
+                        .font(.headline)
                         .foregroundStyle(.secondary)
                     Text("\(wavelength.formatted(.number.notation(.scientific))) m")
-                        .font(.title3.weight(.bold))
+                        .font(.headline.weight(.bold))
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                 }
                 GridRow {
                     Text("Photon Energy (E):")
-                        .font(.body)
+                        .font(.headline)
                         .foregroundStyle(.secondary)
                     Text("\(photonEnergyJoules.formatted(.number.notation(.scientific))) J")
-                        .font(.title3.weight(.bold))
+                        .font(.headline.weight(.bold))
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                 }
             }
-            .frame(height: 100, alignment: .topLeading)
         }
     }
-    
+        
     private var scaleGraphicBox: some View {
         PremiumCard(baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 Text("Wavelength Scale Equivalent")
-                    .font(.title3.weight(.semibold))
+                    .font(.headline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 
                 HStack(spacing: 16) {
                     Image(systemName: currentRegion.scaleIcon)
-                        .font(.system(size: 28))
+                        .font(.system(size: 32))
                         .foregroundStyle(LinearGradient(colors: currentRegion.gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 52, height: 52)
+                        .frame(width: 56, height: 56)
                         .background(currentRegion.baseColor.opacity(0.15))
                         .clipShape(Circle())
                     
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("Comparable Physical Scale:")
-                            .font(.body)
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                         Text(currentRegion.scaleName)
-                            .font(.title3.weight(.bold))
+                            .font(.title3.weight(.semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)
                     }
                 }
             }
-            .frame(height: 100, alignment: .topLeading)
         }
     }
-    
+        
     private var visualizerBox: some View {
         PremiumCard(title: "Transverse Field Oscillations", icon: "waveform.path.ecg", baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors) {
             VStack(spacing: 8) {
                 HStack(spacing: 16) {
                     Spacer()
                     Label("Electric (E)", systemImage: "line.diagonal")
-                        .font(.body.weight(.bold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(LinearGradient(colors: currentRegion.gradientColors, startPoint: .leading, endPoint: .trailing))
                     Label("Magnetic (B)", systemImage: "line.diagonal")
-                        .font(.body.weight(.bold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(LinearGradient(colors: [.blue, .cyan], startPoint: .leading, endPoint: .trailing))
                 }
-                .padding(.bottom, -12)
+                .padding(.bottom, -8)
                 .zIndex(1)
                 
                 DualFieldWaveVisualizer(frequencyLog: frequencyLog, gradientColors: currentRegion.gradientColors)
+                    .frame(minHeight: 80, idealHeight: 100)
             }
-            .frame(height: 100)
         }
     }
-    
+        
     private var sliderBox: some View {
         PremiumCard(title: "Spectrum Frequency Scale (10ˣ Hz)", icon: "slider.horizontal.3", baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors) {
             VStack(spacing: 12) {
@@ -423,24 +427,23 @@ struct ElectromagneticWaveAnalyzerView: View {
                     Spacer()
                     Text("10²⁴ Hz (Gamma)")
                 }
-                .font(.body.weight(.semibold))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             }
             .padding(.top, 4)
-            .frame(height: 100, alignment: .topLeading)
         }
     }
-    
+        
     private var overviewBox: some View {
         PremiumCard(title: "Physical Overview", icon: "book.fill", baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors) {
             Text(currentRegion.description)
-                .font(.title3)
+                .font(.body)
                 .lineSpacing(4)
                 .padding(.top, 4)
-                .frame(height: 120, alignment: .topLeading)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
-    
+        
     private var applicationsBox: some View {
         PremiumCard(title: "Real-World Applications", icon: "globe", baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors) {
             VStack(alignment: .leading, spacing: 10) {
@@ -450,14 +453,13 @@ struct ElectromagneticWaveAnalyzerView: View {
                             .foregroundStyle(LinearGradient(colors: currentRegion.gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
                             .font(.body)
                         Text(app)
-                            .font(.title3)
+                            .font(.body.weight(.medium))
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
                 }
             }
             .padding(.top, 4)
-            .frame(height: 120, alignment: .topLeading)
         }
     }
 }
@@ -471,14 +473,14 @@ struct PremiumCard<Content: View>: View {
     @ViewBuilder var content: () -> Content
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             if let title = title, let icon = icon {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     Image(systemName: icon)
-                        .font(.title3.weight(.bold))
+                        .font(.title3.weight(.semibold))
                         .foregroundStyle(LinearGradient(colors: gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
                     Text(title)
-                        .font(.title3.weight(.bold))
+                        .font(.title3.weight(.semibold))
                         .foregroundStyle(.primary)
                 }
                 Divider().opacity(0.5)
@@ -487,7 +489,7 @@ struct PremiumCard<Content: View>: View {
             content()
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(14)
+        .padding(18)
         .background(
             ZStack {
                 Rectangle().fill(.regularMaterial)
