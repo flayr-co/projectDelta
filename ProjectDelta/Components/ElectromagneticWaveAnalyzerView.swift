@@ -195,10 +195,10 @@ struct ElectromagneticWaveAnalyzerView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .center, spacing: itemSpacing) {
                     
-                    // Generous top padding pushes everything down cleanly and prevents toolbar collision
+                    // Slightly increased top padding to move everything down just a bit more on macOS/wide viewports
                     headerView
-                        .padding(.top, isWide ? 56 : 16)
-                        .padding(.bottom, 6)
+                        .padding(.top, isWide ? 64 : 12)
+                        .padding(.bottom, 4)
                     
                     if isWide {
                         // macOS Layout (Ultra-Compact)
@@ -233,7 +233,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                 }
                 .padding(.horizontal, contentPadding)
                 .padding(.vertical, 4)
-                .padding(.bottom, isWide ? 32 : 120) // Leaves room for iOS tab bar
+                .padding(.bottom, isWide ? 24 : 120) // Leaves room for iOS tab bar
                 .frame(maxWidth: 1200)
                 .frame(maxWidth: .infinity)
             }
