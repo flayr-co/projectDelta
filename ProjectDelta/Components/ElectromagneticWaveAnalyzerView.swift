@@ -223,10 +223,10 @@ struct ElectromagneticWaveAnalyzerView: View {
                     } else {
                         // iOS Layout (Reordered)
                         VStack(spacing: itemSpacing) {
-                            metricsBox(stretch: false, isWide: isWide)
                             visualizerBox(isWide: isWide)
-                            scaleGraphicBox(stretch: false, isWide: isWide)
                             sliderBox(isWide: isWide)
+                            metricsBox(stretch: false, isWide: isWide)
+                            scaleGraphicBox(stretch: false, isWide: isWide)
                             overviewBox(stretch: false, isWide: isWide)
                             applicationsBox(stretch: false, isWide: isWide)
                         }
