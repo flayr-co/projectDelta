@@ -104,18 +104,18 @@ struct LessonView: View {
                     Spacer()
                 }
             } else {
-                // Stack pages to defeat WebKit suspension, matching iOS trick
                 ZStack(alignment: .bottom) {
-                    // Safe enumeration permanently prevents out-of-bounds index crashes. Keyed by .offset to bypass DB ID corruption.
-                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
+                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.element.id) { index, page in
                         LessonContentPage(
                             page: page,
                             isLastPage: index == lessonVM.lessonPages.count - 1,
                             isInteractingWithExplanation: $isInteractingWithExplanation,
                             onBackgroundTap: {}
                         )
-                        .opacity(lessonVM.currentPageIndex == index ? 1.0 : 0.0) // 0.0 eliminates ghosting bleed-through
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.platformSystemGroupedBackground)
                         .allowsHitTesting(lessonVM.currentPageIndex == index)
+                        .opacity(lessonVM.currentPageIndex == index ? 1.0 : 0.01)
                         .zIndex(lessonVM.currentPageIndex == index ? 1 : 0)
                     }
                 }
@@ -127,7 +127,6 @@ struct LessonView: View {
                 .safeAreaInset(edge: .bottom) {
                     if showUIControls { macOSNavigationControls }
                 }
-                // Update bookmarks when pages shift locally without triggering recursive network calls
                 .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                     if lessonVM.lessonPages.indices.contains(newPageIndex) {
                         lessonVM.currentPageDocumentId = lessonVM.lessonPages[newPageIndex].id
@@ -323,11 +322,9 @@ struct LessonView: View {
                         .foregroundColor(.secondary)
                 }
             } else {
-                // Stack pages directly on top of each other to defeat WKWebView's off-screen suspension.
-                // An opacity of 0.0 physically forces the engine to keep equations loaded without rendering visible ghosting.
+                // Stack pages to defeat WKWebView's aggressive iOS suspension algorithms
                 ZStack {
-                    // Safe enumeration permanently prevents out-of-bounds index crashes. Keyed by .offset to bypass DB ID corruption.
-                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
+                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.element.id) { index, page in
                         LessonContentPage(
                             page: page,
                             isLastPage: index == lessonVM.lessonPages.count - 1,
@@ -338,7 +335,19 @@ struct LessonView: View {
                                 }
                             }
                         )
-                        .opacity(lessonVM.currentPageIndex == index ? 1.0 : 0.0) // 0.0 eliminates ghosting bleed-through
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(colorScheme == .dark ? Color.customDarkGray : Color.platformSystemGroupedBackground)
+                        // An opaque overlay allows the underlying WKWebView to mathematically maintain 100% opacity without bleeding into the active page UI
+                        .overlay(
+                            Group {
+                                if lessonVM.currentPageIndex != index {
+                                    (colorScheme == .dark ? Color.customDarkGray : Color.platformSystemGroupedBackground)
+                                        .ignoresSafeArea()
+                                }
+                            }
+                        )
+                        // Force 5% opacity threshold to bypass CoreAnimation occlusion culling completely
+                        .opacity(lessonVM.currentPageIndex == index ? 1.0 : 0.05)
                         .allowsHitTesting(lessonVM.currentPageIndex == index)
                         .zIndex(lessonVM.currentPageIndex == index ? 1 : 0)
                     }
@@ -373,7 +382,6 @@ struct LessonView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                // Update bookmarks when pages shift locally without triggering recursive network calls
                 .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
                     if lessonVM.lessonPages.indices.contains(newPageIndex) {
                         lessonVM.currentPageDocumentId = lessonVM.lessonPages[newPageIndex].id

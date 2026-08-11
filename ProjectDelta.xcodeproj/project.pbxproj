@@ -17,6 +17,7 @@
 		5229BB0A2AD0CC8A0094395D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB092AD0CC8A0094395D /* ContentView.swift */; };
 		5229BB0C2AD0CC8B0094395D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5229BB0B2AD0CC8B0094395D /* Assets.xcassets */; };
 		5229BB0F2AD0CC8B0094395D /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5229BB0E2AD0CC8B0094395D /* Preview Assets.xcassets */; };
+		5251682B302AE4040070EE8C /* ElectromagneticWaveAnalyzerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5251682A302AE4040070EE8C /* ElectromagneticWaveAnalyzerView.swift */; };
 		5254A5CD2AF19F4200AAAA72 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5254A5CC2AF19F4200AAAA72 /* MainTabView.swift */; };
 		5254A5CF2AF1ABAC00AAAA72 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5254A5CE2AF1ABAC00AAAA72 /* HomeView.swift */; };
 		5254A5D12AF1C19300AAAA72 /* DisplayCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5254A5D02AF1C19300AAAA72 /* DisplayCards.swift */; };
@@ -88,6 +89,7 @@
 		5229BB092AD0CC8A0094395D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5229BB0B2AD0CC8B0094395D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5229BB0E2AD0CC8B0094395D /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		5251682A302AE4040070EE8C /* ElectromagneticWaveAnalyzerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElectromagneticWaveAnalyzerView.swift; sourceTree = "<group>"; };
 		5254A5CC2AF19F4200AAAA72 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		5254A5CE2AF1ABAC00AAAA72 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		5254A5D02AF1C19300AAAA72 /* DisplayCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayCards.swift; sourceTree = "<group>"; };
@@ -260,6 +262,7 @@
 				5297E4392AD6434A00220FC6 /* CustomButtonView.swift */,
 				5254A5D02AF1C19300AAAA72 /* DisplayCards.swift */,
 				52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */,
+				5251682A302AE4040070EE8C /* ElectromagneticWaveAnalyzerView.swift */,
 				5258BD552AE3264400F21A50 /* InputView.swift */,
 				5258B5A52FB8337600F1600A /* LessonContentPage.swift */,
 				5254A5CC2AF19F4200AAAA72 /* MainTabView.swift */,
@@ -481,6 +484,7 @@
 				5258BD5A2AE340D700F21A50 /* ProfileView.swift in Sources */,
 				5256AD8A2B041B57008523F7 /* Constants.swift in Sources */,
 				52F903DE2BA521D70093E976 /* Lesson.swift in Sources */,
+				5251682B302AE4040070EE8C /* ElectromagneticWaveAnalyzerView.swift in Sources */,
 				52C8ACFE2FDCFBF60015BABE /* Color+Platform.swift in Sources */,
 				520B96842BA5375600332AF3 /* AdminView.swift in Sources */,
 			);

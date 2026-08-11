@@ -236,6 +236,14 @@ struct HomeView: View {
                 destination: LeaderboardView().navigationBarBackButtonHidden(true)
             )
             
+            // NEW 4TH BUTTON
+            ActionCardButton(
+                title: "EM Analyzer",
+                icon: "waveform.path",
+                color: .purple,
+                destination: ElectromagneticWaveAnalyzerView()
+            )
+            
             Spacer(minLength: 0)
         }
     }
@@ -313,6 +321,13 @@ struct HomeView: View {
                         }
                         .buttonStyle(.plain)
                         .shadow(color: Color.yellow.opacity(0.15), radius: 10, y: 4)
+                        
+                        // NEW 4TH CARD
+                        NavigationLink(destination: ElectromagneticWaveAnalyzerView()) {
+                            DisplayCards(imageName: "waveform.path", title: "EM Analyzer", tintColor: .purple)
+                        }
+                        .buttonStyle(.plain)
+                        .shadow(color: Color.purple.opacity(0.15), radius: 10, y: 4)
                     }
                     .padding(.horizontal, 24)
                     

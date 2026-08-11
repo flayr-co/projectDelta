@@ -58,10 +58,10 @@ struct TableOfContentsView: View {
     private var curriculumView: some View {
         ForEach(lessonVM.currentSubjectLessons, id: \.id) { lesson in
             DisclosureGroup {
-                if let pages = lesson.pages?.sorted(by: { $0.pageNumber < $1.pageNumber }), !pages.isEmpty {
-                    // Safe enumeration masks incorrect pageNumber DB entries with accurate visual indexes
-                    ForEach(Array(pages.enumerated()), id: \.element.id) { index, page in
-                        pageRow(lesson: lesson, page: page, displayIndex: index + 1)
+                if let pages = lesson.pages, !pages.isEmpty {
+                    // With data scrubbed by LessonViewModel, we can safely trust the page.id and page.pageNumber
+                    ForEach(pages, id: \.id) { page in
+                        pageRow(lesson: lesson, page: page)
                     }
                 } else {
                     Text("No pages available.")
@@ -72,11 +72,11 @@ struct TableOfContentsView: View {
             } label: {
                 lessonLabel(lesson: lesson)
             }
-#if os(iOS)
+            #if os(iOS)
             .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.8))
-#else
+            #else
             .listRowBackground(Color.platformSecondarySystemBackground.opacity(0.8))
-#endif
+            #endif
         }
     }
     
@@ -106,11 +106,9 @@ struct TableOfContentsView: View {
             } else {
                 ForEach(bookmarkedLessons, id: \.id) { lesson in
                     Section(header: Text(lesson.name).font(.headline)) {
-                        if let pages = lesson.pages?.sorted(by: { $0.pageNumber < $1.pageNumber }) {
+                        if let pages = lesson.pages {
                             ForEach(pages, id: \.id) { page in
-                                // Calculate accurate origin index to maintain display consistency
-                                let originalIndex = lesson.pages?.sorted(by: { $0.pageNumber < $1.pageNumber }).firstIndex(where: { $0.id == page.id }) ?? 0
-                                pageRow(lesson: lesson, page: page, displayIndex: originalIndex + 1)
+                                pageRow(lesson: lesson, page: page)
                             }
                         }
                     }
@@ -150,21 +148,19 @@ struct TableOfContentsView: View {
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
-        // Allow tapping the lesson header to jump to page 1 directly
         .onTapGesture {
             navigateTo(lesson: lesson, pageNumber: 1)
         }
     }
     
-    private func pageRow(lesson: Lesson, page: Page, displayIndex: Int) -> some View {
+    private func pageRow(lesson: Lesson, page: Page) -> some View {
         let isBookmarked = (lesson.id != nil && page.id != nil) ? authVM.isPageBookmarked(subjectId: subjectName, lessonId: lesson.id!, pageId: page.id!) : false
         
         return Button(action: {
             navigateTo(lesson: lesson, pageNumber: page.pageNumber)
         }) {
             HStack {
-                // Force UI to use the enumerated index instead of the corrupted database field
-                Text("Page \(displayIndex)")
+                Text("Page \(page.pageNumber)")
                     .font(.subheadline)
                     .foregroundColor(.primary)
                 
@@ -178,7 +174,7 @@ struct TableOfContentsView: View {
                 }
             }
             .padding(.vertical, 6)
-            .padding(.leading, 32) // Indent pages under the lesson
+            .padding(.leading, 32)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -186,10 +182,8 @@ struct TableOfContentsView: View {
     
     private func navigateTo(lesson: Lesson, pageNumber: Int) {
         Task {
-            // Wait for the ViewModel to complete its fetch and state updates for the specific page
             await lessonVM.navigateToPage(lessonName: lesson.name, pageNumber: pageNumber, authVM: authVM)
             
-            // Confidently dismiss the Table of Contents
             await MainActor.run {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     isShowing = false
@@ -197,18 +191,4 @@ struct TableOfContentsView: View {
             }
         }
     }
-}
-
-#Preview {
-    let page1 = Page(content: "Intro", pageNumber: 1, readyButtonDisplayed: false)
-    let page2 = Page(content: "Details", pageNumber: 2, readyButtonDisplayed: false)
-    let lesson = Lesson(id: "test_id", name: "Linear Equations", description: "", completed: false, lessonNumber: 1, pages: [page1, page2])
-    
-    let vm = LessonViewModel()
-    vm.currentSubjectLessons = [lesson]
-    vm.currentLesson = lesson
-    vm.currentPageIndex = 0
-    
-    return TableOfContentsView(lessonVM: vm, subjectName: "Algebra", isShowing: .constant(true))
-        .environment(AuthViewModel())
 }
