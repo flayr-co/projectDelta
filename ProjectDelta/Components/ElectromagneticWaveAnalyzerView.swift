@@ -190,19 +190,27 @@ struct ElectromagneticWaveAnalyzerView: View {
         GeometryReader { geo in
             let isWide = geo.size.width > 850
             let contentPadding: CGFloat = isWide ? 32 : 20
-            // Increased spacing to spread the layout vertically on macOS
+            
+#if os(macOS)
+            // Proportional layout geometry to enforce symmetrical distribution
+            let itemSpacing: CGFloat = max(8, geo.size.height * 0.01)
+            let topPadding: CGFloat = max(32, geo.size.height * 0.035) // Pushed down further
+            let bottomPadding: CGFloat = max(8, geo.size.height * 0.01)
+            let minimumHeight: CGFloat = 680
+#else
             let itemSpacing: CGFloat = isWide ? 24 : 16
+            let topPadding: CGFloat = isWide ? 72 : 12
+#endif
             
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .center, spacing: itemSpacing) {
                     
-                    // Indented downwards significantly more for the macOS version
                     headerView(isWide: isWide)
-                        .padding(.top, isWide ? 72 : 12)
-                        .padding(.bottom, isWide ? 12 : 4)
+                        .padding(.top, topPadding)
+                        .padding(.bottom, isWide ? 8 : 4)
                     
                     if isWide {
-                        // macOS Layout (Expanded)
+                        // Expanded Layout
                         Grid(horizontalSpacing: itemSpacing, verticalSpacing: itemSpacing) {
                             GridRow {
                                 metricsBox(stretch: true, isWide: isWide)
@@ -210,7 +218,11 @@ struct ElectromagneticWaveAnalyzerView: View {
                             }
                         }
                         
-                        visualizerBox(isWide: isWide)
+#if os(macOS)
+                        visualizerBox(stretch: true, isWide: isWide)
+#else
+                        visualizerBox(stretch: false, isWide: isWide)
+#endif
                         
                         sliderBox(isWide: isWide)
                         
@@ -221,9 +233,13 @@ struct ElectromagneticWaveAnalyzerView: View {
                             }
                         }
                     } else {
-                        // iOS Layout (Reordered)
+                        // Condensed Layout
                         VStack(spacing: itemSpacing) {
-                            visualizerBox(isWide: isWide)
+#if os(macOS)
+                            visualizerBox(stretch: true, isWide: isWide)
+#else
+                            visualizerBox(stretch: false, isWide: isWide)
+#endif
                             sliderBox(isWide: isWide)
                             metricsBox(stretch: false, isWide: isWide)
                             scaleGraphicBox(stretch: false, isWide: isWide)
@@ -233,10 +249,17 @@ struct ElectromagneticWaveAnalyzerView: View {
                     }
                 }
                 .padding(.horizontal, contentPadding)
-                .padding(.vertical, 4)
-                .padding(.bottom, isWide ? 32 : 120) // Bottom boxes tucked closely
+#if os(macOS)
+                .padding(.bottom, bottomPadding)
                 .frame(maxWidth: 1200)
-                .frame(minHeight: geo.size.height, alignment: .top) // Forces stretch to utilize full height
+                // The geometric constraint: Scales perfectly to window height. Fallback scrolls safely if squished (<680).
+                .frame(minHeight: minimumHeight, maxHeight: max(minimumHeight, geo.size.height), alignment: .top)
+#else
+                .padding(.vertical, 4)
+                .padding(.bottom, isWide ? 32 : 120)
+                .frame(maxWidth: 1200)
+                .frame(minHeight: geo.size.height, alignment: .top)
+#endif
                 .frame(maxWidth: .infinity)
             }
         }
@@ -250,19 +273,30 @@ struct ElectromagneticWaveAnalyzerView: View {
     // MARK: - View Components
     
     private func headerView(isWide: Bool) -> some View {
-        VStack(spacing: isWide ? 8 : 6) {
+#if os(macOS)
+        let iconSize: CGFloat = 36
+        let textSize: CGFloat = 32
+        let spacing: CGFloat = 4
+#else
+        let iconSize: CGFloat = isWide ? 44 : 36
+        let textSize: CGFloat = isWide ? 40 : 32
+        let spacing: CGFloat = isWide ? 8 : 6
+#endif
+
+        return VStack(spacing: spacing) {
             Image(systemName: currentRegion.icon)
-                .font(.system(size: isWide ? 44 : 36, weight: .regular))
+                .font(.system(size: iconSize, weight: .regular))
                 .foregroundStyle(LinearGradient(colors: currentRegion.gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
                 .shadow(color: currentRegion.baseColor.opacity(0.6), radius: 6, x: 0, y: 0)
+                .padding(.top, 28) // Explicitly allocate generous bounding box space for the bounce animation
                 .symbolEffect(.bounce, value: currentRegion.name)
             
             Text(currentRegion.name)
-                .font(.system(size: isWide ? 40 : 32, weight: .medium, design: .rounded))
+                .font(.system(size: textSize, weight: .medium, design: .rounded))
                 .tracking(1.5)
                 .foregroundStyle(LinearGradient(colors: currentRegion.gradientColors, startPoint: .leading, endPoint: .trailing))
                 .contentTransition(.numericText())
-                .frame(height: isWide ? 44 : 36)
+                .frame(height: iconSize)
             
             HStack(spacing: 6) {
                 if currentRegion.name == "Visible Light" {
@@ -363,8 +397,8 @@ struct ElectromagneticWaveAnalyzerView: View {
         }
     }
     
-    private func visualizerBox(isWide: Bool) -> some View {
-        PremiumCard(title: "Transverse Field Oscillations", icon: "waveform.path.ecg", baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors, isWide: isWide) {
+    private func visualizerBox(stretch: Bool, isWide: Bool) -> some View {
+        PremiumCard(title: "Transverse Field Oscillations", icon: "waveform.path.ecg", baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors, stretchVertically: stretch, isWide: isWide) {
             VStack(spacing: 8) {
                 HStack(spacing: 16) {
                     Spacer()
@@ -378,15 +412,21 @@ struct ElectromagneticWaveAnalyzerView: View {
                 .padding(.bottom, -8)
                 .zIndex(1)
                 
-                // Maximized heights for macOS to consume available horizontal card width gracefully
+#if os(macOS)
                 DualFieldWaveVisualizer(frequencyLog: frequencyLog, gradientColors: currentRegion.gradientColors)
-                    .frame(minHeight: isWide ? 90 : 60, idealHeight: isWide ? 120 : 80)
+                    .frame(minHeight: 30, maxHeight: stretch ? .infinity : nil)
+#else
+                let minH: CGFloat = isWide ? 90 : 60
+                let idealH: CGFloat = isWide ? 120 : 80
+                DualFieldWaveVisualizer(frequencyLog: frequencyLog, gradientColors: currentRegion.gradientColors)
+                    .frame(minHeight: minH, idealHeight: idealH)
+#endif
             }
         }
     }
     
     private func sliderBox(isWide: Bool) -> some View {
-        PremiumCard(title: "Spectrum Frequency Scale (10ˣ Hz)", icon: "slider.horizontal.3", baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors, isWide: isWide) {
+        PremiumCard(title: "Spectrum Frequency Scale (10ˣ Hz)", icon: "slider.horizontal.3", baseColor: currentRegion.baseColor, gradientColors: currentRegion.gradientColors, stretchVertically: false, isWide: isWide) {
             VStack(spacing: isWide ? 16 : 12) {
                 // Track Markers
                 GeometryReader { geo in
@@ -466,7 +506,7 @@ struct ElectromagneticWaveAnalyzerView: View {
     }
 }
 
-    // MARK: - Premium Card Container
+// MARK: - Premium Card Container
 struct PremiumCard<Content: View>: View {
     var title: String? = nil
     var icon: String? = nil
@@ -477,7 +517,15 @@ struct PremiumCard<Content: View>: View {
     @ViewBuilder var content: () -> Content
     
     var body: some View {
-        VStack(alignment: .leading, spacing: isWide ? 16 : 12) {
+#if os(macOS)
+        let cardSpacing: CGFloat = 8
+        let cardPadding: CGFloat = 12
+#else
+        let cardSpacing: CGFloat = isWide ? 16 : 12
+        let cardPadding: CGFloat = isWide ? 24 : 18
+#endif
+
+        VStack(alignment: .leading, spacing: cardSpacing) {
             if let title = title, let icon = icon {
                 HStack(spacing: 8) {
                     Image(systemName: icon)
@@ -493,13 +541,12 @@ struct PremiumCard<Content: View>: View {
             content()
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             
-            // Forces the VStack to expand to the max height provided by the parent GridRow
             if stretchVertically {
                 Spacer(minLength: 0)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: stretchVertically ? .infinity : nil, alignment: .topLeading)
-        .padding(isWide ? 24 : 18)
+        .padding(cardPadding)
         .background(
             ZStack {
                 Rectangle().fill(.regularMaterial)
