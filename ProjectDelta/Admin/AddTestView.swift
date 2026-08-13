@@ -42,10 +42,15 @@ class TestBuilderViewModel {
     
     func generateRecommendedTest() async {
         isGenerating = true
-        try? await Task.sleep(for: .seconds(0.8))
-        self.generatedQuestions = (0..<questionCount).map { _ in
-            QuestionWrapper(question: Question(id: UUID().uuidString, correctOptionIndex: 0, options: ["", "", "", ""], points: 10, questionText: "", type: "multiple_choice", subject: subject?.name ?? "", subtopic: lessonName, hint: "", feedback: "", testId: ""))
-        }
+        try? await Task.sleep(for: .seconds(0.3)) // Brief UI yield
+        
+        self.generatedQuestions = QuestionGeneratorEngine.shared.generateQuestions(
+            subject: subject?.name ?? "",
+            subtopic: lessonName,
+            count: questionCount,
+            testId: existingTestId
+        )
+        
         showEditor = true
         isGenerating = false
     }
@@ -144,30 +149,7 @@ struct AddTestView: View {
     
     @ViewBuilder
     private var generatorContent: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "checklist.checked")
-                .font(.system(size: 60))
-                .foregroundColor(emeraldAccent)
-            
-            Text("Assessment Generator")
-                .font(.title)
-                .fontWeight(.heavy)
-            
-            Text("Building structure for:\n**\(lessonName)**")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-            
-            VStack {
-                Text("Question Count: \(viewModel.questionCount)")
-                    .font(.headline)
-                Slider(value: Binding(get: { Double(viewModel.questionCount) }, set: { viewModel.questionCount = Int($0) }), in: 1...50, step: 1)
-                    .tint(emeraldAccent)
-            }
-            .padding()
-            .background(Color.platformSystemBackground)
-            .cornerRadius(16)
-            .padding(.horizontal, 30)
-            
+        VStack(spacing: 16) {
             Button(action: { Task { await viewModel.generateRecommendedTest() } }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
@@ -177,20 +159,43 @@ struct AddTestView: View {
                     if viewModel.isGenerating {
                         ProgressView().tint(.white)
                     } else {
-                        Text("Initialize Canvas")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
+                        HStack {
+                            Image(systemName: "wand.and.stars")
+                            Text("Generate Recommended Questions")
+                        }
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
                     }
                 }
             }
             .disabled(viewModel.isGenerating)
-            .padding(.horizontal, 30)
-            .padding(.top, 10)
             
-            Spacer()
+            Button(action: {
+                withAnimation {
+                    viewModel.generatedQuestions = []
+                    viewModel.showEditor = true
+                }
+            }) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(emeraldAccent, lineWidth: 2)
+                        .background(Color.platformSystemBackground.cornerRadius(14))
+                        .frame(height: 55)
+                    
+                    HStack {
+                        Image(systemName: "hammer.fill")
+                        Text("Build Manually with Blocks")
+                    }
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(emeraldAccent)
+                }
+            }
+            .disabled(viewModel.isGenerating)
         }
-        .padding(.top, 60)
+        .padding(.horizontal, 30)
+        .padding(.top, 10)
     }
     
     @ViewBuilder

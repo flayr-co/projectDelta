@@ -122,23 +122,14 @@ class AdminTestManagerViewModel {
     
     func generateRecommendedTest() async {
         isGenerating = true
-        try? await Task.sleep(for: .seconds(0.8))
+        try? await Task.sleep(for: .seconds(0.3)) // Brief UI yield
         
-        self.generatedQuestions = (0..<questionCount).map { _ in
-            QuestionWrapper(question: Question(
-                id: UUID().uuidString,
-                correctOptionIndex: 0,
-                options: ["", "", "", ""],
-                points: 10,
-                questionText: "",
-                type: "multiple_choice",
-                subject: finalSubject,
-                subtopic: finalLesson,
-                hint: "",
-                feedback: "",
-                testId: existingTestId
-            ))
-        }
+        self.generatedQuestions = QuestionGeneratorEngine.shared.generateQuestions(
+            subject: finalSubject,
+            subtopic: finalLesson,
+            count: questionCount,
+            testId: existingTestId
+        )
         
         isGenerating = false
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showEditor = true }

@@ -149,9 +149,9 @@ struct LessonEditorView: View {
         .safeAreaInset(edge: .bottom) {
             Button(action: { showTestBuilder = true }) {
                 HStack {
-                    Image(systemName: "wand.and.stars.inverse")
+                    Image(systemName: "plus.rectangle.on.rectangle")
                         .font(.title3)
-                    Text("Generate Linked Test")
+                    Text("Create Linked Assessment")
                         .fontWeight(.bold)
                 }
                 .frame(maxWidth: .infinity)

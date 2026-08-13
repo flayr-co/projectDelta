@@ -38,6 +38,10 @@
 		526284052FC6C93500EED886 /* AdminTestManagerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526284042FC6C93500EED886 /* AdminTestManagerViewModel.swift */; };
 		5263B8732BFBB5CB00CE0DD0 /* ProfileViewDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */; };
 		52643E012FCACAEB00859741 /* MetricsCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52643E002FCACAEB00859741 /* MetricsCarouselView.swift */; };
+		526607C6302D7EDD00A260AF /* TestGeneratorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526607C5302D7EDD00A260AF /* TestGeneratorViewModel.swift */; };
+		526607C8302D7EEC00A260AF /* TestGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526607C7302D7EEC00A260AF /* TestGeneratorView.swift */; };
+		526607CA302D850000A260AF /* QuestionTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526607C9302D850000A260AF /* QuestionTemplate.swift */; };
+		526607CC302D851000A260AF /* LinearEquationTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526607CB302D851000A260AF /* LinearEquationTemplate.swift */; };
 		52668ED12BFD06FA0019965F /* LatexView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52668ED02BFD06FA0019965F /* LatexView.swift */; };
 		526CF3002FD75619001DA9D2 /* UniversalBlockEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */; };
 		527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98712AEB22990031F9E6 /* GreetingText.swift */; };
@@ -109,6 +113,10 @@
 		526284042FC6C93500EED886 /* AdminTestManagerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminTestManagerViewModel.swift; sourceTree = "<group>"; };
 		5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewDetail.swift; sourceTree = "<group>"; };
 		52643E002FCACAEB00859741 /* MetricsCarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricsCarouselView.swift; sourceTree = "<group>"; };
+		526607C5302D7EDD00A260AF /* TestGeneratorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestGeneratorViewModel.swift; sourceTree = "<group>"; };
+		526607C7302D7EEC00A260AF /* TestGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestGeneratorView.swift; sourceTree = "<group>"; };
+		526607C9302D850000A260AF /* QuestionTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionTemplate.swift; sourceTree = "<group>"; };
+		526607CB302D851000A260AF /* LinearEquationTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinearEquationTemplate.swift; sourceTree = "<group>"; };
 		52668ED02BFD06FA0019965F /* LatexView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatexView.swift; sourceTree = "<group>"; };
 		526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalBlockEditorView.swift; sourceTree = "<group>"; };
 		527F98712AEB22990031F9E6 /* GreetingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingText.swift; sourceTree = "<group>"; };
@@ -164,6 +172,10 @@
 		520B96822BA5372600332AF3 /* Admin */ = {
 			isa = PBXGroup;
 			children = (
+				526607CB302D851000A260AF /* LinearEquationTemplate.swift */,
+				526607C9302D850000A260AF /* QuestionTemplate.swift */,
+				526607C7302D7EEC00A260AF /* TestGeneratorView.swift */,
+				526607C5302D7EDD00A260AF /* TestGeneratorViewModel.swift */,
 				52CDD6543000BEFE00705307 /* SuperAdminConsoleView.swift */,
 				526284042FC6C93500EED886 /* AdminTestManagerViewModel.swift */,
 				52920AE82B15662900B60A14 /* AddQuestionView.swift */,
@@ -431,12 +443,14 @@
 				527F987C2AEC5D410031F9E6 /* SubjectGridView.swift in Sources */,
 				526CF3002FD75619001DA9D2 /* UniversalBlockEditorView.swift in Sources */,
 				527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */,
+				526607CA302D850000A260AF /* QuestionTemplate.swift in Sources */,
 				5254A5CF2AF1ABAC00AAAA72 /* HomeView.swift in Sources */,
 				52643E012FCACAEB00859741 /* MetricsCarouselView.swift in Sources */,
 				5254A5D12AF1C19300AAAA72 /* DisplayCards.swift in Sources */,
 				526284052FC6C93500EED886 /* AdminTestManagerViewModel.swift in Sources */,
 				5229BB0A2AD0CC8A0094395D /* ContentView.swift in Sources */,
 				527F98762AEC4E080031F9E6 /* QuizViewModel.swift in Sources */,
+				526607C6302D7EDD00A260AF /* TestGeneratorViewModel.swift in Sources */,
 				5254A5D72AF1D43100AAAA72 /* LeaderboardView.swift in Sources */,
 				520B96862BA538BD00332AF3 /* AdminViewModel.swift in Sources */,
 				521887B92FB4FB7F00D97803 /* QuizSnapshot.swift in Sources */,
@@ -466,6 +480,7 @@
 				5258BD5C2AE344C200F21A50 /* SettingsRowView.swift in Sources */,
 				5258B5A62FB8337600F1600A /* LessonContentPage.swift in Sources */,
 				52D998F32ADB353E007F90A6 /* FirestoreManager.swift in Sources */,
+				526607CC302D851000A260AF /* LinearEquationTemplate.swift in Sources */,
 				5297E43A2AD6434A00220FC6 /* CustomButtonView.swift in Sources */,
 				5258BD562AE3264400F21A50 /* InputView.swift in Sources */,
 				52668ED12BFD06FA0019965F /* LatexView.swift in Sources */,
@@ -479,6 +494,7 @@
 				5258BD5E2AE4753F00F21A50 /* User.swift in Sources */,
 				52920AE92B15662900B60A14 /* AddQuestionView.swift in Sources */,
 				52C72D682AFB014800BDC77E /* BarChartView.swift in Sources */,
+				526607C8302D7EEC00A260AF /* TestGeneratorView.swift in Sources */,
 				5258BD492AE0A26C00F21A50 /* SignInView.swift in Sources */,
 				5284D28B2B212C0800409048 /* UserStatsView.swift in Sources */,
 				5258BD5A2AE340D700F21A50 /* ProfileView.swift in Sources */,
