@@ -193,13 +193,15 @@ struct ElectromagneticWaveAnalyzerView: View {
             
 #if os(macOS)
             // Proportional layout geometry to enforce symmetrical distribution
-            let itemSpacing: CGFloat = max(8, geo.size.height * 0.01)
-            let topPadding: CGFloat = max(32, geo.size.height * 0.035) // Pushed down further
-            let bottomPadding: CGFloat = max(8, geo.size.height * 0.01)
+            let itemSpacing: CGFloat = max(16, geo.size.height * 0.02)
+            let topPadding: CGFloat = max(48, geo.size.height * 0.04) // Decreased to lift content
+            let bottomPadding: CGFloat = max(56, geo.size.height * 0.06) // Increased to prevent flush bottom
+            let headerBottomPadding: CGFloat = 32 // macOS specific spacing below the header
             let minimumHeight: CGFloat = 680
 #else
             let itemSpacing: CGFloat = isWide ? 24 : 16
             let topPadding: CGFloat = isWide ? 72 : 12
+            let headerBottomPadding: CGFloat = isWide ? 8 : 4 // Restored original iOS spacing
 #endif
             
             ScrollView(.vertical, showsIndicators: false) {
@@ -207,7 +209,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                     
                     headerView(isWide: isWide)
                         .padding(.top, topPadding)
-                        .padding(.bottom, isWide ? 8 : 4)
+                        .padding(.bottom, headerBottomPadding)
                     
                     if isWide {
                         // Expanded Layout
@@ -276,7 +278,7 @@ struct ElectromagneticWaveAnalyzerView: View {
 #if os(macOS)
         let iconSize: CGFloat = 36
         let textSize: CGFloat = 32
-        let spacing: CGFloat = 4
+        let spacing: CGFloat = 16 // Increased from 4 for more space between icon and text
 #else
         let iconSize: CGFloat = isWide ? 44 : 36
         let textSize: CGFloat = isWide ? 40 : 32
@@ -289,6 +291,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                 .foregroundStyle(LinearGradient(colors: currentRegion.gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
                 .shadow(color: currentRegion.baseColor.opacity(0.6), radius: 6, x: 0, y: 0)
                 .padding(.top, 28) // Explicitly allocate generous bounding box space for the bounce animation
+                .frame(width: iconSize * 1.5, height: iconSize)
                 .symbolEffect(.bounce, value: currentRegion.name)
             
             Text(currentRegion.name)
@@ -301,10 +304,12 @@ struct ElectromagneticWaveAnalyzerView: View {
             HStack(spacing: 6) {
                 if currentRegion.name == "Visible Light" {
                     Image(systemName: "rainbow")
+                        .frame(width: 20, height: 20)
                     Text("Optical Spectrum")
                         .font((isWide ? Font.body : Font.caption).weight(.bold))
                 } else {
                     Image(systemName: isIonizing ? "exclamationmark.triangle.fill" : "checkmark.shield.fill")
+                        .frame(width: 20, height: 20)
                     Text(isIonizing ? "Ionizing Radiation" : "Non-Ionizing Radiation")
                         .font((isWide ? Font.body : Font.caption).weight(.bold))
                 }
@@ -340,6 +345,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                     Text("\(frequency.formatted(.number.notation(.scientific))) Hz")
                         .font((isWide ? Font.title3 : Font.headline).weight(.bold))
                         .monospacedDigit()
+                        .contentTransition(.numericText())
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                 }
@@ -350,6 +356,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                     Text("\(wavelength.formatted(.number.notation(.scientific))) m")
                         .font((isWide ? Font.title3 : Font.headline).weight(.bold))
                         .monospacedDigit()
+                        .contentTransition(.numericText())
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                 }
@@ -360,6 +367,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                     Text("\(photonEnergyJoules.formatted(.number.notation(.scientific))) J")
                         .font((isWide ? Font.title3 : Font.headline).weight(.bold))
                         .monospacedDigit()
+                        .contentTransition(.numericText())
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                 }
