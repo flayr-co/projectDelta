@@ -17,10 +17,7 @@ struct UniversalTestView: View {
     @State private var currentQuestionIndex = 0
     @State private var selectedQuestionIndex = 0
     @State private var isSubmitting: Bool = false
-    @State private var isHintExpanded: Bool = false
-    @State private var breakdownStates: [String: Bool] = [:]
     @State private var showAdminEditor = false
-    @State private var hoveredOptions: [String: Int] = [:]
     
     @State private var timeRemaining: Int = 300
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -138,11 +135,7 @@ struct UniversalTestView: View {
                     macOSHeader
                         .zIndex(1)
                     
-                    ScrollView(showsIndicators: false) {
-                        questionContentPage(for: currentQuestionIndex)
-                            .padding(.top, 40)
-                            .padding(.bottom, 140)
-                    }
+                    QuestionContentPage(index: currentQuestionIndex, mode: mode, themeColor: themeColor)
                 }
                 
                 VStack {
@@ -363,7 +356,7 @@ struct UniversalTestView: View {
                 ZStack(alignment: .top) {
                     TabView(selection: $currentQuestionIndex) {
                         ForEach(0..<testViewModel.questions.count, id: \.self) { index in
-                            questionContentPage(for: index)
+                            QuestionContentPage(index: index, mode: mode, themeColor: themeColor)
                                 .tag(index)
                         }
                     }
@@ -513,122 +506,6 @@ struct UniversalTestView: View {
     #endif
 
     // MARK: - SHARED COMPONENTS
-    @ViewBuilder
-    private func questionContentPage(for index: Int) -> some View {
-        ScrollView {
-            if index < testViewModel.questions.count {
-                let question = testViewModel.questions[index]
-                let qId = question.id ?? UUID().uuidString
-                
-                if !question.parsedBlocks.isEmpty {
-                    VStack(alignment: .leading, spacing: 24) {
-                        VStack(alignment: .leading, spacing: 16) {
-                            ForEach(question.parsedBlocks) { block in
-                                if block.type == QuestionBlockType.text.rawValue {
-                                    Text(block.content)
-                                        .font(.system(size: 22, weight: .semibold, design: .rounded))
-                                        .foregroundColor(.primary)
-                                        .multilineTextAlignment(.leading)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                } else if block.type == QuestionBlockType.math.rawValue {
-                                    LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
-                                        .padding(12)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.secondary.opacity(0.05))
-                                        .cornerRadius(12)
-                                } else if block.type == QuestionBlockType.graph.rawValue {
-                                    InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
-                                        .padding(.vertical, 8)
-                                }
-                            }
-                        }
-                        .padding(32)
-                        .background(Color.platformSystemBackground)
-                        .cornerRadius(24)
-                        .shadow(color: .black.opacity(0.06), radius: 20, x: 0, y: 10)
-                        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
-                        .padding(.horizontal, 20)
-                        .padding(.top, mode.isTimed ? 64 : 24)
-                        
-                        if let hint = question.hint, !hint.isEmpty {
-                            DisclosureGroup("Hint", isExpanded: $isHintExpanded) {
-                                ExampleView(text: hint, themeColor: themeColor)
-                                    .padding(.top, 8)
-                            }
-                            .tint(themeColor)
-                            .padding(.horizontal, 24)
-                        }
-                        
-                        if case .practice = mode, let feedback = question.feedback, !feedback.isEmpty {
-                            DisclosureGroup(isExpanded: Binding(get: { self.breakdownStates[qId, default: false] }, set: { self.breakdownStates[qId] = $0 })) {
-                                ExampleView(text: feedback, themeColor: themeColor)
-                                    .padding(.top, 8)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            } label: {
-                                HStack {
-                                    Image(systemName: "lightbulb.fill").foregroundColor(.yellow)
-                                    Text("Step-by-Step Breakdown")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                }
-                            }
-                            .tint(themeColor)
-                            .padding(16)
-                            .background(Color.platformSystemBackground)
-                            .cornerRadius(16)
-                            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 5)
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
-                            .padding(.horizontal, 20)
-                        }
-                        
-                        VStack(spacing: 12) {
-                            let currentOptions = question.options; let selectedIndex = testViewModel.userAnswers[qId]
-                            ForEach(currentOptions.indices, id: \.self) { optIndex in
-                                Button {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        testViewModel.selectAnswer(for: qId, optionIndex: optIndex)
-                                    }
-                                } label: {
-                                    HStack {
-                                        Text(currentOptions[optIndex])
-                                            .multilineTextAlignment(.leading)
-                                            .foregroundColor(selectedIndex == optIndex ? .white : .primary)
-                                            .font(.system(.body, design: .rounded, weight: selectedIndex == optIndex ? .bold : .regular))
-                                        Spacer()
-                                        if selectedIndex == optIndex {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.white)
-                                                .font(.system(size: 20))
-                                        } else {
-                                            Circle()
-                                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1.5)
-                                                .frame(width: 20, height: 20)
-                                        }
-                                    }
-                                    .padding()
-                                    .contentShape(Rectangle())
-                                    .background(selectedIndex == optIndex ? themeColor : (hoveredOptions[qId] == optIndex ? Color.secondary.opacity(0.15) : Color.platformSystemBackground))
-                                    .cornerRadius(16)
-                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(selectedIndex == optIndex ? themeColor : Color.primary.opacity(0.08), lineWidth: 1))
-                                    .shadow(color: selectedIndex == optIndex ? themeColor.opacity(0.3) : .clear, radius: 5, y: 3)
-                                }
-                                .buttonStyle(.plain)
-                                .onHover { isHovered in if isHovered { hoveredOptions[qId] = optIndex } else if hoveredOptions[qId] == optIndex { hoveredOptions[qId] = nil } }
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        Spacer(minLength: 40)
-                    }
-                    #if os(macOS)
-                    .frame(maxWidth: 800)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    #endif
-                }
-            }
-        }
-        .scrollIndicators(.hidden)
-    }
 
     private var quizEndView: some View {
         ScrollView {
@@ -713,5 +590,183 @@ struct UniversalTestView: View {
             let document = try await db.collection("UserProgress").document(userId).getDocument()
             if let progress = try? document.data(as: UserProgress.self) { testViewModel.userProgress = progress }
         } catch { print("Failed to fetch user progress: \(error.localizedDescription)") }
+    }
+}
+
+// MARK: - SHARED COMPONENTS
+struct QuestionContentPage: View {
+    let index: Int
+    let mode: TestMode
+    let themeColor: Color
+    
+    @Environment(TestSessionViewModel.self) var testViewModel
+    
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            if index < testViewModel.questions.count {
+                IsolatedQuestionCard(
+                    question: testViewModel.questions[index],
+                    themeColor: themeColor,
+                    mode: mode
+                )
+                .padding(.top, mode.isTimed ? 64 : 40)
+                .padding(.bottom, 140)
+            }
+        }
+    }
+}
+
+struct IsolatedQuestionCard: View {
+    let question: Question
+    let themeColor: Color
+    let mode: TestMode
+    
+    @Environment(TestSessionViewModel.self) var testViewModel
+    
+    @State private var isHintExpanded: Bool = false
+    @State private var isFeedbackExpanded: Bool = false
+    @State private var hoveredOption: Int? = nil
+    
+    var body: some View {
+        let qId = question.id ?? UUID().uuidString
+        // Pulling the selected answer purely locally stops the parent View from redrawing
+        let selectedIndex = testViewModel.userAnswers[qId]
+        
+        VStack(alignment: .leading, spacing: 32) {
+            
+            // 1. Question Canvas
+            if !question.parsedBlocks.isEmpty {
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(question.parsedBlocks) { block in
+                        if block.type == QuestionBlockType.text.rawValue {
+                            Text(block.content)
+                                .font(.system(size: 22, weight: .semibold, design: .rounded))
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else if block.type == QuestionBlockType.math.rawValue {
+                            LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
+                                .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .background(Color.secondary.opacity(0.05))
+                                .cornerRadius(16)
+                        } else if block.type == QuestionBlockType.graph.rawValue {
+                            InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
+                                .padding(.vertical, 8)
+                        }
+                    }
+                }
+                .padding(32)
+                .background(Color.platformSystemBackground)
+                .cornerRadius(24)
+                .shadow(color: .black.opacity(0.04), radius: 20, y: 10)
+                .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+            }
+            
+            // 2. Animated Hint & Feedback
+            VStack(spacing: 16) {
+                if let hint = question.hint, !hint.isEmpty {
+                    expandableSection(title: "Hint", icon: "lightbulb", color: .yellow, isExpanded: $isHintExpanded, content: hint)
+                }
+                
+                if case .practice = mode, let feedback = question.feedback, !feedback.isEmpty {
+                    expandableSection(title: "Step-by-Step Breakdown", icon: "text.book.closed.fill", color: themeColor, isExpanded: $isFeedbackExpanded, content: feedback)
+                }
+            }
+            
+            // 3. Tactile Multiple Choice Options
+            VStack(spacing: 16) {
+                ForEach(question.options.indices, id: \.self) { optIndex in
+                    let isSelected = selectedIndex == optIndex
+                    let isHovered = hoveredOption == optIndex
+                    
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            testViewModel.selectAnswer(for: qId, optionIndex: optIndex)
+                        }
+                    }) {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .stroke(isSelected ? themeColor : Color.secondary.opacity(0.3), lineWidth: isSelected ? 6 : 2)
+                                    .frame(width: 24, height: 24)
+                                
+                                if isSelected {
+                                    Circle()
+                                        .fill(themeColor)
+                                        .frame(width: 12, height: 12)
+                                }
+                            }
+                            
+                            Text(question.options[optIndex])
+                                .multilineTextAlignment(.leading)
+                                .foregroundColor(isSelected ? themeColor : .primary)
+                                .font(.system(.title3, design: .rounded, weight: isSelected ? .bold : .medium))
+                            
+                            Spacer()
+                        }
+                        .padding(20)
+                        .contentShape(Rectangle())
+                        .background(isSelected ? themeColor.opacity(0.05) : (isHovered ? Color.secondary.opacity(0.05) : Color.platformSystemBackground))
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(isSelected ? themeColor : Color.primary.opacity(0.08), lineWidth: isSelected ? 2 : 1)
+                        )
+                        .shadow(color: isSelected ? themeColor.opacity(0.15) : .clear, radius: 10, y: 4)
+                        .scaleEffect(isSelected ? 1.02 : 1.0)
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            hoveredOption = hovering ? optIndex : nil
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 24)
+        #if os(macOS)
+        .frame(maxWidth: 800)
+        .frame(maxWidth: .infinity, alignment: .center)
+        #endif
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isHintExpanded)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isFeedbackExpanded)
+    }
+    
+    @ViewBuilder
+    private func expandableSection(title: String, icon: String, color: Color, isExpanded: Binding<Bool>, content: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: {
+                isExpanded.wrappedValue.toggle()
+            }) {
+                HStack {
+                    Image(systemName: icon)
+                        .foregroundColor(color)
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
+                }
+                .padding(20)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            
+            if isExpanded.wrappedValue {
+                Divider().padding(.horizontal, 20)
+                ExampleView(text: content, themeColor: themeColor)
+                    .padding(20)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(Color.platformSystemBackground)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.03), radius: 10, y: 5)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
     }
 }

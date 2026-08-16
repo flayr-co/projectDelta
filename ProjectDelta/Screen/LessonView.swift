@@ -11,6 +11,7 @@ struct LessonView: View {
     var subjectName: String
     @Environment(LessonViewModel.self) var lessonVM
     @Environment(AuthViewModel.self) var authVM
+    @Environment(TestSessionViewModel.self) var testViewModel
 
     @State private var showTableOfContents = false
     @State private var isInteractingWithExplanation: Bool = false
@@ -20,6 +21,7 @@ struct LessonView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var hasQuiz: Bool = false
+    @State private var showAssessment = false
 
     var body: some View {
         Group {
@@ -58,6 +60,7 @@ struct LessonView: View {
             
             if let docs = byIdSnap?.documents, !docs.isEmpty {
                 withAnimation { hasQuiz = true }
+                testViewModel.fetchTest(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))
                 return
             }
             
@@ -69,6 +72,7 @@ struct LessonView: View {
                     .getDocuments()
                 if !testsSnap.documents.isEmpty {
                     withAnimation { hasQuiz = true }
+                    testViewModel.fetchTest(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))
                     return
                 }
             }
@@ -487,6 +491,7 @@ struct LessonView: View {
                     .clipShape(Capsule())
                     .shadow(color: Color.teal.opacity(0.4), radius: 12, y: 4)
                 }
+                .buttonStyle(.plain)
                 .padding(.horizontal, 24)
             }
             

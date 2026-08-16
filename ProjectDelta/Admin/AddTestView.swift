@@ -7,6 +7,16 @@ import SwiftUI
 import FirebaseFirestore
 import Observation
 
+@Observable
+class EditableQuestion: Identifiable {
+    let id = UUID()
+    var question: Question
+    
+    init(question: Question) {
+        self.question = question
+    }
+}
+
 @MainActor
 @Observable
 class TestBuilderViewModel {
@@ -14,7 +24,7 @@ class TestBuilderViewModel {
     var lessonName: String = ""
     var testTitle: String = ""
     var questionCount: Int = 10
-    var generatedQuestions: [QuestionWrapper] = []
+    var generatedQuestions: [EditableQuestion] = [] // Upgraded to Reference Type
     var isGenerating: Bool = false
     var isSaving: Bool = false
     var showEditor: Bool = false
@@ -34,7 +44,8 @@ class TestBuilderViewModel {
         do {
             let snapshot = try await db.collection("Subjects").document(subjectId).collection("Tests").document(testId).collection("Questions").getDocuments()
             let rawQuestions = snapshot.documents.compactMap { try? $0.data(as: Question.self) }
-            self.generatedQuestions = rawQuestions.map { QuestionWrapper(question: $0) }
+            // Map to Observable Class
+            self.generatedQuestions = rawQuestions.map { EditableQuestion(question: $0) }
             self.showEditor = true
         } catch { print("Error: \(error)") }
         isGenerating = false
@@ -44,12 +55,15 @@ class TestBuilderViewModel {
         isGenerating = true
         try? await Task.sleep(for: .seconds(0.3)) // Brief UI yield
         
-        self.generatedQuestions = QuestionGeneratorEngine.shared.generateQuestions(
+        let generatedWrappers = QuestionGeneratorEngine.shared.generateQuestions(
             subject: subject?.name ?? "",
             subtopic: lessonName,
             count: questionCount,
             testId: existingTestId
         )
+        
+        // Map to Observable Class
+        self.generatedQuestions = generatedWrappers.map { EditableQuestion(question: $0.question) }
         
         showEditor = true
         isGenerating = false
@@ -84,7 +98,7 @@ class TestBuilderViewModel {
             }
             
             for wrapper in generatedQuestions {
-                var question = wrapper.question
+                var question = wrapper.question // Extract the struct for saving
                 let qId = question.id ?? UUID().uuidString
                 question.id = qId
                 let docData: [String: Any] = ["correctOptionIndex": question.correctOptionIndex, "options": question.options, "points": question.points, "questionText": question.questionText, "type": question.type, "subject": subject.name, "subtopic": lessonName, "hint": question.hint ?? "", "feedback": question.feedback ?? "", "testId": testId]
@@ -203,43 +217,48 @@ struct AddTestView: View {
         @Bindable var bindableVM = viewModel
         
         ScrollView {
-            LazyVStack(spacing: 20) {
-                // Metadata
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Test Configuration")
+            LazyVStack(spacing: 32) {
+                // Metadata Header
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Assessment Configuration")
                         .font(.caption)
                         .fontWeight(.bold)
                         .foregroundColor(.secondary)
                         .textCase(.uppercase)
                     
                     TextField("Assessment Title...", text: $bindableVM.testTitle)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .padding()
+                        .font(.system(size: 32, weight: .heavy, design: .rounded))
+                        .padding(20)
                         .background(Color.platformSystemBackground)
-                        .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                        )
                 }
-                .padding(.horizontal)
-                .padding(.top, 16)
                 
                 // Questions Array
-                ForEach($bindableVM.generatedQuestions) { $wrapper in
-                    let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == wrapper.id }) ?? 0
-                    
-                    AdminQuestionEditorCell(
-                        question: $wrapper.question,
-                        index: index,
-                        onDelete: {
-                            withAnimation { viewModel.generatedQuestions.removeAll(where: { $0.id == wrapper.id }) }
-                        }
-                    )
+                LazyVStack(spacing: 20) {
+                    ForEach(bindableVM.generatedQuestions) { editableQuestion in
+                        let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == editableQuestion.id }) ?? 0
+                        
+                        AdminQuestionEditorCell(
+                            editableQuestion: editableQuestion,
+                            index: index,
+                            onDelete: {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    viewModel.generatedQuestions.removeAll(where: { $0.id == editableQuestion.id })
+                                }
+                            }
+                        )
+                    }
                 }
                 
                 // Add Button
                 Button(action: {
-                    withAnimation {
-                        viewModel.generatedQuestions.append(QuestionWrapper(question: Question(
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        viewModel.generatedQuestions.append(EditableQuestion(question: Question(
                             id: UUID().uuidString, correctOptionIndex: 0, options: ["", "", "", ""], points: 10, questionText: "", type: "multiple_choice", subject: subject.name, subtopic: lessonName, hint: "", feedback: "", testId: viewModel.existingTestId
                         )))
                     }
@@ -251,17 +270,29 @@ struct AddTestView: View {
                     }
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(emeraldAccent.opacity(0.15))
+                    .background(emeraldAccent.opacity(0.10))
                     .foregroundColor(emeraldAccent)
-                    .cornerRadius(12)
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(emeraldAccent.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                    )
                 }
-                .padding(.horizontal)
+                .buttonStyle(.plain)
                 
-                Spacer(minLength: 100)
+                Spacer(minLength: 120)
             }
+            .frame(maxWidth: 800) // Constrains width for absolute readability on macOS
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
         }
+        .frame(maxWidth: .infinity) // Centers the constrained column within the scroll view
         .scrollDismissesKeyboard(.interactively)
-        #if os(iOS)
+#if os(macOS)
+        .safeAreaPadding(.top, 56) // Scientifically fixes the macOS title bar cutoff
+#endif
+        
+#if os(iOS)
         .safeAreaInset(edge: .bottom) {
             Button(action: {
                 Task { await viewModel.saveTestToDatabase(); dismiss() }
@@ -286,84 +317,133 @@ struct AddTestView: View {
             .padding(.bottom, 16)
             .background(Color.platformSystemGroupedBackground.opacity(0.95))
         }
-        #endif
+#endif
     }
 }
 
 struct AdminQuestionEditorCell: View {
-    @Binding var question: Question
+    @Bindable var editableQuestion: EditableQuestion
     var index: Int
     var onDelete: () -> Void
     
     @State private var blocks: [QuestionBlockModel] = []
+    @State private var isExpanded: Bool = false
     let emeraldAccent = Color(red: 0.18, green: 0.70, blue: 0.45)
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Question \(index + 1)")
-                    .font(.headline)
-                    .foregroundColor(emeraldAccent)
-                Spacer()
-                Button(role: .destructive, action: onDelete) {
-                    Image(systemName: "trash.fill")
-                        .foregroundColor(.red.opacity(0.8))
-                        .padding(8)
-                        .background(Color.red.opacity(0.1))
-                        .clipShape(Circle())
+        VStack(alignment: .leading, spacing: 0) {
+            // Header (Always visible)
+            Button(action: {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
                 }
+            }) {
+                HStack(spacing: 16) {
+                    Text("\(index + 1)")
+                        .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .foregroundColor(isExpanded ? emeraldAccent : .secondary.opacity(0.5))
+                        .frame(width: 28, alignment: .leading)
+                    
+                    Text(isExpanded ? "Editing Question" : "Question \(index + 1)")
+                        .font(.headline)
+                        .foregroundColor(isExpanded ? emeraldAccent : .primary)
+                    
+                    Spacer()
+                    
+                    Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(isExpanded ? emeraldAccent : .secondary.opacity(0.5))
+                    
+                    Divider().frame(height: 24).padding(.horizontal, 4)
+                    
+                    Button(role: .destructive, action: onDelete) {
+                        Image(systemName: "trash.fill")
+                            .foregroundColor(.red.opacity(0.8))
+                            .font(.title3)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(20)
+                .background(isExpanded ? emeraldAccent.opacity(0.05) : Color.clear)
             }
+            .buttonStyle(.plain)
             
-            Divider()
-            
-            UniversalBlockEditorView(blocks: $blocks)
-                .onChange(of: blocks) { _, newBlocks in
-                    question.updateWith(blocks: newBlocks)
-                }
-            
-            Divider()
-            
-            Text("Multiple Choice Parameters")
-                .font(.caption)
-                .fontWeight(.bold)
-                .foregroundColor(.secondary)
-            
-            VStack(spacing: 12) {
-                ForEach(0..<4, id: \.self) { i in
-                    HStack {
-                        Button(action: { question.correctOptionIndex = i }) {
-                            Image(systemName: question.correctOptionIndex == i ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(question.correctOptionIndex == i ? emeraldAccent : .gray.opacity(0.5))
-                                .font(.title3)
+            // Editor Body (Collapsible)
+            if isExpanded {
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 24) {
+                    UniversalBlockEditorView(blocks: $blocks)
+                        .onChange(of: blocks) { _, newBlocks in
+                            editableQuestion.question.updateWith(blocks: newBlocks)
                         }
-                        .buttonStyle(.plain)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Multiple Choice Parameters")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
                         
-                        TextField("Option \(i + 1)", text: Binding(
-                            get: { question.options.indices.contains(i) ? question.options[i] : "" },
-                            set: { if question.options.indices.contains(i) { question.options[i] = $0 } }
-                        ))
-                        .padding(10)
-                        .background(Color.platformSecondarySystemBackground)
-                        .cornerRadius(8)
+                        VStack(spacing: 12) {
+                            ForEach(0..<4, id: \.self) { i in
+                                HStack {
+                                    Button(action: {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                            editableQuestion.question.correctOptionIndex = i
+                                        }
+                                    }) {
+                                        Image(systemName: editableQuestion.question.correctOptionIndex == i ? "checkmark.circle.fill" : "circle")
+                                            .foregroundColor(editableQuestion.question.correctOptionIndex == i ? emeraldAccent : .gray.opacity(0.3))
+                                            .font(.title2)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    TextField("Option \(i + 1)", text: Binding(
+                                        get: { editableQuestion.question.options.indices.contains(i) ? editableQuestion.question.options[i] : "" },
+                                        set: { if editableQuestion.question.options.indices.contains(i) { editableQuestion.question.options[i] = $0 } }
+                                    ))
+                                    .padding(14)
+                                    .background(Color.platformSecondarySystemBackground)
+                                    .cornerRadius(10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(editableQuestion.question.correctOptionIndex == i ? emeraldAccent : Color.clear, lineWidth: 1)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextField("Optional Hint/Feedback...", text: Binding(
+                            get: { editableQuestion.question.hint ?? "" },
+                            set: { editableQuestion.question.hint = $0.isEmpty ? nil : $0 }
+                        ), axis: .vertical)
+                        .lineLimit(2...4)
+                        .padding(14)
+                        .background(Color.yellow.opacity(0.1))
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.yellow.opacity(0.3), lineWidth: 1)
+                        )
                     }
                 }
+                .padding(20)
             }
-            
-            TextField("Optional Hint/Feedback...", text: Binding(
-                get: { question.hint ?? "" },
-                set: { question.hint = $0.isEmpty ? nil : $0 }
-            ))
-            .padding(10)
-            .background(Color.yellow.opacity(0.1))
-            .cornerRadius(8)
         }
-        .padding()
         .background(Color.platformSystemBackground)
         .cornerRadius(16)
-        .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
-        .padding(.horizontal)
+        .shadow(color: .black.opacity(isExpanded ? 0.08 : 0.04), radius: isExpanded ? 16 : 8, y: isExpanded ? 8 : 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(isExpanded ? emeraldAccent.opacity(0.3) : Color.gray.opacity(0.1), lineWidth: 1)
+        )
         .onAppear {
-            blocks = question.parsedBlocks
+            blocks = editableQuestion.question.parsedBlocks
+            // Auto-expand if the question is newly added (blank)
+            if blocks.isEmpty { isExpanded = true }
         }
     }
 }

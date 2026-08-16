@@ -227,41 +227,6 @@ struct LessonContentPage: View {
                     VStack(spacing: 16) {
                         AnimatedActionButton()
 
-                        NavigationLink {
-                            UniversalTestView(mode: .practice(
-                                subject: lessonVM.subjectName,
-                                lessonName: lessonVM.currentLessonName,
-                                lessonId: lessonVM.currentLessonId
-                            ))
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text("Jump to Practice Session")
-                                    .font(.headline)
-                                    .fontWeight(.bold)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.8)
-                                
-                                Image(systemName: "bolt.fill")
-                                    .font(.headline)
-                            }
-                            .frame(maxWidth: 320, minHeight: 52)
-                            .background(
-                                LinearGradient(
-                                    colors: [themeColor, secondaryThemeColor],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .foregroundColor(.white)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
-                            )
-                            .shadow(color: themeColor.opacity(0.4), radius: 6, y: 4)
-                        }
-                        .buttonStyle(.plain)
-                        
                         Button(action: {
                             Task {
                                 await lessonVM.advanceToNextLesson(authVM: authVM)

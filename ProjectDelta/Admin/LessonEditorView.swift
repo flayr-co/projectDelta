@@ -11,8 +11,8 @@ struct LessonEditorView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
     @State private var lessonTitle: String
-    @State private var showTestBuilder: Bool = false
     @State private var pages: [Page] = []
+    @State private var targetQuestionCount: Int = 10
     
     var lesson: Lesson
     var subject: Subject
@@ -147,7 +147,7 @@ struct LessonEditorView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            Button(action: { showTestBuilder = true }) {
+            NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle)) {
                 HStack {
                     Image(systemName: "plus.rectangle.on.rectangle")
                         .font(.title3)
@@ -161,14 +161,10 @@ struct LessonEditorView: View {
                 .cornerRadius(14)
                 .shadow(color: Color.purple.opacity(0.3), radius: 10, y: 5)
             }
+            .buttonStyle(.plain)
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
             .background(Color.platformSystemGroupedBackground.opacity(0.95))
-        }
-        .sheet(isPresented: $showTestBuilder) {
-            NavigationStack {
-                AddTestView(subject: subject, lessonName: lessonTitle)
-            }
         }
     }
     
