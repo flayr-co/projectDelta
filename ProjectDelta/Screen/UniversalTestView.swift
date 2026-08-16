@@ -508,78 +508,167 @@ struct UniversalTestView: View {
     // MARK: - SHARED COMPONENTS
 
     private var quizEndView: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                Image(systemName: "checkmark.seal.fill")
-                    .font(.system(size: 72))
-                    .foregroundColor(themeColor)
-                    .padding(.top, 40)
-                
-                if case .practice(_, _, _) = mode {
-                    Text("Practice Completed")
-                        .font(.system(.largeTitle, design: .rounded, weight: .heavy))
-                } else {
-                    Text("Test Result")
-                        .font(.system(.largeTitle, design: .rounded, weight: .heavy))
-                }
-                
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 32) {
+                // Top Score Card & Ring
                 if let snapshot = testViewModel.currentSnapshot {
-                    Text("\(snapshot.score) / \(snapshot.totalQuestions)")
-                        .font(.system(size: 54, weight: .black, design: .rounded))
-                        .foregroundColor(snapshot.score > (snapshot.totalQuestions / 2) ? .green : .orange)
-                    
                     VStack(spacing: 16) {
-                        ForEach(snapshot.questionResults) { result in
-                            VStack(alignment: .leading, spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .stroke(themeColor.opacity(0.15), lineWidth: 14)
+                                .frame(width: 140, height: 140)
+                            
+                            let percentage = Double(snapshot.score) / Double(max(snapshot.totalQuestions, 1))
+                            let ringColor = percentage >= 0.7 ? Color.green : (percentage >= 0.4 ? .orange : .red)
+                            
+                            Circle()
+                                .trim(from: 0.0, to: CGFloat(percentage))
+                                .stroke(ringColor, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                                .rotationEffect(.degrees(-90))
+                                .frame(width: 140, height: 140)
+                                .animation(.spring(response: 1.0, dampingFraction: 0.8), value: percentage)
+                            
+                            VStack(spacing: -4) {
+                                Text("\(snapshot.score)")
+                                    .font(.system(size: 48, weight: .heavy, design: .rounded))
+                                    .foregroundColor(ringColor)
+                                Text("/ \(snapshot.totalQuestions)")
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.top, 40)
+                        
+                        if case .practice = mode {
+                            Text("Practice Complete!")
+                                .font(.system(size: 32, weight: .black, design: .rounded))
+                        } else {
+                            Text("Assessment Results")
+                                .font(.system(size: 32, weight: .black, design: .rounded))
+                        }
+                        
+                        Text("Here is a breakdown of your performance.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // Results Breakdown Cards
+                    VStack(spacing: 24) {
+                        ForEach(Array(snapshot.questionResults.enumerated()), id: \.element.id) { index, result in
+                            VStack(alignment: .leading, spacing: 20) {
+                                // Question Header
+                                HStack {
+                                    Text("Question \(index + 1)")
+                                        .font(.subheadline)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.secondary)
+                                        .textCase(.uppercase)
+                                    Spacer()
+                                    Image(systemName: result.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                        .foregroundColor(result.isCorrect ? .green : .red)
+                                        .font(.title2)
+                                }
+                                
+                                Divider()
+                                
+                                // Question Content
                                 if let matchedQuestion = testViewModel.questions.first(where: { $0.questionText == result.questionText }), !matchedQuestion.parsedBlocks.isEmpty {
-                                    VStack(alignment: .leading, spacing: 8) {
+                                    VStack(alignment: .leading, spacing: 12) {
                                         ForEach(matchedQuestion.parsedBlocks) { block in
                                             if block.type == QuestionBlockType.text.rawValue {
                                                 Text(block.content)
-                                                    .font(.headline)
-                                                    .multilineTextAlignment(.leading)
+                                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
                                                     .fixedSize(horizontal: false, vertical: true)
                                             } else if block.type == QuestionBlockType.math.rawValue {
                                                 LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
-                                                    .padding(.vertical, 4)
                                             } else if block.type == QuestionBlockType.graph.rawValue {
                                                 InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
-                                                    .padding(.vertical, 4)
+                                                    .frame(height: 180)
                                             }
                                         }
                                     }
                                 } else {
                                     Text(result.questionText)
-                                        .font(.headline)
+                                        .font(.system(size: 18, weight: .semibold, design: .rounded))
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                                 
-                                HStack {
+                                // Answers Breakdown
+                                VStack(spacing: 12) {
                                     let userAnswerString = result.userSelectedOptionIndex != nil ? result.options[result.userSelectedOptionIndex!] : "No Answer"
-                                    Text("Your Answer: \(userAnswerString)")
-                                        .foregroundColor(result.isCorrect ? .green : .red)
-                                        .fontWeight(.semibold)
-                                    Spacer()
+                                    
+                                    HStack {
+                                        Text("Your Answer:")
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.secondary)
+                                            .textCase(.uppercase)
+                                        Spacer()
+                                        Text(userAnswerString)
+                                            .font(.system(.body, design: .rounded, weight: .bold))
+                                            .foregroundColor(result.isCorrect ? .green : .red)
+                                    }
+                                    .padding(16)
+                                    .background(result.isCorrect ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                                    .cornerRadius(12)
+                                    
+                                    if !result.isCorrect {
+                                        HStack {
+                                            Text("Correct Answer:")
+                                                .font(.caption)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.secondary)
+                                                .textCase(.uppercase)
+                                            Spacer()
+                                            Text(result.options[result.correctOptionIndex])
+                                                .font(.system(.body, design: .rounded, weight: .bold))
+                                                .foregroundColor(.primary)
+                                        }
+                                        .padding(16)
+                                        .background(Color.secondary.opacity(0.08))
+                                        .cornerRadius(12)
+                                    }
                                 }
-                                .font(.subheadline)
                             }
-                            .padding()
+                            .padding(24)
                             .background(Color.platformSystemBackground)
-                            .cornerRadius(16)
-                            .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
+                            .cornerRadius(24)
+                            .shadow(color: .black.opacity(0.04), radius: 15, y: 6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .stroke(result.isCorrect ? Color.green.opacity(0.4) : Color.red.opacity(0.4), lineWidth: 2)
+                            )
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 24)
+#if os(macOS)
+                    .frame(maxWidth: 800)
+#endif
                     
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(themeColor)
-                        .controlSize(.large)
+                    // Exit Button
+                    Button(action: { dismiss() }) {
+                        HStack {
+                            Text("Done")
+                            Image(systemName: "checkmark")
+                        }
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .padding()
+                        .frame(maxWidth: 320, minHeight: 56)
+                        .background(themeColor)
+                        .foregroundColor(.white)
                         .clipShape(Capsule())
-                        .padding(.top, 24)
+                        .shadow(color: themeColor.opacity(0.4), radius: 10, y: 5)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 16)
                 }
             }
-            .padding(.bottom, 60)
+            .padding(.bottom, 80)
+#if os(macOS)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .safeAreaPadding(.top, 56) // Fixes potential title bar cutoff on macOS
+#endif
         }
     }
     
