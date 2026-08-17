@@ -24,6 +24,10 @@ struct LessonView: View {
 
     @State private var hasQuiz: Bool = false
     @State private var showAssessment = false
+    
+    #if os(iOS)
+    @State private var scrollPosition: Int? = 0
+    #endif
 
     var body: some View {
         Group {
@@ -63,6 +67,10 @@ struct LessonView: View {
                 // Fallback to default auto-resume logic
                 await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
             }
+            
+            #if os(iOS)
+            scrollPosition = lessonVM.currentPageIndex
+            #endif
         }
         .task(id: lessonVM.currentLessonName) {
             await checkQuizStatus()
@@ -131,6 +139,8 @@ struct LessonView: View {
                         LessonContentPage(
                             page: page,
                             isLastPage: index == lessonVM.lessonPages.count - 1,
+                            hasQuiz: hasQuiz,
+                            subjectName: subjectName,
                             isInteractingWithExplanation: $isInteractingWithExplanation,
                             onBackgroundTap: {}
                         )
@@ -328,7 +338,7 @@ struct LessonView: View {
     #if os(iOS)
     private var iOSLayout: some View {
         ZStack {
-            (colorScheme == ColorScheme.dark ? Color.customDarkGray : Color.platformSystemGroupedBackground)
+            (colorScheme == .dark ? Color.customDarkGray : Color.platformSystemGroupedBackground)
                 .ignoresSafeArea()
             
             if lessonVM.isLoading {
@@ -344,54 +354,46 @@ struct LessonView: View {
                         .foregroundColor(.secondary)
                 }
             } else {
-                // Stack pages to defeat WKWebView's aggressive iOS suspension algorithms
-                ZStack {
-                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.element.id) { index, page in
-                        LessonContentPage(
-                            page: page,
-                            isLastPage: index == lessonVM.lessonPages.count - 1,
-                            isInteractingWithExplanation: $isInteractingWithExplanation,
-                            onBackgroundTap: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    showUIControls.toggle()
+                // True Eager-Loading Paging ScrollView
+                // Because this is an HStack and not a LazyHStack, SwiftUI is forced to instantly
+                // initialize and render every single graph and equation the millisecond the lesson opens.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.element.id) { index, page in
+                            LessonContentPage(
+                                page: page,
+                                isLastPage: index == lessonVM.lessonPages.count - 1,
+                                hasQuiz: hasQuiz,
+                                subjectName: subjectName,
+                                isInteractingWithExplanation: $isInteractingWithExplanation,
+                                onBackgroundTap: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        showUIControls.toggle()
+                                    }
                                 }
-                            }
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(colorScheme == .dark ? Color.customDarkGray : Color.platformSystemGroupedBackground)
-                        // An opaque overlay allows the underlying WKWebView to mathematically maintain 100% opacity without bleeding into the active page UI
-                        .overlay(
-                            Group {
-                                if lessonVM.currentPageIndex != index {
-                                    (colorScheme == .dark ? Color.customDarkGray : Color.platformSystemGroupedBackground)
-                                        .ignoresSafeArea()
-                                }
-                            }
-                        )
-                        // Force 5% opacity threshold to bypass CoreAnimation occlusion culling completely
-                        .opacity(lessonVM.currentPageIndex == index ? 1.0 : 0.05)
-                        .allowsHitTesting(lessonVM.currentPageIndex == index)
-                        .zIndex(lessonVM.currentPageIndex == index ? 1 : 0)
+                            )
+                            .containerRelativeFrame(.horizontal, alignment: .center)
+                            .id(index)
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $scrollPosition)
+                .onChange(of: scrollPosition) { _, newIndex in
+                    if let newIndex = newIndex {
+                        lessonVM.currentPageIndex = newIndex
                     }
                 }
-                .id(lessonVM.currentLessonId)
-                .gesture(
-                    DragGesture(minimumDistance: 30)
-                        .onEnded { value in
-                            guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                            
-                            if value.translation.width < -40 && lessonVM.currentPageIndex < lessonVM.lessonPages.count - 1 {
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    lessonVM.currentPageIndex += 1
-                                }
-                            } else if value.translation.width > 40 && lessonVM.currentPageIndex > 0 {
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    lessonVM.currentPageIndex -= 1
-                                }
-                            }
-                        }
-                )
-                .ignoresSafeArea(edges: .bottom)
+                .onChange(of: lessonVM.currentPageIndex) { _, newIndex in
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        scrollPosition = newIndex
+                    }
+                    if lessonVM.lessonPages.indices.contains(newIndex) {
+                        lessonVM.currentPageDocumentId = lessonVM.lessonPages[newIndex].id
+                        lessonVM.updateBookmarkStatus(authVM: authVM)
+                    }
+                }
                 .safeAreaInset(edge: .top) {
                     if showUIControls && !lessonVM.isLoading {
                         headerView
@@ -400,14 +402,8 @@ struct LessonView: View {
                 }
                 .safeAreaInset(edge: .bottom) {
                     if !lessonVM.isLoading && !lessonVM.lessonPages.isEmpty && showUIControls {
-                        lessonNavigationControls
+                        pageIndicator
                             .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
-                .onChange(of: lessonVM.currentPageIndex) { oldValue, newPageIndex in
-                    if lessonVM.lessonPages.indices.contains(newPageIndex) {
-                        lessonVM.currentPageDocumentId = lessonVM.lessonPages[newPageIndex].id
-                        lessonVM.updateBookmarkStatus(authVM: authVM)
                     }
                 }
             }
@@ -492,69 +488,20 @@ struct LessonView: View {
         .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
     }
 
-    private var lessonNavigationControls: some View {
-        VStack(spacing: 16) {
-            if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 && hasQuiz {
-                NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
-                    HStack {
-                        Text("Assess Knowledge")
-                        Image(systemName: "arrow.right.circle.fill")
-                    }
-                    .font(.headline)
-                    .bold()
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.teal)
-                    .foregroundColor(.white)
-                    .clipShape(Capsule())
-                    .shadow(color: Color.teal.opacity(0.4), radius: 12, y: 4)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 24)
+    private var pageIndicator: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<lessonVM.lessonPages.count, id: \.self) { index in
+                Circle()
+                    .fill(scrollPosition == index ? Color.teal : Color.secondary.opacity(0.3))
+                    .frame(width: scrollPosition == index ? 8 : 6, height: scrollPosition == index ? 8 : 6)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: scrollPosition)
             }
-            
-            HStack(spacing: 20) {
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        lessonVM.currentPageIndex = max(lessonVM.currentPageIndex - 1, 0)
-                    }
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(lessonVM.currentPageIndex == 0 ? .gray.opacity(0.3) : .teal)
-                        .frame(width: 50, height: 50)
-                }
-                .disabled(lessonVM.currentPageIndex == 0)
-
-                Spacer()
-                
-                Text("\(lessonVM.currentPageIndex + 1) of \(lessonVM.lessonPages.count)")
-                    .font(.subheadline.monospacedDigit())
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-
-                Spacer()
-                
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        lessonVM.currentPageIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
-                    }
-                }) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .gray.opacity(0.3) : .teal)
-                        .frame(width: 50, height: 50)
-                }
-                .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
-            .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 24)
         }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .background(.ultraThinMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
+        .padding(.bottom, 8)
     }
     #endif
 }

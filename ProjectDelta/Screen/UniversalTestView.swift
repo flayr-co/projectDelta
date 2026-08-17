@@ -501,7 +501,7 @@ struct UniversalTestView: View {
         .padding(.vertical, 12)
         .background(Capsule().fill(.ultraThinMaterial).shadow(color: .black.opacity(0.1), radius: 10, y: 4))
         .padding(.horizontal, 20)
-        .padding(.bottom, 16)
+        .padding(.bottom, 8)
     }
     #endif
 
@@ -699,7 +699,7 @@ struct QuestionContentPage: View {
                     mode: mode
                 )
                 .padding(.top, mode.isTimed ? 64 : 40)
-                .padding(.bottom, 140)
+                .padding(.bottom, 40) // Relying natively on the parent's safeAreaInset
             }
         }
     }
@@ -715,6 +715,8 @@ struct IsolatedQuestionCard: View {
     @State private var isHintExpanded: Bool = false
     @State private var isFeedbackExpanded: Bool = false
     @State private var hoveredOption: Int? = nil
+    
+    @State private var blockInteractionStates: [String: Bool] = [:]
     
     var body: some View {
         let qId = question.id ?? UUID().uuidString
@@ -740,8 +742,28 @@ struct IsolatedQuestionCard: View {
                                 .background(Color.secondary.opacity(0.05))
                                 .cornerRadius(16)
                         } else if block.type == QuestionBlockType.graph.rawValue {
-                            InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
-                                .padding(.vertical, 8)
+                            let isInteractive = blockInteractionStates[block.id] ?? false
+                            
+                            ZStack(alignment: .topTrailing) {
+                                InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
+                                    .padding(.vertical, 8)
+                                    .allowsHitTesting(isInteractive)
+                                
+                                #if os(iOS)
+                                Button {
+                                    withAnimation { blockInteractionStates[block.id] = !isInteractive }
+                                } label: {
+                                    Image(systemName: isInteractive ? "lock.open.fill" : "lock.fill")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(isInteractive ? .white : themeColor)
+                                        .padding(10)
+                                        .background(isInteractive ? themeColor : Color.platformSecondarySystemBackground)
+                                        .clipShape(Circle())
+                                        .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
+                                }
+                                .padding(8)
+                                #endif
+                            }
                         }
                     }
                 }

@@ -22,10 +22,15 @@ struct ParsedContentBlock: Identifiable {
 struct LessonContentPage: View {
     let page: Page
     let isLastPage: Bool
+    let hasQuiz: Bool
+    let subjectName: String
     @Binding var isInteractingWithExplanation: Bool
     var onBackgroundTap: () -> Void
 
     @State private var isExplanationVisible: Bool = false
+    @State private var blockInteractionStates: [UUID: Bool] = [:]
+    @State private var pageGraphInteractive: Bool = false
+    
     @Environment(LessonViewModel.self) var lessonVM
     @Environment(AuthViewModel.self) var authVM
     @Environment(\.colorScheme) var colorScheme
@@ -174,18 +179,56 @@ struct LessonContentPage: View {
                         #endif
                         
                     case .graph(let graphContent, let graphType):
-                        DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType))
-                            .aspectRatio(1.0, contentMode: .fit)
-                            .padding(.horizontal, -8)
-                            .padding(.vertical, 16)
+                        let isInteractive = blockInteractionStates[block.id] ?? false
+                        
+                        ZStack(alignment: .topTrailing) {
+                            DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType))
+                                .aspectRatio(1.0, contentMode: .fit)
+                                .allowsHitTesting(isInteractive) // Locks graph to allow smooth page swiping
+                            
+                            #if os(iOS)
+                            Button {
+                                withAnimation { blockInteractionStates[block.id] = !isInteractive }
+                            } label: {
+                                Image(systemName: isInteractive ? "lock.open.fill" : "lock.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(isInteractive ? .white : themeColor)
+                                    .padding(10)
+                                    .background(isInteractive ? themeColor : Color.platformSecondarySystemBackground)
+                                    .clipShape(Circle())
+                                    .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
+                            }
+                            .padding(8)
+                            #endif
+                        }
+                        .padding(.horizontal, -8)
+                        .padding(.vertical, 16)
                     }
                 }
 
                 if let graphData = page.graphData {
-                    DynamicGraphView(data: graphData)
-                        .aspectRatio(1.0, contentMode: .fit)
-                        .padding(.horizontal, -8)
-                        .padding(.vertical, 16)
+                    ZStack(alignment: .topTrailing) {
+                        DynamicGraphView(data: graphData)
+                            .aspectRatio(1.0, contentMode: .fit)
+                            .allowsHitTesting(pageGraphInteractive)
+                        
+                        #if os(iOS)
+                        Button {
+                            withAnimation { pageGraphInteractive.toggle() }
+                        } label: {
+                            Image(systemName: pageGraphInteractive ? "lock.open.fill" : "lock.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(pageGraphInteractive ? .white : themeColor)
+                                .padding(10)
+                                .background(pageGraphInteractive ? themeColor : Color.platformSecondarySystemBackground)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
+                        }
+                        .padding(8)
+                        #endif
+                    }
+                    .padding(.horizontal, -8)
+                    .padding(.vertical, 16)
                 }
 
                 if let example = page.example, !example.isEmpty {
@@ -224,8 +267,31 @@ struct LessonContentPage: View {
                 }
 
                 if isLastPage {
-                    VStack(spacing: 16) {
-                        AnimatedActionButton()
+                    VStack(spacing: 20) {
+                        // Premium CTA Cards at the bottom of the content
+                        if hasQuiz {
+                            NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Ready for a challenge?")
+                                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                            .foregroundStyle(.white.opacity(0.85))
+                                        Text("Assess Knowledge")
+                                            .font(.system(.title3, design: .rounded, weight: .heavy))
+                                            .foregroundStyle(.white)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .font(.system(size: 36))
+                                        .foregroundStyle(.white)
+                                }
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 20)
+                                .background(themeColor.gradient, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                                .shadow(color: themeColor.opacity(0.3), radius: 20, y: 10)
+                            }
+                            .buttonStyle(.plain)
+                        }
 
                         Button(action: {
                             Task {
@@ -233,20 +299,28 @@ struct LessonContentPage: View {
                             }
                         }) {
                             HStack {
-                                Text("Next Lesson")
-                                Image(systemName: "arrow.right")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Up Next")
+                                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                    Text("Next Lesson")
+                                        .font(.system(.title3, design: .rounded, weight: .heavy))
+                                        .foregroundStyle(.primary)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.right.circle.fill")
+                                    .font(.system(size: 36))
+                                    .foregroundStyle(themeColor)
                             }
-                            .font(.headline)
-                            .padding()
-                            .frame(maxWidth: 320, minHeight: 52)
-                            .background(Color.accentColor.gradient)
-                            .foregroundStyle(.white)
-                            .clipShape(Capsule())
-                            .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 20)
+                            .background(Color.platformSystemBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+                            .shadow(color: .black.opacity(0.05), radius: 20, y: 10)
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.vertical, 40)
+                    .padding(.top, 40)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -257,14 +331,13 @@ struct LessonContentPage: View {
             .frame(maxWidth: .infinity, alignment: .center)
             #else
             .padding(.horizontal, 24)
-            .padding(.top, 48) // Increased top padding to prevent hugging the screen edge
-            .padding(.bottom, 160) // Extra padding to guarantee content clears the floating controls
+            .padding(.top, 32)
+            .padding(.bottom, 60)
             #endif
         }
         .scrollIndicators(.hidden)
         .background(Color.clear)
         .onTapGesture {
-            // Allows buttons to consume taps normally while intercepting unhandled background taps
             onBackgroundTap()
         }
     }
