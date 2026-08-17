@@ -16,25 +16,14 @@ struct TableOfContentsView: View {
     @Environment(AuthViewModel.self) var authVM
 
     @State private var selectedTab: Int = 0 // 0 = Curriculum, 1 = Bookmarks
+    @State private var searchText: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Table of Contents")
-                .font(.title2)
-                .fontWeight(.bold)
-                .padding(.horizontal)
-                .padding(.top, 20)
-                .padding(.bottom, 10)
-            
-            Picker("View Mode", selection: $selectedTab) {
-                Text("Curriculum").tag(0)
-                Text("Bookmarks").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.bottom, 10)
+        VStack(spacing: 0) {
+            headerView
             
             Divider()
+                .opacity(0.5)
             
             List {
                 if selectedTab == 0 {
@@ -43,39 +32,122 @@ struct TableOfContentsView: View {
                     bookmarksView
                 }
             }
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedTab)
             #if os(iOS)
             .listStyle(.insetGrouped)
-            .background(Color(uiColor: .systemGroupedBackground))
             #else
             .listStyle(.sidebar)
-            .background(Color.clear)
+            .scrollContentBackground(.hidden)
             #endif
         }
+        #if os(macOS)
+        .background(.thinMaterial)
+        #endif
+    }
+    
+    // MARK: - Header View
+        
+    private var headerView: some View {
+        VStack(spacing: 24) {
+            // Top Bar: Titles and Close Button
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("TABLE OF CONTENTS")
+                        .font(.system(.caption, design: .rounded, weight: .bold))
+                        .foregroundStyle(.secondary.opacity(0.8))
+                        .tracking(1.5)
+                    
+                    Text(subjectName)
+                        .font(.system(.largeTitle, design: .rounded, weight: .heavy))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                }
+                
+                Spacer()
+                
+                Button(action: { isShowing = false }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+            }
+            
+            // Controls: Picker and Search
+            VStack(spacing: 16) {
+                Picker("View Mode", selection: $selectedTab) {
+                    Text("Curriculum").tag(0)
+                    Text("Bookmarks").tag(1)
+                }
+                .pickerStyle(.segmented)
+                
+                HStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    
+                    TextField("Search lessons and pages...", text: $searchText)
+                        .font(.system(.body, design: .rounded, weight: .medium))
+                        .textFieldStyle(.plain)
+                    
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            withAnimation(.spring) { searchText = "" }
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 28)
+        .padding(.bottom, 16)
+#if os(iOS)
+        .background(Color(uiColor: .systemGroupedBackground))
+#else
+        .background(Color.clear)
+#endif
     }
     
     // MARK: - Curriculum View
     
     private var curriculumView: some View {
-        ForEach(lessonVM.currentSubjectLessons, id: \.id) { lesson in
+        let enumerated = Array(zip(lessonVM.currentSubjectLessons.indices, lessonVM.currentSubjectLessons))
+        let filtered = filteredEnumeratedLessons(from: enumerated)
+        
+        return ForEach(filtered, id: \.1.id) { index, lesson in
             DisclosureGroup {
                 if let pages = lesson.pages, !pages.isEmpty {
-                    // With data scrubbed by LessonViewModel, we can safely trust the page.id and page.pageNumber
                     ForEach(pages, id: \.id) { page in
                         pageRow(lesson: lesson, page: page)
                     }
                 } else {
                     Text("No pages available.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.vertical, 4)
+                        .font(.system(.subheadline, design: .rounded, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 8)
+                        .padding(.leading, 12)
                 }
             } label: {
-                lessonLabel(lesson: lesson)
+                lessonLabel(lesson: lesson, index: index)
             }
+            .tint(.primary)
+            .listRowSeparator(.hidden)
             #if os(iOS)
-            .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.8))
-            #else
-            .listRowBackground(Color.platformSecondarySystemBackground.opacity(0.8))
+            .listRowBackground(Color.clear)
             #endif
         }
     }
@@ -83,70 +155,107 @@ struct TableOfContentsView: View {
     // MARK: - Bookmarks View
     
     private var bookmarksView: some View {
-        let bookmarkedLessons = lessonVM.currentSubjectLessons.compactMap { lesson -> Lesson? in
-            guard let pages = lesson.pages else { return nil }
-            let bPages = pages.filter { page in
-                guard let lessonId = lesson.id, let pageId = page.id else { return false }
-                return authVM.isPageBookmarked(subjectId: subjectName, lessonId: lessonId, pageId: pageId)
-            }
-            
-            if bPages.isEmpty { return nil }
-            
-            var modifiedLesson = lesson
-            modifiedLesson.pages = bPages
-            return modifiedLesson
-        }
+        let filteredBookmarks = filteredEnumeratedLessons(from: computedBookmarkedLessons)
         
         return Group {
-            if bookmarkedLessons.isEmpty {
-                Text("No bookmarks saved yet.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.vertical, 12)
+            if filteredBookmarks.isEmpty {
+                ContentUnavailableView(
+                    searchText.isEmpty ? "No Bookmarks" : "No Results",
+                    systemImage: searchText.isEmpty ? "bookmark.slash" : "magnifyingglass",
+                    description: Text(searchText.isEmpty ? "Pages you bookmark will appear here." : "Check the spelling or try a new search.")
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
             } else {
-                ForEach(bookmarkedLessons, id: \.id) { lesson in
-                    Section(header: Text(lesson.name).font(.headline)) {
+                ForEach(filteredBookmarks, id: \.1.id) { index, lesson in
+                    Section {
                         if let pages = lesson.pages {
                             ForEach(pages, id: \.id) { page in
                                 pageRow(lesson: lesson, page: page)
                             }
                         }
+                    } header: {
+                        lessonLabel(lesson: lesson, index: index)
+                            .textCase(nil)
+                            .padding(.top, 8)
                     }
+                    .listRowSeparator(.hidden)
                     #if os(iOS)
-                    .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.8))
-                    #else
-                    .listRowBackground(Color.platformSecondarySystemBackground.opacity(0.8))
+                    .listRowBackground(Color.clear)
                     #endif
                 }
             }
         }
     }
     
-    // MARK: - Helper Views & Methods
+    // MARK: - Computed Properties for Efficiency
     
-    private func lessonLabel(lesson: Lesson) -> some View {
+    /// Pre-calculates bookmarked lessons while retaining their absolute curriculum index
+    private var computedBookmarkedLessons: [(Int, Lesson)] {
+        let enumerated = Array(zip(lessonVM.currentSubjectLessons.indices, lessonVM.currentSubjectLessons))
+        
+        return enumerated.compactMap { index, lesson -> (Int, Lesson)? in
+            guard let pages = lesson.pages else { return nil }
+            
+            let bPages = pages.filter { page in
+                guard let lessonId = lesson.id, let pageId = page.id else { return false }
+                return authVM.isPageBookmarked(subjectId: subjectName, lessonId: lessonId, pageId: pageId)
+            }
+            
+            if bPages.isEmpty { return nil }
+            var modifiedLesson = lesson
+            modifiedLesson.pages = bPages
+            return (index, modifiedLesson)
+        }
+    }
+    
+    // MARK: - Helper Views & Methods
+        
+    private func lessonLabel(lesson: Lesson, index: Int) -> some View {
         HStack(spacing: 16) {
-            Image(systemName: lesson.completed ? "checkmark.circle.fill" : "book.closed.circle")
-                .font(.title2)
-                .foregroundStyle(lesson.completed ? Color.green.gradient : Color.blue.gradient)
-                .symbolEffect(.bounce, value: lesson.completed)
+            // Premium Rounded Rectangle Badge
+            Text("\(index + 1)")
+                .font(.system(.title3, design: .rounded, weight: .heavy))
+                .foregroundStyle(lesson.completed ? .white : Color.accentColor)
+                .frame(width: 44, height: 44)
+                .background(
+                    lesson.completed ? Color.green.gradient : Color.accentColor.opacity(0.12).gradient,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(lesson.completed ? Color.clear : Color.accentColor.opacity(0.25), lineWidth: 1)
+                )
+                .shadow(color: lesson.completed ? Color.green.opacity(0.3) : Color.clear, radius: 4, x: 0, y: 2)
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(lesson.name)
-                    .font(.headline)
+                    .font(.system(.title3, design: .rounded, weight: .bold))
                     .foregroundStyle(.primary)
                 
-                // Supress rendering of raw JSON payloads
                 if !lesson.description.isEmpty && !lesson.description.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[{") {
                     Text(lesson.description)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.system(.subheadline, design: .rounded, weight: .medium))
+                        .foregroundStyle(.secondary.opacity(0.9))
                         .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer()
+            Spacer(minLength: 16)
+            
+            // Status Icon / Navigation Chevron
+            if lesson.completed {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.green.gradient)
+                    .symbolEffect(.bounce, value: lesson.completed)
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 10)
         .contentShape(Rectangle())
         .onTapGesture {
             navigateTo(lesson: lesson, pageNumber: 1)
@@ -159,25 +268,40 @@ struct TableOfContentsView: View {
         return Button(action: {
             navigateTo(lesson: lesson, pageNumber: page.pageNumber)
         }) {
-            HStack {
+            HStack(spacing: 14) {
+                Image(systemName: "doc.plaintext.fill")
+                    .foregroundStyle(.secondary.opacity(0.6))
+                    .font(.body)
+                
                 Text("Page \(page.pageNumber)")
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
+                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.9))
                 
                 Spacer()
                 
                 if isBookmarked {
                     Image(systemName: "bookmark.fill")
-                        .foregroundColor(.teal)
-                        .font(.subheadline)
-                        .transition(.scale)
+                        .foregroundStyle(.teal.gradient)
+                        .font(.body)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
-            .padding(.vertical, 6)
-            .padding(.leading, 32)
+            .padding(.vertical, 8)
+            .padding(.leading, 20)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+    
+    // MARK: - Logic
+    
+    private func filteredEnumeratedLessons(from enumeratedLessons: [(Int, Lesson)]) -> [(Int, Lesson)] {
+        guard !searchText.isEmpty else { return enumeratedLessons }
+        
+        return enumeratedLessons.filter { _, lesson in
+            lesson.name.localizedCaseInsensitiveContains(searchText) ||
+            lesson.description.localizedCaseInsensitiveContains(searchText)
+        }
     }
     
     private func navigateTo(lesson: Lesson, pageNumber: Int) {
