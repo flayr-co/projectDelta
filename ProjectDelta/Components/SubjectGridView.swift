@@ -309,8 +309,9 @@ struct SubjectGridView: View {
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.leading)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(3) // Increased to allow natural wrapping
+                .minimumScaleFactor(0.75) // Prevents microscopic shrinking
+                .truncationMode(.tail)
             
             Spacer(minLength: 0)
             
@@ -323,11 +324,11 @@ struct SubjectGridView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                #if os(macOS)
+            #if os(macOS)
                 .fill(Color.platformSystemBackground)
-                #else
+            #else
                 .fill(colorScheme == .dark ? Color(red: 0.14, green: 0.14, blue: 0.16) : .white)
-                #endif
+            #endif
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -630,8 +631,9 @@ struct LessonSelectionView: View {
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.leading)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(3) // Increased to allow natural wrapping
+                .minimumScaleFactor(0.75) // Prevents microscopic shrinking
+                .truncationMode(.tail)
             
             Spacer(minLength: 0)
             
@@ -644,21 +646,21 @@ struct LessonSelectionView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                #if os(macOS)
+            #if os(macOS)
                 .fill(Color.platformSystemBackground)
-                #else
+            #else
                 .fill(colorScheme == .dark ? Color(red: 0.14, green: 0.14, blue: 0.16) : .white)
-                #endif
+            #endif
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(themeColor.opacity(0.2), lineWidth: 1.5)
         )
-        #if os(macOS)
+#if os(macOS)
         .shadow(color: themeColor.opacity(0.05), radius: 10, x: 0, y: 5)
-        #else
+#else
         .shadow(color: themeColor.opacity(colorScheme == .dark ? 0.1 : 0.05), radius: 10, x: 0, y: 5)
-        #endif
+#endif
     }
 }
 

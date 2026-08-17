@@ -20,6 +20,11 @@ struct UniversalTestView: View {
     @State private var showAdminEditor = false
     
     @State private var timeRemaining: Int = 300
+    
+    // Lifecycle enforcer for the custom tab bar
+    @AppStorage("hideCustomTabBar") private var hideCustomTabBar: Bool = false
+    @State private var isTestActive: Bool = false
+    
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     
     var mode: TestMode
@@ -29,40 +34,16 @@ struct UniversalTestView: View {
 
     var body: some View {
         Group {
-            #if os(macOS)
+#if os(macOS)
             macOSLayout
-            #else
+#else
             iOSLayout
-            #endif
+#endif
         }
         .background(colorScheme == .dark ? Color.customDarkGray : Color.platformSystemGroupedBackground)
         .navigationBarBackButtonHidden(true)
-        #if os(macOS)
+#if os(macOS)
         .toolbar(.hidden, for: .windowToolbar)
-        #endif
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
-                    Button(action: { showAdminEditor = true }) {
-                        Image(systemName: "pencil.and.list.clipboard")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(themeColor)
-                    }
-                }
-            }
-        }
-        #endif
-        #if os(macOS)
         .sheet(isPresented: $showAdminEditor) {
             AdminTestManagerView(
                 subjectName: mode.subjectName,
@@ -70,7 +51,10 @@ struct UniversalTestView: View {
                 existingTestId: testViewModel.questions.first?.testId
             )
         }
-        #else
+#else
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar) // Forces native safe area to expand downward
         .fullScreenCover(isPresented: $showAdminEditor) {
             AdminTestManagerView(
                 subjectName: mode.subjectName,
@@ -78,7 +62,7 @@ struct UniversalTestView: View {
                 existingTestId: testViewModel.questions.first?.testId
             )
         }
-        #endif
+#endif
         .task {
             if !mode.isTimed {
                 buttonTapped = true
@@ -88,6 +72,20 @@ struct UniversalTestView: View {
         }
         .onReceive(timer) { _ in
             handleTimerTick()
+        }
+        .onAppear {
+            isTestActive = true
+            hideCustomTabBar = true
+        }
+        .onDisappear {
+            isTestActive = false
+            hideCustomTabBar = false
+        }
+        .onChange(of: hideCustomTabBar) { _, isHidden in
+            // Relentlessly forces the tab bar to stay hidden if a parent view's onDisappear tries to unhide it
+            if isTestActive && !isHidden {
+                hideCustomTabBar = true
+            }
         }
     }
     
@@ -340,144 +338,186 @@ struct UniversalTestView: View {
     #endif
 
     // MARK: - MOBILE LAYOUT (iOS)
-    #if os(iOS)
-    private var iOSLayout: some View {
-        VStack(spacing: 0) {
-            if mode.isTimed && !buttonTapped {
-                introView
-            } else if testViewModel.isGeneratingQuiz {
-                Spacer()
-                ProgressView("Analyzing curriculum...")
-                    .tint(themeColor)
-                Spacer()
-            } else if testViewModel.isQuizComplete {
-                quizEndView
-            } else if !testViewModel.questions.isEmpty {
-                ZStack(alignment: .top) {
-                    TabView(selection: $currentQuestionIndex) {
-                        ForEach(0..<testViewModel.questions.count, id: \.self) { index in
-                            QuestionContentPage(index: index, mode: mode, themeColor: themeColor)
-                                .tag(index)
-                        }
-                    }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
-                    .onChange(of: currentQuestionIndex) { _, newValue in
-                        if selectedQuestionIndex != newValue { selectedQuestionIndex = newValue }
-                    }
+        #if os(iOS)
+        private var iOSLayout: some View {
+            VStack(spacing: 0) {
+                iOSHeader
+                    .zIndex(1)
                     
-                    if mode.isTimed {
-                        HStack(spacing: 6) {
-                            Image(systemName: "timer")
-                            Text(timeString).monospacedDigit()
+                if mode.isTimed && !buttonTapped {
+                    introView
+                } else if testViewModel.isGeneratingQuiz {
+                    Spacer()
+                    ProgressView("Analyzing curriculum...")
+                        .tint(themeColor)
+                    Spacer()
+                } else if testViewModel.isQuizComplete {
+                    quizEndView
+                } else if !testViewModel.questions.isEmpty {
+                    ZStack(alignment: .top) {
+                        TabView(selection: $currentQuestionIndex) {
+                            ForEach(0..<testViewModel.questions.count, id: \.self) { index in
+                                QuestionContentPage(index: index, mode: mode, themeColor: themeColor)
+                                    .tag(index)
+                            }
                         }
-                        .font(.subheadline.bold())
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(.ultraThinMaterial)
-                        .foregroundColor(timeRemaining <= 60 ? .red : .primary)
-                        .clipShape(Capsule())
-                        .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
-                        .padding(.top, 16)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+                        .onChange(of: currentQuestionIndex) { _, newValue in
+                            if selectedQuestionIndex != newValue { selectedQuestionIndex = newValue }
+                        }
                     }
+                    .safeAreaInset(edge: .bottom) {
+                        bottomNavigationBar
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                } else {
+                    Spacer()
+                    Text("No questions found.")
+                        .foregroundColor(.secondary)
+                    Spacer()
                 }
-                .safeAreaInset(edge: .bottom) {
-                    bottomNavigationBar
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        
+        private var iOSHeader: some View {
+            HStack {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 44, height: 44)
+                        .background(Color.secondary.opacity(0.15))
+                        .clipShape(Circle())
                 }
-            } else {
+                .buttonStyle(.plain)
+
                 Spacer()
-                Text("No questions found.")
-                    .foregroundColor(.secondary)
+                
+                if mode.isTimed && buttonTapped {
+                    HStack(spacing: 6) {
+                        Image(systemName: "timer")
+                        Text(timeString).monospacedDigit()
+                    }
+                    .font(.subheadline.bold())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(timeRemaining <= 60 ? Color.red.opacity(0.15) : Color.secondary.opacity(0.15))
+                    .foregroundColor(timeRemaining <= 60 ? .red : .primary)
+                    .clipShape(Capsule())
+                    .transition(.opacity)
+                }
+
+                Spacer()
+
+                if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
+                    Button(action: { showAdminEditor = true }) {
+                        Image(systemName: "pencil.and.list.clipboard")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(themeColor)
+                            .frame(width: 44, height: 44)
+                            .background(themeColor.opacity(0.15))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Color.clear.frame(width: 44, height: 44) // Balances the header visually
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+        }
+        
+        private var introView: some View {
+            VStack {
+                Spacer()
+                
+                VStack(spacing: 16) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 60))
+                        .foregroundStyle(themeColor)
+                    
+                    Text(mode.subtopicName ?? "General \(mode.subjectName)")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Take the quiz in the time given")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .multilineTextAlignment(.center)
+                    
+                    Text("5 Minute Session")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundStyle(themeColor)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 40)
+                
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.5)) { buttonTapped = true; timeRemaining = 300 }
+                    testViewModel.fetchTest(mode: mode)
+                }) {
+                    Text("Start Now")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(themeColor.gradient)
+                        .cornerRadius(16)
+                        .shadow(color: themeColor.opacity(0.3), radius: 10, y: 5)
+                }
+                .padding(.horizontal, 24)
+                
                 Spacer()
             }
         }
-    }
-    
-    private var introView: some View {
-        VStack {
-            Spacer()
-            
-            VStack(spacing: 16) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 60))
-                    .foregroundStyle(themeColor)
-                
-                Text(mode.subtopicName ?? "General \(mode.subjectName)")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
-                
-                Text("Take the quiz in the time given")
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                
-                Text("5 Minute Session")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundStyle(themeColor)
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 40)
-            
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.5)) { buttonTapped = true; timeRemaining = 300 }
-                testViewModel.fetchTest(mode: mode)
-            }) {
-                Text("Start Now")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(themeColor)
-                    .cornerRadius(16)
-                    .shadow(color: themeColor.opacity(0.3), radius: 10, y: 5)
-            }
-            .padding(.horizontal, 24)
-            
-            Spacer()
-        }
-    }
-    
+        
     private var bottomNavigationBar: some View {
-        HStack {
+        HStack(spacing: 12) {
             Button(action: { if currentQuestionIndex > 0 { withAnimation { currentQuestionIndex -= 1 } } }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundColor(currentQuestionIndex == 0 ? .gray.opacity(0.3) : .primary)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 50, height: 50)
+                    .background(Color.secondary.opacity(0.1))
+                    .clipShape(Circle())
             }
             .disabled(currentQuestionIndex == 0)
             
-            Spacer()
+            Spacer(minLength: 0)
             
             Menu {
                 Picker("Jump to Question", selection: Binding(get: { currentQuestionIndex }, set: { newValue in withAnimation { currentQuestionIndex = newValue } })) {
                     ForEach(0..<testViewModel.questions.count, id: \.self) { index in Text("Question \(index + 1)").tag(index) }
                 }
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Text("\(currentQuestionIndex + 1) of \(testViewModel.questions.count)")
-                        .font(.subheadline.monospacedDigit())
-                        .fontWeight(.bold)
+                        .font(.system(.headline, design: .rounded, weight: .bold))
+                        .monospacedDigit()
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2)
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.secondary)
                 }
                 .foregroundColor(.primary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 20)
+                .frame(height: 50)
                 .background(Color.secondary.opacity(0.15))
                 .clipShape(Capsule())
             }
+            .layoutPriority(1)
             
-            Spacer()
+            Spacer(minLength: 0)
             
             let isLastQuestion = currentQuestionIndex == testViewModel.questions.count - 1
             if !isLastQuestion {
                 Button(action: { withAnimation { currentQuestionIndex += 1 } }) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.primary)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 50, height: 50)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(Circle())
                 }
             } else {
                 Button(action: {
@@ -485,23 +525,25 @@ struct UniversalTestView: View {
                     Task { await testViewModel.finishTest(mode: mode); isSubmitting = false }
                 }) {
                     Text(isSubmitting ? "..." : "Turn In")
-                        .font(.subheadline)
-                        .fontWeight(.bold)
+                        .font(.system(.headline, design: .rounded, weight: .bold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background(themeColor)
+                        .padding(.horizontal, 24)
+                        .frame(height: 50)
+                        .background(themeColor.gradient)
                         .clipShape(Capsule())
-                        .shadow(color: themeColor.opacity(0.3), radius: 4, y: 2)
+                        .shadow(color: themeColor.opacity(0.3), radius: 8, y: 4)
                 }
                 .disabled(isSubmitting)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(2)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Capsule().fill(.ultraThinMaterial).shadow(color: .black.opacity(0.1), radius: 10, y: 4))
-        .padding(.horizontal, 20)
-        .padding(.bottom, 8)
+        .padding(.vertical, 16)
+        .background(.thickMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 24) // Guaranteed clearance natively over home indicator
     }
     #endif
 
@@ -695,11 +737,12 @@ struct QuestionContentPage: View {
             if index < testViewModel.questions.count {
                 IsolatedQuestionCard(
                     question: testViewModel.questions[index],
+                    index: index,
                     themeColor: themeColor,
                     mode: mode
                 )
-                .padding(.top, mode.isTimed ? 64 : 40)
-                .padding(.bottom, 40) // Relying natively on the parent's safeAreaInset
+                .padding(.top, 24)
+                .padding(.bottom, 140) // Drastically increased padding to completely clear the floating bottom bar
             }
         }
     }
@@ -707,6 +750,7 @@ struct QuestionContentPage: View {
 
 struct IsolatedQuestionCard: View {
     let question: Question
+    let index: Int
     let themeColor: Color
     let mode: TestMode
     
@@ -728,6 +772,7 @@ struct IsolatedQuestionCard: View {
             // 1. Question Canvas
             if !question.parsedBlocks.isEmpty {
                 VStack(alignment: .leading, spacing: 16) {
+                    // Completely eradicated the manual "Question X" text here as it already renders from parsedBlocks
                     ForEach(question.parsedBlocks) { block in
                         if block.type == QuestionBlockType.text.rawValue {
                             Text(block.content)
@@ -749,7 +794,7 @@ struct IsolatedQuestionCard: View {
                                     .padding(.vertical, 8)
                                     .allowsHitTesting(isInteractive)
                                 
-                                #if os(iOS)
+#if os(iOS)
                                 Button {
                                     withAnimation { blockInteractionStates[block.id] = !isInteractive }
                                 } label: {
@@ -762,7 +807,7 @@ struct IsolatedQuestionCard: View {
                                         .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
                                 }
                                 .padding(8)
-                                #endif
+#endif
                             }
                         }
                     }
@@ -799,13 +844,17 @@ struct IsolatedQuestionCard: View {
                         HStack(spacing: 16) {
                             ZStack {
                                 Circle()
-                                    .stroke(isSelected ? themeColor : Color.secondary.opacity(0.3), lineWidth: isSelected ? 6 : 2)
-                                    .frame(width: 24, height: 24)
+                                    .stroke(isSelected ? themeColor : Color.secondary.opacity(0.3), lineWidth: isSelected ? 0 : 2)
+                                    .frame(width: 26, height: 26)
                                 
                                 if isSelected {
                                     Circle()
                                         .fill(themeColor)
-                                        .frame(width: 12, height: 12)
+                                        .frame(width: 26, height: 26)
+                                    
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundColor(.white)
                                 }
                             }
                             
@@ -818,7 +867,7 @@ struct IsolatedQuestionCard: View {
                         }
                         .padding(20)
                         .contentShape(Rectangle())
-                        .background(isSelected ? themeColor.opacity(0.05) : (isHovered ? Color.secondary.opacity(0.05) : Color.platformSystemBackground))
+                        .background(isSelected ? themeColor.opacity(0.08) : (isHovered ? Color.secondary.opacity(0.05) : Color.platformSystemBackground))
                         .cornerRadius(16)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
