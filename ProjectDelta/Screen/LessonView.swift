@@ -9,6 +9,8 @@ import FirebaseFirestore
 
 struct LessonView: View {
     var subjectName: String
+    var initialLessonName: String? = nil
+    
     @Environment(LessonViewModel.self) var lessonVM
     @Environment(AuthViewModel.self) var authVM
     @Environment(TestSessionViewModel.self) var testViewModel
@@ -44,7 +46,23 @@ struct LessonView: View {
         }
         .task {
             lessonVM.subjectName = subjectName
-            await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
+            
+            if let targetLesson = initialLessonName {
+                // Manually trigger the loading state
+                lessonVM.isLoading = true
+                
+                // Bypass auto-resume: load curriculum then explicitly jump to the target lesson
+                await lessonVM.fetchAllLessons(for: subjectName)
+                await lessonVM.navigateToPage(lessonName: targetLesson, pageNumber: 1, authVM: authVM)
+                
+                // Explicitly drop the loading screen
+                withAnimation {
+                    lessonVM.isLoading = false
+                }
+            } else {
+                // Fallback to default auto-resume logic
+                await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
+            }
         }
         .task(id: lessonVM.currentLessonName) {
             await checkQuizStatus()

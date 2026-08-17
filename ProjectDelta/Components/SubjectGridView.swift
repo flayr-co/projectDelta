@@ -266,8 +266,9 @@ struct SubjectGridView: View {
     private func destinationView(for subject: String) -> some View {
         switch navigationSource {
         case .learn:
-            LessonView(subjectName: subject)
+            LessonSelectionView(subjectName: subject, navigationSource: .learn)
                 .environment(lessonVM)
+                .environment(testViewModel)
         case .quickTest:
             UniversalTestView(mode: .quick(subject: subject, subtopic: nil))
                 .environment(testViewModel)
@@ -275,8 +276,9 @@ struct SubjectGridView: View {
             UniversalTestView(mode: .timed(subject: subject, subtopic: nil))
                 .environment(testViewModel)
         case .practice:
-            LessonSelectionView(subjectName: subject)
+            LessonSelectionView(subjectName: subject, navigationSource: .practice)
                 .environment(testViewModel)
+                .environment(lessonVM)
         }
     }
     
@@ -364,7 +366,11 @@ struct SubjectGridView: View {
 
 struct LessonSelectionView: View {
     var subjectName: String
+    var navigationSource: NavigationSource = .practice
+    
     @Environment(TestSessionViewModel.self) var testViewModel
+    @Environment(LessonViewModel.self) var lessonVM
+    @Environment(AuthViewModel.self) var authVM
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) var dismiss
     
@@ -433,7 +439,7 @@ struct LessonSelectionView: View {
                         
                         LazyVGrid(columns: desktopColumns, spacing: 24) {
                             ForEach(Array(lessons.enumerated()), id: \.element.id) { index, lesson in
-                                NavigationLink(destination: UniversalTestView(mode: .practice(subject: subjectName, lessonName: lesson.name, lessonId: lesson.id)).environment(testViewModel)) {
+                                NavigationLink(destination: destinationForLesson(lesson)) {
                                     lessonCard(for: lesson.name, index: index + 1)
                                 }
                                 .buttonStyle(.plain)
@@ -535,8 +541,7 @@ struct LessonSelectionView: View {
                         LazyVStack(spacing: 16) {
                             ForEach(Array(lessons.enumerated()), id: \.element.id) { index, lesson in
                                 NavigationLink {
-                                    UniversalTestView(mode: .practice(subject: subjectName, lessonName: lesson.name, lessonId: lesson.id))
-                                        .environment(testViewModel)
+                                    destinationForLesson(lesson)
                                 } label: {
                                     lessonCard(for: lesson.name, index: index + 1)
                                 }
@@ -588,6 +593,16 @@ struct LessonSelectionView: View {
             print("Error parsing practice lessons: \(error)")
         }
         isLoading = false
+    }
+    
+    @ViewBuilder
+    private func destinationForLesson(_ lesson: (id: String, name: String)) -> some View {
+        if navigationSource == .learn {
+            LessonView(subjectName: subjectName, initialLessonName: lesson.name)
+        } else {
+            UniversalTestView(mode: .practice(subject: subjectName, lessonName: lesson.name, lessonId: lesson.id))
+                .environment(testViewModel)
+        }
     }
     
     @ViewBuilder
