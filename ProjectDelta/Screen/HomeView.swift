@@ -238,7 +238,7 @@ struct HomeView: View {
             
             // NEW 4TH BUTTON
             ActionCardButton(
-                title: "EM Analyzer",
+                title: "Electromagnetic Spectrum",
                 icon: "waveform.path",
                 color: .purple,
                 destination: ElectromagneticWaveAnalyzerView()
@@ -324,7 +324,7 @@ struct HomeView: View {
                         
                         // NEW 4TH CARD
                         NavigationLink(destination: ElectromagneticWaveAnalyzerView()) {
-                            DisplayCards(imageName: "waveform.path", title: "EM Analyzer", tintColor: .purple)
+                            DisplayCards(imageName: "waveform.path", title: "Electromagnetic Spectrum", tintColor: .purple)
                         }
                         .buttonStyle(.plain)
                         .shadow(color: Color.purple.opacity(0.15), radius: 10, y: 4)

@@ -192,16 +192,15 @@ struct ElectromagneticWaveAnalyzerView: View {
             let contentPadding: CGFloat = isWide ? 32 : 20
             
 #if os(macOS)
-            // Proportional layout geometry to enforce symmetrical distribution
             let itemSpacing: CGFloat = max(16, geo.size.height * 0.02)
-            let topPadding: CGFloat = max(48, geo.size.height * 0.04) // Decreased to lift content
-            let bottomPadding: CGFloat = max(56, geo.size.height * 0.06) // Increased to prevent flush bottom
-            let headerBottomPadding: CGFloat = 32 // macOS specific spacing below the header
+            let topPadding: CGFloat = max(48, geo.size.height * 0.04)
+            let bottomPadding: CGFloat = max(56, geo.size.height * 0.06)
+            let headerBottomPadding: CGFloat = 32
             let minimumHeight: CGFloat = 680
 #else
             let itemSpacing: CGFloat = isWide ? 24 : 16
-            let topPadding: CGFloat = isWide ? 72 : 12
-            let headerBottomPadding: CGFloat = isWide ? 8 : 4 // Restored original iOS spacing
+            let topPadding: CGFloat = isWide ? 72 : 16
+            let headerBottomPadding: CGFloat = isWide ? 16 : 16
 #endif
             
             ScrollView(.vertical, showsIndicators: false) {
@@ -212,7 +211,6 @@ struct ElectromagneticWaveAnalyzerView: View {
                         .padding(.bottom, headerBottomPadding)
                     
                     if isWide {
-                        // Expanded Layout
                         Grid(horizontalSpacing: itemSpacing, verticalSpacing: itemSpacing) {
                             GridRow {
                                 metricsBox(stretch: true, isWide: isWide)
@@ -235,7 +233,6 @@ struct ElectromagneticWaveAnalyzerView: View {
                             }
                         }
                     } else {
-                        // Condensed Layout
                         VStack(spacing: itemSpacing) {
 #if os(macOS)
                             visualizerBox(stretch: true, isWide: isWide)
@@ -254,7 +251,6 @@ struct ElectromagneticWaveAnalyzerView: View {
 #if os(macOS)
                 .padding(.bottom, bottomPadding)
                 .frame(maxWidth: 1200)
-                // The geometric constraint: Scales perfectly to window height. Fallback scrolls safely if squished (<680).
                 .frame(minHeight: minimumHeight, maxHeight: max(minimumHeight, geo.size.height), alignment: .top)
 #else
                 .padding(.vertical, 4)
@@ -278,11 +274,11 @@ struct ElectromagneticWaveAnalyzerView: View {
 #if os(macOS)
         let iconSize: CGFloat = 36
         let textSize: CGFloat = 32
-        let spacing: CGFloat = 16 // Increased from 4 for more space between icon and text
+        let spacing: CGFloat = 16
 #else
-        let iconSize: CGFloat = isWide ? 44 : 36
-        let textSize: CGFloat = isWide ? 40 : 32
-        let spacing: CGFloat = isWide ? 8 : 6
+        let iconSize: CGFloat = isWide ? 56 : 46
+        let textSize: CGFloat = isWide ? 44 : 36
+        let spacing: CGFloat = isWide ? 12 : 10
 #endif
 
         return VStack(spacing: spacing) {
@@ -290,7 +286,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                 .font(.system(size: iconSize, weight: .regular))
                 .foregroundStyle(LinearGradient(colors: currentRegion.gradientColors, startPoint: .topLeading, endPoint: .bottomTrailing))
                 .shadow(color: currentRegion.baseColor.opacity(0.6), radius: 6, x: 0, y: 0)
-                .padding(.top, 28) // Explicitly allocate generous bounding box space for the bounce animation
+                .padding(.top, 28)
                 .frame(width: iconSize * 1.5, height: iconSize)
                 .symbolEffect(.bounce, value: currentRegion.name)
             
@@ -314,8 +310,8 @@ struct ElectromagneticWaveAnalyzerView: View {
                         .font((isWide ? Font.body : Font.caption).weight(.bold))
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, isWide ? 6 : 4)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
             .background(
                 Group {
                     if currentRegion.name == "Visible Light" {
@@ -342,7 +338,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                     Text("Frequency (f):")
                         .font(isWide ? .title3 : .headline)
                         .foregroundStyle(.secondary)
-                    Text("\(frequency.formatted(.number.notation(.scientific))) Hz")
+                    Text("\(frequency.readableScientificString) Hz")
                         .font((isWide ? Font.title3 : Font.headline).weight(.bold))
                         .monospacedDigit()
                         .contentTransition(.numericText())
@@ -353,7 +349,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                     Text("Wavelength (λ):")
                         .font(isWide ? .title3 : .headline)
                         .foregroundStyle(.secondary)
-                    Text("\(wavelength.formatted(.number.notation(.scientific))) m")
+                    Text("\(wavelength.readableScientificString) m")
                         .font((isWide ? Font.title3 : Font.headline).weight(.bold))
                         .monospacedDigit()
                         .contentTransition(.numericText())
@@ -364,7 +360,7 @@ struct ElectromagneticWaveAnalyzerView: View {
                     Text("Photon Energy (E):")
                         .font(isWide ? .title3 : .headline)
                         .foregroundStyle(.secondary)
-                    Text("\(photonEnergyJoules.formatted(.number.notation(.scientific))) J")
+                    Text("\(photonEnergyJoules.readableScientificString) J")
                         .font((isWide ? Font.title3 : Font.headline).weight(.bold))
                         .monospacedDigit()
                         .contentTransition(.numericText())
@@ -635,6 +631,34 @@ private struct FieldWavePath: Shape {
         }
         
         return path
+    }
+}
+
+// MARK: - Format Extensions
+extension Double {
+    var readableScientificString: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .scientific
+        formatter.maximumFractionDigits = 2
+        formatter.exponentSymbol = "E"
+        
+        guard let formattedString = formatter.string(from: NSNumber(value: self)) else {
+            return String(self)
+        }
+        
+        let components = formattedString.components(separatedBy: "E")
+        guard components.count == 2 else { return formattedString }
+        
+        let significand = components[0]
+        let exponentStr = components[1].replacingOccurrences(of: "+", with: "")
+        
+        let superscripts: [Character: String] = [
+            "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
+            "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "-": "⁻"
+        ]
+        
+        let superscriptExponent = exponentStr.compactMap { superscripts[$0] }.joined()
+        return "\(significand) × 10\(superscriptExponent)"
     }
 }
 
