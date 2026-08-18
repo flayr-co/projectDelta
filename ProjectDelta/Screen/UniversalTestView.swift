@@ -354,7 +354,7 @@ struct UniversalTestView: View {
                 } else if testViewModel.isQuizComplete {
                     quizEndView
                 } else if !testViewModel.questions.isEmpty {
-                    ZStack(alignment: .top) {
+                    ZStack(alignment: .bottom) {
                         TabView(selection: $currentQuestionIndex) {
                             ForEach(0..<testViewModel.questions.count, id: \.self) { index in
                                 QuestionContentPage(index: index, mode: mode, themeColor: themeColor)
@@ -365,8 +365,7 @@ struct UniversalTestView: View {
                         .onChange(of: currentQuestionIndex) { _, newValue in
                             if selectedQuestionIndex != newValue { selectedQuestionIndex = newValue }
                         }
-                    }
-                    .safeAreaInset(edge: .bottom) {
+                        
                         bottomNavigationBar
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -742,9 +741,13 @@ struct QuestionContentPage: View {
                     mode: mode
                 )
                 .padding(.top, 24)
-                .padding(.bottom, 140) // Drastically increased padding to completely clear the floating bottom bar
             }
         }
+        #if os(macOS)
+        .safeAreaPadding(.bottom, 40)
+        #else
+        .safeAreaPadding(.bottom, 120) // Tightened clearance for iOS
+        #endif
     }
 }
 
@@ -767,22 +770,37 @@ struct IsolatedQuestionCard: View {
         // Pulling the selected answer purely locally stops the parent View from redrawing
         let selectedIndex = testViewModel.userAnswers[qId]
         
-        VStack(alignment: .leading, spacing: 32) {
+        #if os(macOS)
+        let mainSpacing: CGFloat = 32
+        let canvasPadding: CGFloat = 32
+        let optionPadding: CGFloat = 20
+        let optionSpacing: CGFloat = 16
+        let blockSpacing: CGFloat = 16
+        let questionFontSize: CGFloat = 22
+        #else
+        let mainSpacing: CGFloat = 20
+        let canvasPadding: CGFloat = 20
+        let optionPadding: CGFloat = 16
+        let optionSpacing: CGFloat = 12
+        let blockSpacing: CGFloat = 12
+        let questionFontSize: CGFloat = 18
+        #endif
+        
+        VStack(alignment: .leading, spacing: mainSpacing) {
             
             // 1. Question Canvas
             if !question.parsedBlocks.isEmpty {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Completely eradicated the manual "Question X" text here as it already renders from parsedBlocks
+                VStack(alignment: .leading, spacing: blockSpacing) {
                     ForEach(question.parsedBlocks) { block in
                         if block.type == QuestionBlockType.text.rawValue {
                             Text(block.content)
-                                .font(.system(size: 22, weight: .semibold, design: .rounded))
+                                .font(.system(size: questionFontSize, weight: .semibold, design: .rounded))
                                 .foregroundColor(.primary)
                                 .multilineTextAlignment(.leading)
                                 .fixedSize(horizontal: false, vertical: true)
                         } else if block.type == QuestionBlockType.math.rawValue {
                             LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
-                                .padding(16)
+                                .padding(optionPadding)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .background(Color.secondary.opacity(0.05))
                                 .cornerRadius(16)
@@ -812,7 +830,7 @@ struct IsolatedQuestionCard: View {
                         }
                     }
                 }
-                .padding(32)
+                .padding(canvasPadding)
                 .background(Color.platformSystemBackground)
                 .cornerRadius(24)
                 .shadow(color: .black.opacity(0.04), radius: 20, y: 10)
@@ -820,18 +838,18 @@ struct IsolatedQuestionCard: View {
             }
             
             // 2. Animated Hint & Feedback
-            VStack(spacing: 16) {
+            VStack(spacing: optionSpacing) {
                 if let hint = question.hint, !hint.isEmpty {
-                    expandableSection(title: "Hint", icon: "lightbulb", color: .yellow, isExpanded: $isHintExpanded, content: hint)
+                    expandableSection(title: "Hint", icon: "lightbulb", color: .yellow, isExpanded: $isHintExpanded, content: hint, padding: optionPadding)
                 }
                 
                 if case .practice = mode, let feedback = question.feedback, !feedback.isEmpty {
-                    expandableSection(title: "Step-by-Step Breakdown", icon: "text.book.closed.fill", color: themeColor, isExpanded: $isFeedbackExpanded, content: feedback)
+                    expandableSection(title: "Step-by-Step Breakdown", icon: "text.book.closed.fill", color: themeColor, isExpanded: $isFeedbackExpanded, content: feedback, padding: optionPadding)
                 }
             }
             
             // 3. Tactile Multiple Choice Options
-            VStack(spacing: 16) {
+            VStack(spacing: optionSpacing) {
                 ForEach(question.options.indices, id: \.self) { optIndex in
                     let isSelected = selectedIndex == optIndex
                     let isHovered = hoveredOption == optIndex
@@ -861,11 +879,15 @@ struct IsolatedQuestionCard: View {
                             Text(question.options[optIndex])
                                 .multilineTextAlignment(.leading)
                                 .foregroundColor(isSelected ? themeColor : .primary)
+                                #if os(macOS)
                                 .font(.system(.title3, design: .rounded, weight: isSelected ? .bold : .medium))
+                                #else
+                                .font(.system(.body, design: .rounded, weight: isSelected ? .bold : .medium))
+                                #endif
                             
                             Spacer()
                         }
-                        .padding(20)
+                        .padding(optionPadding)
                         .contentShape(Rectangle())
                         .background(isSelected ? themeColor.opacity(0.08) : (isHovered ? Color.secondary.opacity(0.05) : Color.platformSystemBackground))
                         .cornerRadius(16)
@@ -895,7 +917,7 @@ struct IsolatedQuestionCard: View {
     }
     
     @ViewBuilder
-    private func expandableSection(title: String, icon: String, color: Color, isExpanded: Binding<Bool>, content: String) -> some View {
+    private func expandableSection(title: String, icon: String, color: Color, isExpanded: Binding<Bool>, content: String, padding: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
                 isExpanded.wrappedValue.toggle()
@@ -912,15 +934,15 @@ struct IsolatedQuestionCard: View {
                         .foregroundColor(.secondary)
                         .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
                 }
-                .padding(20)
+                .padding(padding)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             
             if isExpanded.wrappedValue {
-                Divider().padding(.horizontal, 20)
+                Divider().padding(.horizontal, padding)
                 ExampleView(text: content, themeColor: themeColor)
-                    .padding(20)
+                    .padding(padding)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
