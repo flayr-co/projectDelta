@@ -58,6 +58,7 @@ let sampleData = GraphData(
 struct DynamicGraphView: View {
     var data: GraphData
     var isFullScreenMode: Bool = false
+    var isScrollLocked: Bool = false
     @State private var showFullScreen: Bool = false
     @Environment(\.colorScheme) var colorScheme
 
@@ -177,69 +178,69 @@ struct DynamicGraphView: View {
                 }
                 
                 // MARK: Invisible Gestures Layer
-                Color.clear
-                    .contentShape(Rectangle())
-                    .gesture(
-                        LongPressGesture(minimumDuration: 0.25)
-                            .sequenced(before: DragGesture(minimumDistance: 0))
-                            .onChanged { value in
-                                switch value {
-                                case .second(true, let drag):
-                                    if let location = drag?.location {
-                                        let mathX = Double((location.x - origin.x) / currentScale)
-                                        if let closest = findClosestPoint(to: location, mathX: mathX, origin: origin, scale: currentScale) {
-                                            let dist = hypot(closest.screenPoint.x - location.x, closest.screenPoint.y - location.y)
-                                            
-                                            // 45pt generous hit target for finger precision
-                                            if dist < 45 {
-                                                if !isProbing {
-                                                    isProbing = true
+                if !isScrollLocked {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(
+                            LongPressGesture(minimumDuration: 0.25)
+                                .sequenced(before: DragGesture(minimumDistance: 0))
+                                .onChanged { value in
+                                    switch value {
+                                    case .second(true, let drag):
+                                        if let location = drag?.location {
+                                            let mathX = Double((location.x - origin.x) / currentScale)
+                                            if let closest = findClosestPoint(to: location, mathX: mathX, origin: origin, scale: currentScale) {
+                                                let dist = hypot(closest.screenPoint.x - location.x, closest.screenPoint.y - location.y)
+                                                
+                                                if dist < 45 {
+                                                    if !isProbing {
+                                                        isProbing = true
 #if os(iOS)
-                                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 #endif
+                                                    }
+                                                    probeLocation = location
                                                 }
-                                                probeLocation = location
                                             }
                                         }
+                                    default:
+                                        break
                                     }
-                                default:
-                                    break
                                 }
-                            }
-                            .onEnded { _ in
-                                probeLocation = nil
-                                isProbing = false
-                            }
-                    )
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 12)
-                            .onChanged { val in
-                                // Only pan if we aren't actively probing a line
-                                if !isProbing {
-                                    currentPan = CGSize(
-                                        width: lastPan.width + val.translation.width,
-                                        height: lastPan.height + val.translation.height
-                                    )
+                                .onEnded { _ in
+                                    probeLocation = nil
+                                    isProbing = false
                                 }
-                            }
-                            .onEnded { _ in
-                                if !isProbing {
-                                    lastPan = currentPan
+                        )
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 12)
+                                .onChanged { val in
+                                    if !isProbing {
+                                        currentPan = CGSize(
+                                            width: lastPan.width + val.translation.width,
+                                            height: lastPan.height + val.translation.height
+                                        )
+                                    }
                                 }
-                            }
-                    )
-                    .simultaneousGesture(
-                        MagnifyGesture()
-                            .onChanged { val in
-                                let newScale = lastScale * val.magnification
-                                if newScale.isFinite && newScale > 0 {
-                                    currentScale = max(5.0, min(newScale, 300.0))
+                                .onEnded { _ in
+                                    if !isProbing {
+                                        lastPan = currentPan
+                                    }
                                 }
-                            }
-                            .onEnded { _ in
-                                lastScale = currentScale
-                            }
-                    )
+                        )
+                        .simultaneousGesture(
+                            MagnifyGesture()
+                                .onChanged { val in
+                                    let newScale = lastScale * val.magnification
+                                    if newScale.isFinite && newScale > 0 {
+                                        currentScale = max(5.0, min(newScale, 300.0))
+                                    }
+                                }
+                                .onEnded { _ in
+                                    lastScale = currentScale
+                                }
+                        )
+                }
                 
                 // MARK: Tap and Hold Probe Overlay
                 if let probe = probeLocation {

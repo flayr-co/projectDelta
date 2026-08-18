@@ -28,8 +28,6 @@ struct LessonContentPage: View {
     var onBackgroundTap: () -> Void
 
     @State private var isExplanationVisible: Bool = false
-    @State private var blockInteractionStates: [UUID: Bool] = [:]
-    @State private var pageGraphInteractive: Bool = false
     
     @Environment(LessonViewModel.self) var lessonVM
     @Environment(AuthViewModel.self) var authVM
@@ -179,56 +177,18 @@ struct LessonContentPage: View {
                         #endif
                         
                     case .graph(let graphContent, let graphType):
-                        let isInteractive = blockInteractionStates[block.id] ?? false
-                        
-                        ZStack(alignment: .topTrailing) {
-                            DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType))
-                                .aspectRatio(1.0, contentMode: .fit)
-                                .allowsHitTesting(isInteractive) // Locks graph to allow smooth page swiping
-                            
-                            #if os(iOS)
-                            Button {
-                                withAnimation { blockInteractionStates[block.id] = !isInteractive }
-                            } label: {
-                                Image(systemName: isInteractive ? "lock.open.fill" : "lock.fill")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(isInteractive ? .white : themeColor)
-                                    .padding(10)
-                                    .background(isInteractive ? themeColor : Color.platformSecondarySystemBackground)
-                                    .clipShape(Circle())
-                                    .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
-                            }
-                            .padding(8)
-                            #endif
-                        }
-                        .padding(.horizontal, -8)
-                        .padding(.vertical, 16)
+                        DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType), isScrollLocked: true)
+                            .aspectRatio(1.0, contentMode: .fit)
+                            .padding(.horizontal, -8)
+                            .padding(.vertical, 16)
                     }
                 }
 
                 if let graphData = page.graphData {
-                    ZStack(alignment: .topTrailing) {
-                        DynamicGraphView(data: graphData)
-                            .aspectRatio(1.0, contentMode: .fit)
-                            .allowsHitTesting(pageGraphInteractive)
-                        
-                        #if os(iOS)
-                        Button {
-                            withAnimation { pageGraphInteractive.toggle() }
-                        } label: {
-                            Image(systemName: pageGraphInteractive ? "lock.open.fill" : "lock.fill")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(pageGraphInteractive ? .white : themeColor)
-                                .padding(10)
-                                .background(pageGraphInteractive ? themeColor : Color.platformSecondarySystemBackground)
-                                .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
-                        }
-                        .padding(8)
-                        #endif
-                    }
-                    .padding(.horizontal, -8)
-                    .padding(.vertical, 16)
+                    DynamicGraphView(data: graphData, isScrollLocked: true)
+                        .aspectRatio(1.0, contentMode: .fit)
+                        .padding(.horizontal, -8)
+                        .padding(.vertical, 16)
                 }
 
                 if let example = page.example, !example.isEmpty {
