@@ -232,6 +232,9 @@ struct TableOfContentsView: View {
                 Text(lesson.name)
                     .font(.system(.title3, design: .rounded, weight: .bold))
                     .foregroundStyle(.primary)
+                    .lineLimit(nil)
+                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: false, vertical: true)
                 
                 if !lesson.description.isEmpty && !lesson.description.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[{") {
                     Text(lesson.description)

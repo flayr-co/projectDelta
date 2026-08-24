@@ -7,7 +7,7 @@ import Foundation
 
 struct UserProgress: Codable {
     var userId: String
-    var progress: [SubjectArea: SubjectProgress] // using SubjectArea as the key
+    var progress: [String: SubjectProgress] // using String as the key for infinite custom subjects
     var answeredQuestions: [String: Bool]? // QuestionID as key, Bool for correct/incorrect
     var questionsAttempted: Int
     
@@ -27,15 +27,12 @@ struct UserProgress: Codable {
         answeredQuestions = try container.decodeIfPresent([String: Bool].self, forKey: .answeredQuestions)
         
         let progressContainer = try container.nestedContainer(keyedBy: DynamicCodingKeys.self, forKey: .progress)
-        var tempProgress = [SubjectArea: SubjectProgress]()
+        var tempProgress = [String: SubjectProgress]()
+        
         for key in progressContainer.allKeys {
-            if let subjectArea = SubjectArea(rawValue: key.stringValue) {
-                let subjectProgress = try progressContainer.decode(SubjectProgress.self, forKey: key)
-                tempProgress[subjectArea] = subjectProgress
-            } else {
-                // Safely bypass unknown/legacy keys instead of throwing a fatal error
-                print("Warning: Bypassing unknown SubjectArea key: \(key.stringValue)")
-            }
+            // Dynamically accepts ANY subject string from Firestore
+            let subjectProgress = try progressContainer.decode(SubjectProgress.self, forKey: key)
+            tempProgress[key.stringValue] = subjectProgress
         }
         progress = tempProgress
     }
@@ -43,12 +40,7 @@ struct UserProgress: Codable {
     // Custom initializer for creating a new instance manually
     init(userId: String) {
         self.userId = userId
-        self.progress = [
-            .algebra: SubjectProgress(questionsAttempted: 0, questionsCorrect: 0),
-            .advancedMath: SubjectProgress(questionsAttempted: 0, questionsCorrect: 0),
-            .problemSolvingDataAnalysis: SubjectProgress(questionsAttempted: 0, questionsCorrect: 0),
-            .geometryTrigonometry: SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
-        ]
+        self.progress = [:] // Starts empty, fills dynamically as tests are taken
         self.answeredQuestions = [:]
         self.questionsAttempted = 0
     }
@@ -62,8 +54,7 @@ struct UserProgress: Codable {
         
         var progressContainer = container.nestedContainer(keyedBy: DynamicCodingKeys.self, forKey: .progress)
         for (key, value) in progress {
-            let keyString = key.rawValue
-            try progressContainer.encode(value, forKey: DynamicCodingKeys(stringValue: keyString)!)
+            try progressContainer.encode(value, forKey: DynamicCodingKeys(stringValue: key)!)
         }
     }
     

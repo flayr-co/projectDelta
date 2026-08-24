@@ -137,7 +137,7 @@ class AuthViewModel {
         
         let newUserProgress = UserProgress(userId: userId)
         let progressData: [String: Any] = newUserProgress.progress.reduce(into: [:]) { result, entry in
-            result[entry.key.rawValue] = [
+            result[entry.key] = [
                 "questionsAttempted": entry.value.questionsAttempted,
                 "questionsCorrect": entry.value.questionsCorrect
             ]

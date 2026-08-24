@@ -57,9 +57,9 @@ struct MetricsCarouselView: View {
                         .frame(minHeight: 140)
                     
                     if let prog = progress {
-                        ForEach(Array(prog.progress.sorted(by: { $0.key.rawValue < $1.key.rawValue })), id: \.key) { key, value in
+                        ForEach(Array(prog.progress.sorted(by: { $0.key < $1.key })), id: \.key) { key, value in
                             MetricCard(
-                                title: key.rawValue,
+                                title: key,
                                 value: "\(value.questionsCorrect) / \(value.questionsAttempted)",
                                 icon: "book.fill",
                                 color: .cyan
@@ -105,9 +105,9 @@ struct MetricsCarouselView: View {
             
             // Dynamically show per-subject progress
             if let prog = progress {
-                ForEach(Array(prog.progress.sorted(by: { $0.key.rawValue < $1.key.rawValue }).enumerated()), id: \.element.key) { index, element in
+                ForEach(Array(prog.progress.sorted(by: { $0.key < $1.key }).enumerated()), id: \.element.key) { index, element in
                     MetricCard(
-                        title: element.key.rawValue,
+                        title: element.key,
                         value: "\(element.value.questionsCorrect) / \(element.value.questionsAttempted)",
                         icon: "book.fill",
                         color: .cyan

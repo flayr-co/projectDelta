@@ -33,9 +33,14 @@ struct UserStatsView: View {
                         .padding(.horizontal)
                     
                     if let userProgress = quizViewModel.userProgress, !userProgress.progress.isEmpty {
-                        ForEach(SubjectArea.allCases) { area in
-                            let progressData = userProgress.progress[area] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
-                            subjectProgressRow(area: area, progress: progressData)
+                        let dynamicSubjects = Array(userProgress.progress.keys).sorted()
+                        let chartColors: [Color] = [.cyan, .purple, .orange, .green, .pink, .indigo, .mint, .yellow, .red, .teal]
+                        
+                        ForEach(Array(dynamicSubjects.enumerated()), id: \.element) { index, subjectName in
+                            let progressData = userProgress.progress[subjectName] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
+                            let color = chartColors[index % chartColors.count]
+                            
+                            subjectProgressRow(subjectName: subjectName, progress: progressData, color: color)
                         }
                         .padding(.horizontal)
                     } else {
@@ -83,12 +88,12 @@ struct UserStatsView: View {
     }
     
     @ViewBuilder
-    private func subjectProgressRow(area: SubjectArea, progress: SubjectProgress) -> some View {
+    private func subjectProgressRow(subjectName: String, progress: SubjectProgress, color: Color) -> some View {
         let accuracy = progress.questionsAttempted > 0 ? Double(progress.questionsCorrect) / Double(progress.questionsAttempted) : 0.0
         
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(area.displayName)
+                Text(subjectName)
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
@@ -98,7 +103,7 @@ struct UserStatsView: View {
                 Text("\(Int(accuracy * 100))% Accuracy")
                     .font(.subheadline)
                     .fontWeight(.bold)
-                    .foregroundColor(colorForSubjectArea(area))
+                    .foregroundColor(color)
             }
             
             // Layout Track progress bar meter
@@ -109,7 +114,7 @@ struct UserStatsView: View {
                         .frame(height: 8)
                     
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(colorForSubjectArea(area))
+                        .fill(color)
                         .frame(width: geo.size.width * CGFloat(accuracy), height: 8)
                 }
             }
@@ -135,19 +140,4 @@ struct UserStatsView: View {
                 .stroke(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.04), lineWidth: 1)
         )
     }
-    
-    private func colorForSubjectArea(_ area: SubjectArea) -> Color {
-        switch area {
-        case .algebra: return .cyan
-        case .advancedMath: return .purple
-        case .problemSolvingDataAnalysis: return .orange
-        case .geometryTrigonometry: return .green
-        }
-    }
-}
-
-#Preview {
-    UserStatsView()
-        .environment(AuthViewModel())
-        .environment(QuizViewModel(authViewModel: AuthViewModel()))
 }

@@ -16,8 +16,11 @@ struct UserProgressPieChart: View {
     var body: some View {
         VStack(spacing: 0) { // Removed outer spacing to let container dictate constraints
             if let userProgress = quizViewModel.userProgress {
-                let totalCorrect = SubjectArea.allCases.reduce(0) { $0 + (userProgress.progress[$1]?.questionsCorrect ?? 0) }
-                let totalAttempted = SubjectArea.allCases.reduce(0) { $0 + (userProgress.progress[$1]?.questionsAttempted ?? 0) }
+                let dynamicSubjects = Array(userProgress.progress.keys).sorted()
+                let chartColors: [Color] = [.cyan, .purple, .orange, .green, .pink, .indigo, .mint, .yellow, .red, .teal]
+                
+                let totalCorrect = dynamicSubjects.reduce(0) { $0 + (userProgress.progress[$1]?.questionsCorrect ?? 0) }
+                let totalAttempted = dynamicSubjects.reduce(0) { $0 + (userProgress.progress[$1]?.questionsAttempted ?? 0) }
                 
                 if totalAttempted == 0 {
                     // Empty state layout handler if no statistics are recorded yet
@@ -44,25 +47,19 @@ struct UserProgressPieChart: View {
                     // Comprehensive multi-subject analytics rendering
                     HStack(spacing: 24) {
                         Chart {
-                            ForEach(SubjectArea.allCases) { area in
-                                if let progressData = userProgress.progress[area], progressData.questionsAttempted > 0 {
+                            ForEach(Array(dynamicSubjects.enumerated()), id: \.element) { index, subjectName in
+                                if let progressData = userProgress.progress[subjectName], progressData.questionsAttempted > 0 {
                                     SectorMark(
                                         angle: .value("Correct", progressData.questionsCorrect),
                                         innerRadius: .ratio(0.65),
                                         angularInset: 2.0
                                     )
                                     .cornerRadius(4)
-                                    .foregroundStyle(by: .value("Subject", area.displayName))
+                                    .foregroundStyle(chartColors[index % chartColors.count])
                                 }
                             }
                         }
                         .chartLegend(.hidden)
-                        .chartForegroundStyleScale([
-                            SubjectArea.algebra.displayName: Color.cyan,
-                            SubjectArea.advancedMath.displayName: Color.purple,
-                            SubjectArea.problemSolvingDataAnalysis.displayName: Color.orange,
-                            SubjectArea.geometryTrigonometry.displayName: Color.green
-                        ])
                         // Increased chart size slightly to fill space better
                         .frame(width: 140, height: 140)
                         .overlay {
@@ -79,15 +76,15 @@ struct UserProgressPieChart: View {
                         
                         // Structured interactive color legend block
                         VStack(alignment: .leading, spacing: 10) { // Increased spacing between legend items
-                            ForEach(SubjectArea.allCases) { area in
-                                let progressData = userProgress.progress[area] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
+                            ForEach(Array(dynamicSubjects.enumerated()), id: \.element) { index, subjectName in
+                                let progressData = userProgress.progress[subjectName] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
                                 HStack(spacing: 8) {
                                     Circle()
-                                        .fill(colorForSubjectArea(area))
+                                        .fill(chartColors[index % chartColors.count])
                                         .frame(width: 10, height: 10)
                                     
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(area.displayName)
+                                        Text(subjectName)
                                             .font(.system(size: 11, weight: .bold, design: .rounded))
                                             .foregroundColor(.primary)
                                             .lineLimit(1)
@@ -143,30 +140,6 @@ struct UserProgressPieChart: View {
             if let refetched = try? await viewModel.fetchUserProgress(forUserID: userId) {
                 quizViewModel.userProgress = refetched
             }
-        }
-    }
-    
-    private func colorForSubjectArea(_ area: SubjectArea) -> Color {
-        switch area {
-        case .algebra: return .cyan
-        case .advancedMath: return .purple
-        case .problemSolvingDataAnalysis: return .orange
-        case .geometryTrigonometry: return .green
-        }
-    }
-}
-
-extension SubjectArea {
-    var displayName: String {
-        switch self {
-        case .algebra:
-            return "Algebra"
-        case .advancedMath:
-            return "Advanced Math"
-        case .problemSolvingDataAnalysis:
-            return "Problem Solving & Data Analysis"
-        case .geometryTrigonometry:
-            return "Geometry & Trigonometry"
         }
     }
 }

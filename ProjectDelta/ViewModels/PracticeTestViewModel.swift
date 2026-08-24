@@ -45,7 +45,7 @@ class PracticeTestViewModel {
                 let lessonDoc = try await db.collection("Subjects").document(subjectID).collection("Lessons").document(lessonID).getDocument()
                 let lessonName = lessonDoc.data()?["name"] as? String ?? ""
                 
-                await fetchPracticeTestCore(for: lessonID, practiceTestID: practiceTestID, subjectID: subjectID, subjectName: subjectName, lessonName: lessonName)
+                await fetchPracticeTestCore(for: lessonID, practiceTestID: subjectID, subjectID: subjectID, subjectName: subjectName, lessonName: lessonName)
             } else {
                 self.isGeneratingQuiz = false
             }
@@ -203,12 +203,7 @@ class PracticeTestViewModel {
         }
         
         // Transactional Progress Commitment Execution Block
-        let area: SubjectArea
-        let lower = subjectName.lowercased()
-        if lower.contains("algebra") { area = .algebra }
-        else if lower.contains("advanced") { area = .advancedMath }
-        else if lower.contains("problem") || lower.contains("data") { area = .problemSolvingDataAnalysis }
-        else { area = .geometryTrigonometry }
+        let subjectKey = subjectName
         
         let userProgressRef = db.collection("UserProgress").document(userId)
         
@@ -225,14 +220,14 @@ class PracticeTestViewModel {
                 totalAttempted += self.questions.count
                 
                 var progressDict = docSnapshot.data()?["progress"] as? [String: [String: Any]] ?? [:]
-                var subjectData = progressDict[area.rawValue] ?? ["questionsAttempted": 0, "questionsCorrect": 0]
+                var subjectData = progressDict[subjectKey] ?? ["questionsAttempted": 0, "questionsCorrect": 0]
                 
                 let subAttempted = (subjectData["questionsAttempted"] as? Int ?? 0) + self.questions.count
                 let subCorrect = (subjectData["questionsCorrect"] as? Int ?? 0) + correctCount
                 
                 subjectData["questionsAttempted"] = subAttempted
                 subjectData["questionsCorrect"] = subCorrect
-                progressDict[area.rawValue] = subjectData
+                progressDict[subjectKey] = subjectData
                 
                 var answeredMap = docSnapshot.data()?["answeredQuestions"] as? [String: Bool] ?? [:]
                 for res in results {
@@ -254,8 +249,7 @@ class PracticeTestViewModel {
         self.isQuizComplete = true
     }
     
-    // Kept to satisfy legacy signatures during incremental workspace refactoring
-    func updateUserProgressForSubject(userID: String, subjectArea: SubjectArea, answeredCorrectly: Bool, questionDocumentID: String) async throws {
+    func updateUserProgressForSubject(userID: String, subjectName: String, answeredCorrectly: Bool, questionDocumentID: String) async throws {
         // Handled dynamically within the unified transactional atomic block in finishPracticeTest
     }
 }

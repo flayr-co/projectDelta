@@ -202,16 +202,11 @@ class QuizViewModel {
             print("Failed to save snapshot: \(error.localizedDescription)")
         }
         
-        let area: SubjectArea
-        let lower = subjectId.lowercased()
-        if lower.contains("algebra") { area = .algebra }
-        else if lower.contains("advanced") { area = .advancedMath }
-        else if lower.contains("problem") || lower.contains("data") { area = .problemSolvingDataAnalysis }
-        else { area = .geometryTrigonometry }
+        let subjectKey = subjectId
         
         if var progressObj = self.userProgress {
             progressObj.questionsAttempted += questions.count
-            var subjectProgress = progressObj.progress[area] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
+            var subjectProgress = progressObj.progress[subjectKey] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
             subjectProgress.questionsAttempted += questions.count
             subjectProgress.questionsCorrect += correctCount
             
@@ -222,12 +217,12 @@ class QuizViewModel {
                 progressObj.answeredQuestions?[res.questionId] = res.isCorrect
             }
             
-            progressObj.progress[area] = subjectProgress
+            progressObj.progress[subjectKey] = subjectProgress
             self.userProgress = progressObj
             
             let userProgressRef = db.collection("UserProgress").document(userId)
             let progressMapData = progressObj.progress.reduce(into: [String: Any]()) { result, entry in
-                result[entry.key.rawValue] = [
+                result[entry.key] = [
                     "questionsAttempted": entry.value.questionsAttempted,
                     "questionsCorrect": entry.value.questionsCorrect
                 ]

@@ -247,12 +247,7 @@ class TestSessionViewModel {
         await authViewModel.storeTodaysPoints(pointsGainedToday: totalPointsChange)
         
         // Progress mechanics
-        let area: SubjectArea
-        let lower = mode.subjectName.lowercased()
-        if lower.contains("algebra") { area = .algebra }
-        else if lower.contains("advanced") { area = .advancedMath }
-        else if lower.contains("problem") || lower.contains("data") { area = .problemSolvingDataAnalysis }
-        else { area = .geometryTrigonometry }
+        let subjectKey = mode.subjectName
         
         let userProgressRef = db.collection("UserProgress").document(userId)
         
@@ -269,14 +264,14 @@ class TestSessionViewModel {
                 totalAttempted += self.questions.count
                 
                 var progressDict = docSnapshot.data()?["progress"] as? [String: [String: Any]] ?? [:]
-                var subjectData = progressDict[area.rawValue] ?? ["questionsAttempted": 0, "questionsCorrect": 0]
+                var subjectData = progressDict[subjectKey] ?? ["questionsAttempted": 0, "questionsCorrect": 0]
                 
                 let subAttempted = (subjectData["questionsAttempted"] as? Int ?? 0) + self.questions.count
                 let subCorrect = (subjectData["questionsCorrect"] as? Int ?? 0) + correctCount
                 
                 subjectData["questionsAttempted"] = subAttempted
                 subjectData["questionsCorrect"] = subCorrect
-                progressDict[area.rawValue] = subjectData
+                progressDict[subjectKey] = subjectData
                 
                 var answeredMap = docSnapshot.data()?["answeredQuestions"] as? [String: Bool] ?? [:]
                 for res in results {
