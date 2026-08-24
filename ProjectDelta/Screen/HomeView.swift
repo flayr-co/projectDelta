@@ -14,12 +14,6 @@ struct HomeView: View {
     @State private var refreshKey = UUID()
     @Environment(\.colorScheme) var colorScheme
     
-    // macOS Specific State Properties
-    @State private var totalVolume: Int = 18
-    @State private var accuracy: Double = 0.77
-    @State private var algebraCorrect: Int = 14
-    @State private var algebraTotal: Int = 18
-    
     #if os(iOS)
     let columns = [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)]
     #endif
@@ -155,20 +149,28 @@ struct HomeView: View {
     }
     
     private var donutChartCard: some View {
-        VStack(spacing: 32) {
+        let progress = testViewModel.userProgress
+        let dynamicSubjects = progress != nil ? Array(progress!.progress.keys).sorted() : []
+        let chartColors: [Color] = [.cyan, .purple, .orange, .green, .pink, .indigo, .mint, .yellow, .red, .teal]
+        
+        let totalCorrect = dynamicSubjects.reduce(0) { $0 + (progress?.progress[$1]?.questionsCorrect ?? 0) }
+        let totalAttempted = dynamicSubjects.reduce(0) { $0 + (progress?.progress[$1]?.questionsAttempted ?? 0) }
+        let percentage = totalAttempted > 0 ? CGFloat(Double(totalCorrect) / Double(totalAttempted)) : 0.0
+        
+        return VStack(spacing: 32) {
             // Donut Chart
             ZStack {
                 Circle()
                     .stroke(colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 32)
                 
                 Circle()
-                    .trim(from: 0, to: CGFloat(Double(algebraCorrect) / Double(algebraTotal)))
+                    .trim(from: 0, to: percentage)
                     .stroke(Color.cyan, style: StrokeStyle(lineWidth: 32, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .shadow(color: Color.cyan.opacity(0.4), radius: 8, y: 2)
                 
                 VStack(spacing: 4) {
-                    Text("\(algebraCorrect)")
+                    Text("\(totalCorrect)")
                         .font(.system(size: 48, weight: .bold))
                         .foregroundStyle(colorScheme == .dark ? .white : .primary)
                     Text("CORRECT")
@@ -181,10 +183,14 @@ struct HomeView: View {
             
             // Legend
             VStack(alignment: .leading, spacing: 20) {
-                LegendItemView(color: .cyan, title: "Algebra", value: "\(algebraCorrect)/\(algebraTotal) correct")
-                LegendItemView(color: .purple, title: "Advanced Math", value: "0/0 correct")
-                LegendItemView(color: .orange, title: "Problem Solving & Data Analysis", value: "0/0 correct")
-                LegendItemView(color: .green, title: "Geometry & Trigonometry", value: "0/0 correct")
+                if dynamicSubjects.isEmpty {
+                    LegendItemView(color: .gray, title: "No Data", value: "0/0 correct")
+                } else {
+                    ForEach(Array(dynamicSubjects.enumerated()), id: \.element) { index, subject in
+                        let stats = progress?.progress[subject] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
+                        LegendItemView(color: chartColors[index % chartColors.count], title: subject, value: "\(stats.questionsCorrect)/\(stats.questionsAttempted) correct")
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -199,18 +205,31 @@ struct HomeView: View {
     }
     
     private var statsGrid: some View {
-        // Adaptive grid takes full advantage of horizontal space on Mac
+        let progress = testViewModel.userProgress
+        let dynamicSubjects = progress != nil ? Array(progress!.progress.keys).sorted() : []
+        let chartColors: [Color] = [.cyan, .purple, .orange, .green, .pink, .indigo, .mint, .yellow, .red, .teal]
+        
+        let totalAttempted = progress?.questionsAttempted ?? 0
+        let totalCorrect = dynamicSubjects.reduce(0) { $0 + (progress?.progress[$1]?.questionsCorrect ?? 0) }
+        let accuracy = totalAttempted > 0 ? Int((Double(totalCorrect) / Double(totalAttempted)) * 100) : 0
+        
         let columns = [
             GridItem(.adaptive(minimum: 180, maximum: .infinity), spacing: 24)
         ]
         
         return LazyVGrid(columns: columns, spacing: 24) {
-            StatCardView(icon: "bolt.fill", iconColor: .orange, title: "Total Volume", value: "\(totalVolume)")
-            StatCardView(icon: "target", iconColor: .green, title: "Overall Accuracy", value: "\(Int(accuracy * 100))%")
-            StatCardView(icon: "function", iconColor: .purple, title: "Advanced Math", value: "0 / 0")
-            StatCardView(icon: "x.squareroot", iconColor: .cyan, title: "Algebra", value: "\(algebraCorrect) / \(algebraTotal)")
-            StatCardView(icon: "angle", iconColor: .indigo, title: "Geometry & Trig", value: "0 / 0")
-            StatCardView(icon: "chart.bar.fill", iconColor: .teal, title: "Problem Solving", value: "0 / 0")
+            StatCardView(icon: "bolt.fill", iconColor: .orange, title: "Total Volume", value: "\(totalAttempted)")
+            StatCardView(icon: "target", iconColor: .green, title: "Overall Accuracy", value: "\(accuracy)%")
+            
+            ForEach(Array(dynamicSubjects.enumerated()), id: \.element) { index, subject in
+                let stats = progress?.progress[subject] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
+                StatCardView(
+                    icon: "book.fill",
+                    iconColor: chartColors[index % chartColors.count],
+                    title: subject,
+                    value: "\(stats.questionsCorrect) / \(stats.questionsAttempted)"
+                )
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -235,15 +254,12 @@ struct HomeView: View {
                 color: .yellow,
                 destination: LeaderboardView().navigationBarBackButtonHidden(true)
             )
-            
-            // NEW 4TH BUTTON
             ActionCardButton(
                 title: "Electromagnetic Spectrum",
                 icon: "waveform.path",
                 color: .purple,
                 destination: ElectromagneticWaveAnalyzerView()
             )
-            
             Spacer(minLength: 0)
         }
     }
@@ -322,7 +338,6 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                         .shadow(color: Color.yellow.opacity(0.15), radius: 10, y: 4)
                         
-                        // NEW 4TH CARD
                         NavigationLink(destination: ElectromagneticWaveAnalyzerView()) {
                             DisplayCards(imageName: "waveform.path", title: "Electromagnetic Spectrum", tintColor: .purple)
                         }
