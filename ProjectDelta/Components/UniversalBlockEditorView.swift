@@ -13,14 +13,16 @@ struct UniversalBlockEditorView: View {
     
     var body: some View {
         VStack(spacing: 24) {
+            // MARK: Floating Save Header
             HStack {
                 Spacer()
                 Button(action: {
+                    #if os(iOS)
+                    hideKeyboard()
+                    #endif
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                         isSaved = true
                     }
-                    
-                    // Allow the user to register the success feedback before navigating back
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                         onSave?()
                         isSaved = false
@@ -35,14 +37,16 @@ struct UniversalBlockEditorView: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
-                    .background(isSaved ? Color.green : Color.teal)
-                    .cornerRadius(14)
+                    .background(isSaved ? Color.green.gradient : Color.teal.gradient)
+                    .clipShape(Capsule())
                     .shadow(color: (isSaved ? Color.green : Color.teal).opacity(0.3), radius: 8, y: 4)
                 }
                 .buttonStyle(.plain)
                 .sensoryFeedback(.success, trigger: isSaved)
             }
+            .padding(.bottom, 8)
             
+            // MARK: Block Cells
             ForEach($blocks) { $block in
                 let blockId = block.id
                 
@@ -54,30 +58,27 @@ struct UniversalBlockEditorView: View {
                 .transition(.asymmetric(insertion: .scale(scale: 0.95).combined(with: .opacity), removal: .opacity))
             }
             
-            Menu {
-                Button(action: { addBlock(type: .text) }) {
-                    Label("Add Plain Text", systemImage: "text.alignleft")
+            // MARK: Premium Glass Add Menu
+            VStack(spacing: 16) {
+                Text("Add Content")
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                
+                HStack(spacing: 12) {
+                    AddBlockButton(title: "Text", icon: "text.alignleft", color: .blue) { addBlock(type: .text) }
+                    AddBlockButton(title: "Math", icon: "x.squareroot", color: .teal) { addBlock(type: .math) }
+                    AddBlockButton(title: "Graph", icon: "chart.xyaxis.line", color: .purple) { addBlock(type: .graph) }
                 }
-                Button(action: { addBlock(type: .math) }) {
-                    Label("Add Math Equation", systemImage: "x.squareroot")
-                }
-                Button(action: { addBlock(type: .graph) }) {
-                    Label("Add Interactive Graph", systemImage: "chart.xyaxis.line")
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                    Text("Add Content Block")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color.teal.opacity(0.15))
-                .foregroundColor(.teal)
-                .cornerRadius(16)
             }
+            .padding(.top, 16)
+            .padding(.bottom, 40)
+        }
+        .onTapGesture {
+            #if os(iOS)
+            hideKeyboard()
+            #endif
         }
     }
     
@@ -88,6 +89,33 @@ struct UniversalBlockEditorView: View {
     }
 }
 
+// MARK: - Premium Add Block Button
+fileprivate struct AddBlockButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.title3.weight(.semibold))
+                Text(title)
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundColor(color)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(color.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(color.opacity(0.2), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Modern Block Cell
 fileprivate struct BlockEditCell: View {
     @Binding var block: QuestionBlockModel
     var onDelete: () -> Void
@@ -95,15 +123,22 @@ fileprivate struct BlockEditCell: View {
     @State private var isEditing: Bool = false
     @FocusState private var isFocused: Bool
     
+    // Custom Math Prompt States
+    enum MathPromptType { case fraction, exponent, root }
+    @State private var showMathPrompt = false
+    @State private var mathPromptType: MathPromptType = .fraction
+    @State private var mathArg1: String = ""
+    @State private var mathArg2: String = ""
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Lightweight Non-Live Header Card to prevent performance lag
+            // Glassmorphic Header
             HStack(spacing: 12) {
                 Image(systemName: iconForType())
                     .font(.title3)
                     .foregroundColor(colorForType())
-                    .frame(width: 34, height: 34)
-                    .background(colorForType().opacity(0.12))
+                    .frame(width: 36, height: 36)
+                    .background(colorForType().opacity(0.15))
                     .clipShape(Circle())
                 
                 VStack(alignment: .leading, spacing: 2) {
@@ -119,20 +154,12 @@ fileprivate struct BlockEditCell: View {
                 
                 Spacer()
                 
-                Image(systemName: isEditing ? "chevron.up" : "chevron.down")
-                    .font(.caption.weight(.bold))
-                    .foregroundColor(.secondary)
+                Image(systemName: isEditing ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(isEditing ? colorForType() : .secondary.opacity(0.3))
             }
             .padding(16)
-            .background(Color.platformSystemBackground)
-            .cornerRadius(16)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(
-                        isEditing ? colorForType() : Color.gray.opacity(0.3),
-                        style: StrokeStyle(lineWidth: isEditing ? 3 : 2, dash: isEditing ? [] : [6])
-                    )
-            )
+            .background(.ultraThinMaterial)
             .contentShape(Rectangle())
             .onTapGesture {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -143,32 +170,25 @@ fileprivate struct BlockEditCell: View {
 
             // Expanding Editor Controls
             if isEditing {
+                Divider()
+                
                 VStack(alignment: .leading, spacing: 20) {
                     HStack {
-                        HStack(spacing: 8) {
-                            Image(systemName: iconForType())
-                            Text("Editing \(block.type.capitalized)")
-                        }
-                        .font(.subheadline)
-                        .fontWeight(.bold)
-                        .foregroundColor(colorForType())
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(colorForType().opacity(0.15))
-                        .cornerRadius(8)
-                        
                         Spacer()
                         
                         Button(role: .destructive, action: onDelete) {
                             Image(systemName: "trash.fill")
-                                .foregroundColor(.red.opacity(0.8))
+                                .foregroundColor(.red)
                                 .padding(10)
-                                .background(Color.red.opacity(0.1))
+                                .background(Color.red.opacity(0.15))
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
                         
                         Button(action: {
+                            #if os(iOS)
+                            hideKeyboard()
+                            #endif
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 isEditing = false
                                 isFocused = false
@@ -178,24 +198,14 @@ fileprivate struct BlockEditCell: View {
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.white)
                                 .padding(10)
-                                .background(Color.green)
+                                .background(Color.green.gradient)
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
                     }
                     
                     if block.type == QuestionBlockType.text.rawValue {
-                        TextField("Enter instructional prose or context...", text: $block.content, axis: .vertical)
-                            .lineLimit(4...12)
-                            .font(.system(size: 18, weight: .regular, design: .serif))
-                            .padding(16)
-                            .background(Color.blue.opacity(0.05))
-                            .cornerRadius(12)
-                            .focused($isFocused)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(isFocused ? colorForType() : Color.clear, lineWidth: 2)
-                            )
+                        buildTextEditor()
                     } else if block.type == QuestionBlockType.math.rawValue {
                         buildMathEditor()
                     } else if block.type == QuestionBlockType.graph.rawValue {
@@ -204,12 +214,15 @@ fileprivate struct BlockEditCell: View {
                 }
                 .padding(20)
                 .background(Color.platformSystemBackground)
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.06), radius: 10, y: 6)
-                .padding(.top, 12)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: Color.black.opacity(isEditing ? 0.08 : 0.04), radius: isEditing ? 15 : 8, y: isEditing ? 6 : 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(isEditing ? colorForType().opacity(0.5) : Color.gray.opacity(0.15), lineWidth: 1)
+        )
         .padding(.vertical, 4)
     }
 
@@ -224,9 +237,40 @@ fileprivate struct BlockEditCell: View {
     // MARK: - Sub-Editors
     
     @ViewBuilder
+    private func buildTextEditor() -> some View {
+        TextField("Enter instructional prose or context...", text: $block.content, axis: .vertical)
+            .lineLimit(4...12)
+            .font(.system(size: 18, weight: .regular, design: .serif))
+            .padding(16)
+            .background(Color.blue.opacity(0.05))
+            .cornerRadius(12)
+            .focused($isFocused)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isFocused ? colorForType() : Color.clear, lineWidth: 2)
+            )
+            .toolbar {
+                #if os(iOS)
+                ToolbarItemGroup(placement: .keyboard) {
+                    if isFocused && block.type == QuestionBlockType.text.rawValue {
+                        Spacer()
+                        Button("Done") { isFocused = false }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(Color.blue)
+                            .clipShape(Capsule())
+                    }
+                }
+                #endif
+            }
+    }
+    
+    @ViewBuilder
     private func buildMathEditor() -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("LaTeX Expression Builder")
+            Text("LaTeX Expression")
                 .font(.caption)
                 .fontWeight(.bold)
                 .textCase(.uppercase)
@@ -248,23 +292,124 @@ fileprivate struct BlockEditCell: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(isFocused ? Color.teal : Color.clear, lineWidth: 2)
                 )
+                // MARK: Intelligent Math Toolbar
                 .toolbar {
                     #if os(iOS)
                     ToolbarItemGroup(placement: .keyboard) {
-                        if isFocused {
-                            Spacer()
+                        if isFocused && block.type == QuestionBlockType.math.rawValue {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    // Base Operators
+                                    MathToolbarButton(display: "+") { block.content.append("+") }
+                                    MathToolbarButton(display: "-") { block.content.append("-") }
+                                    MathToolbarButton(display: "=") { block.content.append("=") }
+                                    MathToolbarButton(display: "(") { block.content.append("(") }
+                                    MathToolbarButton(display: ")") { block.content.append(")") }
+                                    MathToolbarButton(display: "<") { block.content.append("<") }
+                                    MathToolbarButton(display: ">") { block.content.append(">") }
+                                    
+                                    // Complex Structure Prompts
+                                    MathToolbarButton(display: "a/b") {
+                                        mathPromptType = .fraction; mathArg1 = ""; mathArg2 = ""; showMathPrompt = true
+                                    }
+                                    MathToolbarButton(display: "x²") { block.content.append("^{2}") }
+                                    MathToolbarButton(display: "xⁿ") {
+                                        mathPromptType = .exponent; mathArg1 = ""; mathArg2 = ""; showMathPrompt = true
+                                    }
+                                    MathToolbarButton(display: "√") {
+                                        mathPromptType = .root; mathArg1 = ""; mathArg2 = ""; showMathPrompt = true
+                                    }
+                                    
+                                    MathToolbarButton(display: "÷") { block.content.append("\\div") }
+                                    MathToolbarButton(display: "×") { block.content.append("\\times") }
+                                    
+                                    // Trig
+                                    MathToolbarButton(display: "sin") { block.content.append("\\sin()") }
+                                    MathToolbarButton(display: "cos") { block.content.append("\\cos()") }
+                                    MathToolbarButton(display: "tan") { block.content.append("\\tan()") }
+                                    MathToolbarButton(display: "ln") { block.content.append("\\ln()") }
+                                    
+                                    // Symbols
+                                    MathToolbarButton(display: "π") { block.content.append("\\pi") }
+                                    MathToolbarButton(display: "θ") { block.content.append("\\theta") }
+                                    MathToolbarButton(display: "∞") { block.content.append("\\infty") }
+                                    MathToolbarButton(display: "∫") { block.content.append("\\int") }
+                                    MathToolbarButton(display: "°") { block.content.append("^{\\circ}") }
+                                }
+                                .padding(.horizontal, 4)
+                            }
+                            
                             Button("Done") { isFocused = false }
-                                .fontWeight(.bold)
-                                .foregroundColor(.teal)
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(Color.teal)
+                                .clipShape(Capsule())
                         }
                     }
                     #endif
                 }
+                // MARK: Native Inline Data Prompts
+                .alert(promptTitle, isPresented: $showMathPrompt) {
+                    TextField(promptPlaceholder1, text: $mathArg1)
+                        .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
+                    
+                    if mathPromptType == .fraction {
+                        TextField("Denominator (e.g. 2 or x)", text: $mathArg2)
+                            .autocorrectionDisabled()
+                            #if os(iOS)
+                            .textInputAutocapitalization(.never)
+                            #endif
+                    }
+                    
+                    Button("Cancel", role: .cancel) { }
+                    Button("Insert") {
+                        switch mathPromptType {
+                        case .fraction:
+                            block.content.append("\\frac{\(mathArg1)}{\(mathArg2)}")
+                        case .exponent:
+                            block.content.append("^{\(mathArg1)}")
+                        case .root:
+                            block.content.append("\\sqrt{\(mathArg1)}")
+                        }
+                    }
+                } message: {
+                    Text(promptMessage)
+                }
             
+            #if os(macOS)
             if isFocused {
                 MathKeypadView(text: $block.content)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            #endif
+        }
+    }
+    
+    // Prompt Helpers
+    private var promptTitle: String {
+        switch mathPromptType {
+        case .fraction: return "Insert Fraction"
+        case .exponent: return "Insert Exponent"
+        case .root: return "Insert Square Root"
+        }
+    }
+    private var promptPlaceholder1: String {
+        switch mathPromptType {
+        case .fraction: return "Numerator (e.g. 1)"
+        case .exponent: return "Exponent (e.g. 2x)"
+        case .root: return "Value (e.g. x+5)"
+        }
+    }
+    private var promptMessage: String {
+        switch mathPromptType {
+        case .fraction: return "Enter the numerator and denominator values."
+        case .exponent: return "Enter the exponent value. It will be added to the end of the current expression."
+        case .root: return "Enter the value inside the square root."
         }
     }
     
@@ -274,25 +419,6 @@ fileprivate struct BlockEditCell: View {
         let expressions = block.content.isEmpty ? [""] : block.content.components(separatedBy: "\n")
         
         VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "point.3.connected.trianglepath.dotted")
-                    .font(.title3)
-                    .foregroundColor(.purple)
-                    .frame(width: 34, height: 34)
-                    .background(Color.purple.opacity(0.12))
-                    .clipShape(Circle())
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Interactive Graph Builder")
-                        .font(.headline)
-                    Text("Add multiple equations or coordinate sets.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-            }
-            
             Picker("Graph Mode", selection: Binding(
                 get: { selectedGraphType },
                 set: { block.graphType = $0 }
@@ -376,6 +502,22 @@ fileprivate struct BlockEditCell: View {
                 }
                 .buttonStyle(.plain)
             }
+            .toolbar {
+                #if os(iOS)
+                ToolbarItemGroup(placement: .keyboard) {
+                    if isFocused && block.type == QuestionBlockType.graph.rawValue {
+                        Spacer()
+                        Button("Done") { isFocused = false }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(Color.purple)
+                            .clipShape(Capsule())
+                    }
+                }
+                #endif
+            }
         }
     }
     
@@ -398,6 +540,27 @@ fileprivate struct BlockEditCell: View {
         }
     }
 }
+
+// MARK: - iOS Math Toolbar Button
+#if os(iOS)
+fileprivate struct MathToolbarButton: View {
+    let display: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(display)
+                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                .foregroundColor(.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color(uiColor: .systemGray5))
+                .cornerRadius(8)
+        }
+        .buttonStyle(.plain)
+    }
+}
+#endif
 
 // MARK: - Live Block Rendering Engine
 fileprivate struct LiveBlockRenderView: View {
@@ -782,7 +945,6 @@ fileprivate struct InteractiveGraphBuilderView: View {
             linePath.addLine(to: CGPoint(x: canvasSize.width, y: m * canvasSize.width + b))
         }
         
-        // Change `path` back to `linePath`
         context.stroke(linePath, with: .color(color), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
     }
     
@@ -890,54 +1052,12 @@ fileprivate struct InteractiveGraphBuilderView: View {
         let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedContent.isEmpty else { return }
         
-        // Only load points if the graph is explicitly in "Points" mode
         if graphType == QuestionGraphType.points.rawValue {
             let graphData = GraphContentParser.graphData(from: trimmedContent, graphType: graphType)
             points = zip(graphData.xValues, graphData.yValues)
                 .filter { !$0.0.isNaN && !$0.1.isNaN && !$0.0.isInfinite && !$0.1.isInfinite }
                 .map { CGPoint(x: $0.0, y: $0.1) }
         }
-    }
-
-    private func parseLinearEquation(_ expr: String) -> (m: CGFloat, b: CGFloat)? {
-        let clean = expr.replacingOccurrences(of: " ", with: "").lowercased()
-        guard clean.hasPrefix("y=") else { return nil }
-        let rhs = clean.dropFirst(2)
-        if rhs.isEmpty { return nil }
-
-        if !rhs.contains("x") {
-            if let b = Double(rhs) { return (0, CGFloat(b)) }
-            return nil
-        }
-
-        let components = rhs.components(separatedBy: "x")
-        let mStr = components[0]
-        let bStr = components.count > 1 ? components[1] : ""
-
-        var m: CGFloat = 1
-        if mStr == "-" { m = -1 }
-        else if mStr == "" || mStr == "+" { m = 1 }
-        else {
-            if mStr.contains("/") {
-                let parts = mStr.components(separatedBy: "/")
-                if parts.count == 2, let num = Double(parts[0]), let den = Double(parts[1]), den != 0 {
-                    m = CGFloat(num / den)
-                } else { return nil }
-            } else if let parsedM = Double(mStr) {
-                m = CGFloat(parsedM)
-            } else {
-                return nil
-            }
-        }
-
-        var b: CGFloat = 0
-        if !bStr.isEmpty {
-            let sanitizedB = bStr.replacingOccurrences(of: "+", with: "")
-            if let parsedB = Double(sanitizedB) {
-                b = CGFloat(parsedB)
-            }
-        }
-        return (m, b)
     }
 }
 
@@ -995,7 +1115,8 @@ fileprivate struct DraggablePointView: View {
     }
 }
 
-// MARK: - Advanced WebAssign Math Keypad
+// MARK: - Advanced WebAssign Math Keypad (macOS Strict Fallback)
+#if os(macOS)
 fileprivate enum KeypadTab: String, CaseIterable {
     case num = "123"
     case fn = "ƒ(x)"
@@ -1139,12 +1260,4 @@ fileprivate struct MathKeypadView: View {
         return name == "space" ? "spacebar" : name
     }
 }
-
-// MARK: - Preview
-#Preview {
-    UniversalBlockEditorView(blocks: .constant([
-        QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: "Identify the slope in the following equation:"),
-        QuestionBlockModel(type: QuestionBlockType.math.rawValue, content: "\\frac{1}{2}x + 5 = y")
-    ]))
-    .padding()
-}
+#endif

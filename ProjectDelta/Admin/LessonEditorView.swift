@@ -7,6 +7,14 @@ import SwiftUI
 import FirebaseFirestore
 import Observation
 
+#if canImport(UIKit)
+extension View {
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}
+#endif
+
 struct LessonEditorView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) var colorScheme
@@ -273,7 +281,7 @@ struct PageAdminCard: View {
     }
 }
 
-// MARK: - Page Editor View
+// MARK: - Page Editor View (v10.0 Refactor)
 struct PageEditorView: View {
     @Binding var page: Page
     let pageIndex: Int
@@ -289,8 +297,12 @@ struct PageEditorView: View {
                     saveBlocksToPage()
                     dismiss()
                 })
-                .padding(24)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 24)
             }
+            #if os(iOS)
+            .scrollDismissesKeyboard(.interactively) // Modern iOS native dismissal
+            #endif
             #if os(macOS)
             .safeAreaPadding(.top, 56)
             #endif
@@ -299,6 +311,12 @@ struct PageEditorView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        // Global tap dismissal fallback
+        .onTapGesture {
+            #if os(iOS)
+            hideKeyboard()
+            #endif
+        }
         .onAppear { loadBlocks() }
         .onChange(of: blocks) { _, _ in saveBlocksToPage() }
     }
@@ -308,12 +326,10 @@ struct PageEditorView: View {
         guard !textData.isEmpty else { return }
         
         if let data = textData.data(using: .utf8) {
-            // Attempt primary strict codable decode
             if let decoded = try? JSONDecoder().decode([QuestionBlockModel].self, from: data) {
                 blocks = decoded
                 return
             }
-            // Fault-tolerant fallback: Parses legacy database JSON missing 'id' tags
             if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                 blocks = jsonArray.compactMap { dict in
                     let type = dict["type"] as? String ?? QuestionBlockType.text.rawValue
@@ -325,7 +341,6 @@ struct PageEditorView: View {
             }
         }
         
-        // Final fallback: Parse legacy [MATH] and [GRAPH] tags into proper split QuestionBlockModels
         blocks = parseLegacyContentToBlocks(textData)
     }
 
