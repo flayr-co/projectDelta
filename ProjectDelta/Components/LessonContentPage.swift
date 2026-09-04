@@ -302,7 +302,7 @@ struct LessonContentPage: View {
             #else
             .padding(.horizontal, 24)
             .padding(.top, 32)
-            .padding(.bottom, 60)
+            .padding(.bottom, 140)
             #endif
         }
         .scrollIndicators(.hidden)

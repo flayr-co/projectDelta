@@ -212,7 +212,7 @@ struct TableOfContentsView: View {
     // MARK: - Helper Views & Methods
         
     private func lessonLabel(lesson: Lesson, index: Int) -> some View {
-        HStack(spacing: 16) {
+        HStack(alignment: .center, spacing: 16) {
             // Premium Rounded Rectangle Badge
             Text("\(index + 1)")
                 .font(.system(.title3, design: .rounded, weight: .heavy))
@@ -229,20 +229,19 @@ struct TableOfContentsView: View {
                 .shadow(color: lesson.completed ? Color.green.opacity(0.3) : Color.clear, radius: 4, x: 0, y: 2)
             
             VStack(alignment: .leading, spacing: 4) {
-                // Lesson Title with automatic dynamic wrapping and scaling
+                // Fixed wrap alignment for dynamic text
                 Text(lesson.name)
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-                    .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                 
                 if !lesson.description.isEmpty && !lesson.description.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[{") {
                     Text(lesson.description)
                         .font(.system(.subheadline, design: .rounded, weight: .medium))
                         .foregroundStyle(.secondary.opacity(0.9))
                         .lineLimit(2)
-                        .minimumScaleFactor(0.9)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 16)

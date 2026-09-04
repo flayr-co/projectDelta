@@ -39,7 +39,6 @@ struct LessonView: View {
         }
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
-        // Dynamically collapses the tab bar when UI controls are visible
         .toolbar(showUIControls ? .hidden : .visible, for: .tabBar)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showUIControls)
         #endif
@@ -130,7 +129,6 @@ struct LessonView: View {
                 }
             } else {
                 ZStack(alignment: .bottom) {
-                    // ID set to \.offset to prevent duplicate IDs dropping the view
                     ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
                         LessonContentPage(
                             page: page,
@@ -352,7 +350,6 @@ struct LessonView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
-                        // ID set to \.offset to prevent duplicate IDs dropping the view
                         ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
                             LessonContentPage(
                                 page: page,
@@ -366,12 +363,15 @@ struct LessonView: View {
                                     }
                                 }
                             )
-                            .id(index) // MUST match the ScrollView Int binding type
-                            .containerRelativeFrame(.horizontal, alignment: .center)
+                            .id(index)
+                            // Forces the page to occupy only the horizontal width, preventing total view collapse
+                            .containerRelativeFrame(.horizontal)
                         }
                     }
                     .scrollTargetLayout()
                 }
+                // Setting max height forces the safeAreaInsets to snap firmly to the screen's true top and bottom
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .scrollTargetBehavior(.paging)
                 .scrollPosition(id: $scrollPosition)
                 .onChange(of: scrollPosition) { _, newIndex in
@@ -427,12 +427,12 @@ struct LessonView: View {
 
     private var headerView: some View {
         HStack(spacing: 12) {
-            // Refined, lightweight adaptive back button
+            // Refined, perfectly scaled back button
             Button(action: { dismiss() }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(colorScheme == .dark ? Color.red.opacity(0.9) : .red)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 32, height: 32)
                     .background(Color.red.opacity(0.15))
                     .clipShape(Circle())
             }
@@ -454,9 +454,9 @@ struct LessonView: View {
                     }
                 }) {
                     Image(systemName: "list.bullet")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.teal)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 32, height: 32)
                         .background(Color.teal.opacity(0.15))
                         .clipShape(Circle())
                 }
@@ -466,9 +466,9 @@ struct LessonView: View {
                     lessonVM.toggleBookmark(authVM: authVM)
                 }) {
                     Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(lessonVM.isCurrentPageBookmarked ? .teal : .secondary)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 32, height: 32)
                         .background(lessonVM.isCurrentPageBookmarked ? Color.teal.opacity(0.15) : Color.secondary.opacity(0.15))
                         .clipShape(Circle())
                 }
@@ -483,7 +483,7 @@ struct LessonView: View {
 
     private var pageIndicator: some View {
         HStack(spacing: 20) {
-            // Previous Page Arrow with expanded hit target
+            // Previous Page Arrow with massive hit target
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     let newIndex = max(lessonVM.currentPageIndex - 1, 0)
@@ -491,7 +491,7 @@ struct LessonView: View {
                 }
             }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .heavy))
+                    .font(.system(size: 16, weight: .heavy))
                     .foregroundColor(lessonVM.currentPageIndex == 0 ? .secondary.opacity(0.3) : .teal)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
@@ -508,7 +508,7 @@ struct LessonView: View {
                 }
             }
 
-            // Next Page Arrow with expanded hit target
+            // Next Page Arrow with massive hit target
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     let newIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
@@ -516,7 +516,7 @@ struct LessonView: View {
                 }
             }) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 18, weight: .heavy))
+                    .font(.system(size: 16, weight: .heavy))
                     .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .secondary.opacity(0.3) : .teal)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
