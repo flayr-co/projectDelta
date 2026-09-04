@@ -12,7 +12,6 @@ struct UniversalBlockEditorView: View {
     @State private var isSaved: Bool = false
     
     var body: some View {
-        // Migrated to LazyVStack for instant loading and smooth scrolling
         LazyVStack(spacing: 24) {
             // MARK: Floating Save Header
             HStack {
@@ -321,15 +320,15 @@ fileprivate struct BlockEditCell: View {
                         .stroke(isFocused ? Color.teal : Color.clear, lineWidth: 2)
                 )
                 .toolbar {
-#if os(iOS)
+                    #if os(iOS)
                     ToolbarItemGroup(placement: .keyboard) {
                         if isFocused && block.type == QuestionBlockType.math.rawValue {
                             mathKeyboardToolbar()
                         }
                     }
-#endif
+                    #endif
                 }
-            
+
             TextField("Optional Footnote Caption...", text: Binding(
                 get: { block.caption ?? "" },
                 set: { block.caption = $0.isEmpty ? nil : $0 }
@@ -338,9 +337,8 @@ fileprivate struct BlockEditCell: View {
             .padding(12)
             .background(Color.secondary.opacity(0.05))
             .cornerRadius(8)
-            .focused($isFocused)
             
-#if os(macOS)
+            #if os(macOS)
             if isFocused {
                 MathKeypadView(
                     text: $block.content,
@@ -348,7 +346,7 @@ fileprivate struct BlockEditCell: View {
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-#endif
+            #endif
         }
         .alert(promptTitle, isPresented: $showMathPrompt) {
             mathPromptActions()
@@ -357,20 +355,78 @@ fileprivate struct BlockEditCell: View {
         }
     }
     
+    #if os(iOS)
+    @ViewBuilder
+    private func mathKeyboardToolbar() -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Group {
+                    EditorToolbarButton(display: "+") { block.content.append("+") }
+                    EditorToolbarButton(display: "-") { block.content.append("-") }
+                    EditorToolbarButton(display: "=") { block.content.append("=") }
+                    EditorToolbarButton(display: "(") { block.content.append("(") }
+                    EditorToolbarButton(display: ")") { block.content.append(")") }
+                    EditorToolbarButton(display: "<") { block.content.append("<") }
+                    EditorToolbarButton(display: ">") { block.content.append(">") }
+                    EditorToolbarButton(display: "a/b") {
+                        mathPromptType = .fraction; mathArg1 = ""; mathArg2 = ""; showMathPrompt = true
+                    }
+                    EditorToolbarButton(display: "x²") { block.content.append("^{2}") }
+                    EditorToolbarButton(display: "xⁿ") {
+                        mathPromptType = .exponent; mathArg1 = ""; mathArg2 = ""; showMathPrompt = true
+                    }
+                }
+                
+                Group {
+                    EditorToolbarButton(display: "√") {
+                        mathPromptType = .root; mathArg1 = ""; mathArg2 = ""; showMathPrompt = true
+                    }
+                    EditorToolbarButton(display: "÷") { block.content.append("\\div") }
+                    EditorToolbarButton(display: "×") { block.content.append("\\times") }
+                    EditorToolbarButton(display: "sin") { block.content.append("\\sin()") }
+                    EditorToolbarButton(display: "cos") { block.content.append("\\cos()") }
+                    EditorToolbarButton(display: "tan") { block.content.append("\\tan()") }
+                    EditorToolbarButton(display: "ln") { block.content.append("\\ln()") }
+                    EditorToolbarButton(display: "π") { block.content.append("\\pi") }
+                    EditorToolbarButton(display: "θ") { block.content.append("\\theta") }
+                    EditorToolbarButton(display: "∞") { block.content.append("\\infty") }
+                }
+                
+                Group {
+                    EditorToolbarButton(display: "HL") {
+                        mathPromptType = .highlight; mathArg1 = ""; showMathPrompt = true
+                    }
+                    EditorToolbarButton(display: "∫") { block.content.append("\\int") }
+                    EditorToolbarButton(display: "°") { block.content.append("^{\\circ}") }
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+        
+        Button("Done") { isFocused = false }
+            .font(.headline)
+            .foregroundColor(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .background(Color.teal)
+            .clipShape(Capsule())
+    }
+    #endif
+
     @ViewBuilder
     private func mathPromptActions() -> some View {
         TextField(promptPlaceholder1, text: $mathArg1)
             .autocorrectionDisabled()
-#if os(iOS)
+            #if os(iOS)
             .textInputAutocapitalization(.never)
-#endif
+            #endif
         
         if mathPromptType == .fraction {
             TextField("Denominator (e.g. 2 or x)", text: $mathArg2)
                 .autocorrectionDisabled()
-#if os(iOS)
+                #if os(iOS)
                 .textInputAutocapitalization(.never)
-#endif
+                #endif
         }
         
         Button("Cancel", role: .cancel) { }
@@ -402,7 +458,7 @@ fileprivate struct BlockEditCell: View {
         case .highlight: return "Highlight Text"
         }
     }
-        
+    
     private var promptPlaceholder1: String {
         switch mathPromptType {
         case .fraction: return "Numerator (e.g. 1)"
@@ -411,7 +467,7 @@ fileprivate struct BlockEditCell: View {
         case .highlight: return "Text to highlight"
         }
     }
-        
+    
     private var promptMessage: String {
         switch mathPromptType {
         case .fraction: return "Enter the numerator and denominator values."

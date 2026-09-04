@@ -26,6 +26,7 @@ class LessonViewModel {
     private let db = Firestore.firestore()
     private var contentListener: ListenerRegistration?
     private var curriculumListener: ListenerRegistration?
+    private var pagesListener: ListenerRegistration?
     
     // MARK: - Core Initialization
     
@@ -113,20 +114,14 @@ class LessonViewModel {
                 let rawPages = embeddedPages.sorted { $0.pageNumber < $1.pageNumber }
                 self.applyCleanedPages(rawPages, to: lesson)
             } else {
-                Task {
-                    var pagesQuerySnapshot = try? await self.db.collection("Subjects").document(subjectId)
-                        .collection("Lessons").document(lessonDocument.documentID)
-                        .collection("Pages").order(by: "pageNumber").getDocuments()
-                    
-                    if pagesQuerySnapshot?.isEmpty == true {
-                        pagesQuerySnapshot = try? await self.db.collection("Subjects").document(subjectId)
-                            .collection("Lessons").document(lessonDocument.documentID)
-                            .collection("pages").order(by: "pageNumber").getDocuments()
+                self.pagesListener?.remove()
+                self.pagesListener = self.db.collection("Subjects").document(subjectId)
+                    .collection("Lessons").document(lessonDocument.documentID)
+                    .collection("Pages").order(by: "pageNumber")
+                    .addSnapshotListener { pageSnapshot, _ in
+                        let rawPages = pageSnapshot?.documents.compactMap { try? $0.data(as: Page.self) } ?? []
+                        self.applyCleanedPages(rawPages, to: lesson)
                     }
-                    
-                    let rawPages = pagesQuerySnapshot?.documents.compactMap { try? $0.data(as: Page.self) } ?? []
-                    self.applyCleanedPages(rawPages, to: lesson)
-                }
             }
         }
     }
