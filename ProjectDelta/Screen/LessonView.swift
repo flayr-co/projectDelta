@@ -483,7 +483,7 @@ struct LessonView: View {
 
     private var pageIndicator: some View {
         HStack(spacing: 20) {
-            // Previous Page Arrow
+            // Previous Page Arrow with expanded hit target
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     let newIndex = max(lessonVM.currentPageIndex - 1, 0)
@@ -491,8 +491,10 @@ struct LessonView: View {
                 }
             }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(.system(size: 18, weight: .heavy))
                     .foregroundColor(lessonVM.currentPageIndex == 0 ? .secondary.opacity(0.3) : .teal)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(lessonVM.currentPageIndex == 0)
@@ -506,7 +508,7 @@ struct LessonView: View {
                 }
             }
 
-            // Next Page Arrow
+            // Next Page Arrow with expanded hit target
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     let newIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
@@ -514,17 +516,19 @@ struct LessonView: View {
                 }
             }) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(.system(size: 18, weight: .heavy))
                     .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .secondary.opacity(0.3) : .teal)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 20)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 16)
         .background(.ultraThinMaterial, in: Capsule())
         .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
-        .padding(.bottom, 8)
+        .padding(.bottom, 12)
     }
     #endif
 }

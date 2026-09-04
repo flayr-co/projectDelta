@@ -7,8 +7,9 @@ import SwiftUI
 import Charts
 
 // MARK: - Parsed Content Models
+// Swapped UUID() for strict String IDs to stop SwiftUI from constantly destroying and rebuilding views
 struct ParsedContentBlock: Identifiable {
-    let id = UUID()
+    let id: String
     let type: BlockType
 
     enum BlockType {
@@ -43,6 +44,7 @@ struct LessonContentPage: View {
 
         var blocks: [ParsedContentBlock] = []
         var remaining = page.content
+        var index = 0 // Deterministic indexing
 
         while !remaining.isEmpty {
             let mathRange = remaining.range(of: "[MATH]")
@@ -69,12 +71,18 @@ struct LessonContentPage: View {
 
             guard let startTag = nextTagRange else {
                 let text = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty { blocks.append(ParsedContentBlock(type: .text(text))) }
+                if !text.isEmpty {
+                    blocks.append(ParsedContentBlock(id: "block_\(index)", type: .text(text)))
+                    index += 1
+                }
                 break
             }
 
             let textBefore = String(remaining[..<startTag.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !textBefore.isEmpty { blocks.append(ParsedContentBlock(type: .text(textBefore))) }
+            if !textBefore.isEmpty {
+                blocks.append(ParsedContentBlock(id: "block_\(index)", type: .text(textBefore)))
+                index += 1
+            }
 
             remaining = String(remaining[startTag.upperBound...])
             let endTagStr = isMath ? "[/MATH]" : "[/GRAPH]"
@@ -82,13 +90,15 @@ struct LessonContentPage: View {
             if let endTagRange = remaining.range(of: endTagStr) {
                 let innerContent = String(remaining[..<endTagRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
                 if isMath {
-                    blocks.append(ParsedContentBlock(type: .math(content: innerContent, caption: nil)))
+                    blocks.append(ParsedContentBlock(id: "block_\(index)", type: .math(content: innerContent, caption: nil)))
                 } else {
-                    blocks.append(ParsedContentBlock(type: .graph(content: GraphContentParser.graphContent(from: innerContent), graphType: GraphContentParser.graphType(from: innerContent))))
+                    blocks.append(ParsedContentBlock(id: "block_\(index)", type: .graph(content: GraphContentParser.graphContent(from: innerContent), graphType: GraphContentParser.graphType(from: innerContent))))
                 }
+                index += 1
                 remaining = String(remaining[endTagRange.upperBound...])
             } else {
-                blocks.append(ParsedContentBlock(type: .text(remaining)))
+                blocks.append(ParsedContentBlock(id: "block_\(index)", type: .text(remaining)))
+                index += 1
                 break
             }
         }
@@ -104,9 +114,9 @@ struct LessonContentPage: View {
             let trimmedBlockContent = block.content.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmedBlockContent.isEmpty else { return nil }
             switch block.type {
-            case QuestionBlockType.math.rawValue: return ParsedContentBlock(type: .math(content: trimmedBlockContent, caption: block.caption))
-            case QuestionBlockType.graph.rawValue: return ParsedContentBlock(type: .graph(content: trimmedBlockContent, graphType: block.graphType))
-            default: return ParsedContentBlock(type: .text(trimmedBlockContent))
+            case QuestionBlockType.math.rawValue: return ParsedContentBlock(id: block.id, type: .math(content: trimmedBlockContent, caption: block.caption))
+            case QuestionBlockType.graph.rawValue: return ParsedContentBlock(id: block.id, type: .graph(content: trimmedBlockContent, graphType: block.graphType))
+            default: return ParsedContentBlock(id: block.id, type: .text(trimmedBlockContent))
             }
         }
     }
@@ -127,7 +137,6 @@ struct LessonContentPage: View {
                 ForEach(parsedBlocks) { block in
                     switch block.type {
                     case .text(let textContent):
-                        // Route paragraphs containing Math directly through the LatexView text engine
                         if textContent.contains("$") {
                             LatexView(latex: textContent, isTextMode: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -149,8 +158,12 @@ struct LessonContentPage: View {
                                     .frame(minHeight: calculateHeight(for: parsedLatex))
                                     .padding(24)
                                     .frame(maxWidth: .infinity)
-                                    .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-                                    .cornerRadius(16)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .fill(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                                            .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.04), radius: 8, y: 3)
+                                    )
+                                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                             }
                             #else
                             HStack {
@@ -158,8 +171,12 @@ struct LessonContentPage: View {
                                     .frame(minHeight: calculateHeight(for: parsedLatex) * 0.75)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
-                                    .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-                                    .cornerRadius(12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .fill(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                                            .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.04), radius: 8, y: 3)
+                                    )
+                                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                                 Spacer(minLength: 0)
                             }
                             #endif
@@ -357,7 +374,7 @@ struct InlineGraphRenderer: View {
 
 // MARK: - ExampleView
 struct ParsedExampleItem: Identifiable {
-    let id = UUID()
+    let id: String
     let example: String
     let explanation: String
 }
@@ -368,11 +385,13 @@ struct ExampleView: View {
     @Environment(\.colorScheme) var colorScheme
 
     var parsedContent: [ParsedExampleItem] {
-        text.split(separator: "\n").map { line in
+        let lines = text.split(separator: "\n")
+        return lines.enumerated().map { index, line in
             let parts = line.split(separator: "||", maxSplits: 1, omittingEmptySubsequences: false)
             let example = String(parts[0])
             let explanation = parts.count > 1 ? String(parts[1]) : ""
-            return ParsedExampleItem(example: example, explanation: explanation)
+            // Deterministic ID blocks memory trashing loops
+            return ParsedExampleItem(id: "ex_\(index)", example: example, explanation: explanation)
         }
     }
 
@@ -395,10 +414,13 @@ struct ExampleView: View {
                             .frame(minHeight: calculateHeight(for: latex))
                             .padding(12)
                             .frame(maxWidth: .infinity)
-                            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-                            .cornerRadius(12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                                    .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.04), radius: 6, y: 2)
+                            )
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                     } else {
-                        // Support native text rendering for math in breakdowns
                         if item.example.contains("$") {
                             LatexView(latex: item.example, isTextMode: true)
                                 .padding(12)

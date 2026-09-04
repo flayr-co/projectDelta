@@ -19,14 +19,13 @@ struct LatexView: View {
     var isTextMode: Bool = false
     @State private var isLoading = true
     @State private var dynamicHeight: CGFloat = 40
+    @State private var currentScale: CGFloat = 1.0
     
     var body: some View {
         ZStack {
             LatexWebView(latex: latex, isTextMode: isTextMode, dynamicHeight: $dynamicHeight, isLoading: $isLoading)
                 .frame(height: max(dynamicHeight, isTextMode ? 24 : 40))
-                #if os(macOS)
-                .allowsHitTesting(false) // Prevents the WKWebView from intercepting scroll wheel events on Mac
-                #endif
+                .allowsHitTesting(false) // Prevents WKWebView from hijacking pinch and scroll events on all platforms
             
             if isLoading {
                 ProgressView()
@@ -34,6 +33,23 @@ struct LatexView: View {
                     .tint(.primary)
             }
         }
+        .contentShape(Rectangle()) // Guarantees the entire block area registers the pinch gesture seamlessly
+        .scaleEffect(currentScale)
+        .gesture(
+            MagnificationGesture()
+                .onChanged { val in
+                    // Real-time smooth tracking of the student's pinch gesture
+                    currentScale = max(1.0, min(val, 4.0))
+                }
+                .onEnded { _ in
+                    // Elastic snap back into place
+                    withAnimation(.interpolatingSpring(stiffness: 300, damping: 15)) {
+                        currentScale = 1.0
+                    }
+                }
+        )
+        .zIndex(currentScale > 1.0 ? 999 : 0) // Dynamically pop out of the layout during zoom
+        .shadow(color: currentScale > 1.0 ? Color.black.opacity(0.15) : .clear, radius: 20, y: 10)
     }
 }
 
@@ -144,6 +160,7 @@ struct LatexWebView: PlatformViewRepresentable {
                         opacity: \(opacity);
                         background-color: transparent;
                         margin: 0;
+                        -webkit-tap-highlight-color: transparent;
                         \(paddingStyle)
                         \(displayStyle)
                         overflow: visible;
@@ -188,7 +205,12 @@ struct LatexWebView: PlatformViewRepresentable {
             </body>
             </html>
             """
-        webView.loadHTMLString(htmlString, baseURL: nil)
+        
+        // MARK: Only reload the heavy HTML engine if the equation string actually changed
+        if context.coordinator.lastLoadedHTML != htmlString {
+            context.coordinator.lastLoadedHTML = htmlString
+            webView.loadHTMLString(htmlString, baseURL: nil)
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -197,6 +219,7 @@ struct LatexWebView: PlatformViewRepresentable {
     
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: LatexWebView
+        var lastLoadedHTML: String? = nil
         
         init(_ parent: LatexWebView) {
             self.parent = parent
