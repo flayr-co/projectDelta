@@ -130,8 +130,8 @@ class LessonViewModel {
         var mutableLesson = lesson
         let cleanedPages = rawPages.enumerated().map { index, page in
             var p = page
-            // Retain original ID or use a deterministic string instead of a randomized UUID to prevent SwiftUI layout thrashing
-            if p.id == nil { p.id = "page_\(index)" }
+            // Strictly enforce unique IDs to prevent SwiftUI from dropping duplicate admin views
+            p.id = "\(lesson.id ?? "temp")_page_\(index)"
             p.pageNumber = index + 1
             return p
         }
@@ -180,7 +180,8 @@ class LessonViewModel {
                         
                         lesson.pages = rawPages.enumerated().map { index, page in
                             var p = page
-                            if p.id == nil { p.id = "page_\(lesson.id ?? "")_\(index)" }
+                            // Strictly enforce unique IDs to prevent SwiftUI from dropping duplicate admin views
+                            p.id = "\(lesson.id ?? "temp")_page_\(index)"
                             p.pageNumber = index + 1
                             return p
                         }

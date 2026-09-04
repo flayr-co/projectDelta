@@ -229,19 +229,20 @@ struct TableOfContentsView: View {
                 .shadow(color: lesson.completed ? Color.green.opacity(0.3) : Color.clear, radius: 4, x: 0, y: 2)
             
             VStack(alignment: .leading, spacing: 4) {
+                // Lesson Title with automatic dynamic wrapping and scaling
                 Text(lesson.name)
-                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
-                    .lineLimit(nil)
-                    .minimumScaleFactor(0.75)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .multilineTextAlignment(.leading)
                 
                 if !lesson.description.isEmpty && !lesson.description.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[{") {
                     Text(lesson.description)
                         .font(.system(.subheadline, design: .rounded, weight: .medium))
                         .foregroundStyle(.secondary.opacity(0.9))
                         .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .minimumScaleFactor(0.9)
                 }
             }
             Spacer(minLength: 16)

@@ -104,11 +104,11 @@ struct LessonView: View {
     }
 
     // MARK: - DESKTOP LAYOUT (macOS)
-        #if os(macOS)
+    #if os(macOS)
     private var macOSLayout: some View {
         ZStack(alignment: .top) {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
-            
+
             if lessonVM.isLoading {
                 VStack {
                     Spacer()
@@ -130,7 +130,8 @@ struct LessonView: View {
                 }
             } else {
                 ZStack(alignment: .bottom) {
-                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.element.id) { index, page in
+                    // ID set to \.offset to prevent duplicate IDs dropping the view
+                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
                         LessonContentPage(
                             page: page,
                             isLastPage: index == lessonVM.lessonPages.count - 1,
@@ -161,7 +162,7 @@ struct LessonView: View {
                     }
                 }
             }
-            
+
             if showTableOfContents {
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
@@ -171,7 +172,7 @@ struct LessonView: View {
                         }
                     }
                     .zIndex(4)
-                
+
                 TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName, isShowing: $showTableOfContents)
                     .frame(width: 360)
                     .background(Color.platformSystemBackground)
@@ -351,7 +352,8 @@ struct LessonView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
-                        ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.element.id) { index, page in
+                        // ID set to \.offset to prevent duplicate IDs dropping the view
+                        ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
                             LessonContentPage(
                                 page: page,
                                 isLastPage: index == lessonVM.lessonPages.count - 1,
@@ -364,7 +366,7 @@ struct LessonView: View {
                                     }
                                 }
                             )
-                            .id("\(page.id ?? "")_\(page.content.hashValue)")
+                            .id(index) // MUST match the ScrollView Int binding type
                             .containerRelativeFrame(.horizontal, alignment: .center)
                         }
                     }
@@ -425,12 +427,13 @@ struct LessonView: View {
 
     private var headerView: some View {
         HStack(spacing: 12) {
+            // Refined, lightweight adaptive back button
             Button(action: { dismiss() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.secondary)
-                    .frame(width: 40, height: 40)
-                    .background(Color.secondary.opacity(0.15))
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(colorScheme == .dark ? Color.red.opacity(0.9) : .red)
+                    .frame(width: 34, height: 34)
+                    .background(Color.red.opacity(0.15))
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
@@ -453,10 +456,9 @@ struct LessonView: View {
                     Image(systemName: "list.bullet")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.teal)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 34, height: 34)
                         .background(Color.teal.opacity(0.15))
                         .clipShape(Circle())
-                        .shadow(color: Color.teal.opacity(0.2), radius: 6, y: 2)
                 }
                 .buttonStyle(.plain)
 
@@ -466,10 +468,9 @@ struct LessonView: View {
                     Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(lessonVM.isCurrentPageBookmarked ? .teal : .secondary)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 34, height: 34)
                         .background(lessonVM.isCurrentPageBookmarked ? Color.teal.opacity(0.15) : Color.secondary.opacity(0.15))
                         .clipShape(Circle())
-                        .shadow(color: lessonVM.isCurrentPageBookmarked ? Color.teal.opacity(0.3) : .clear, radius: 6, y: 2)
                 }
                 .buttonStyle(.plain)
             }
@@ -481,16 +482,46 @@ struct LessonView: View {
     }
 
     private var pageIndicator: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<lessonVM.lessonPages.count, id: \.self) { index in
-                Circle()
-                    .fill(scrollPosition == index ? Color.teal : Color.secondary.opacity(0.3))
-                    .frame(width: scrollPosition == index ? 8 : 6, height: scrollPosition == index ? 8 : 6)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: scrollPosition)
+        HStack(spacing: 20) {
+            // Previous Page Arrow
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    let newIndex = max(lessonVM.currentPageIndex - 1, 0)
+                    scrollPosition = newIndex
+                }
+            }) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundColor(lessonVM.currentPageIndex == 0 ? .secondary.opacity(0.3) : .teal)
             }
+            .buttonStyle(.plain)
+            .disabled(lessonVM.currentPageIndex == 0)
+
+            HStack(spacing: 8) {
+                ForEach(0..<lessonVM.lessonPages.count, id: \.self) { index in
+                    Circle()
+                        .fill(scrollPosition == index ? Color.teal : Color.secondary.opacity(0.3))
+                        .frame(width: scrollPosition == index ? 8 : 6, height: scrollPosition == index ? 8 : 6)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: scrollPosition)
+                }
+            }
+
+            // Next Page Arrow
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    let newIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
+                    scrollPosition = newIndex
+                }
+            }) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .secondary.opacity(0.3) : .teal)
+            }
+            .buttonStyle(.plain)
+            .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
         }
         .padding(.vertical, 10)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .background(.ultraThinMaterial, in: Capsule())
         .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
         .padding(.bottom, 8)
