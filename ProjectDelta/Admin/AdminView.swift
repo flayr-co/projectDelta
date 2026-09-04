@@ -184,32 +184,45 @@ struct LessonManagerView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            #if os(macOS)
+#if os(macOS)
             .safeAreaPadding(.top, 56) // Corrects macOS safe area collapse for the list
-            #endif
+#endif
             .navigationDestination(item: $selectedLesson) { lesson in
                 LessonEditorView(lesson: lesson, subject: subject)
             }
         }
         .background(Color.platformSystemGroupedBackground)
         .navigationTitle(subject.name)
-        #if os(iOS)
+#if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        #endif
+#endif
         .task { await viewModel.fetchLessons(for: subject.id ?? "") }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("New Lesson") { showingAddLesson = true }
             }
-            #if os(iOS)
+#if os(iOS)
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()
             }
-            #endif
+#endif
         }
         .sheet(isPresented: $showingAddLesson) {
             NavigationStack {
-                LessonEditorView(subject: subject)
+                LessonEditorView(
+                    lesson: Lesson(id: nil, name: "", description: "", completed: false, lessonNumber: viewModel.lessons.count + 1, pages: nil),
+                    subject: subject
+                )
+            }
+        }
+        .onChange(of: showingAddLesson) { _, isShowing in
+            if !isShowing {
+                Task { await viewModel.fetchLessons(for: subject.id ?? "") }
+            }
+        }
+        .onChange(of: selectedLesson) { _, lesson in
+            if lesson == nil {
+                Task { await viewModel.fetchLessons(for: subject.id ?? "") }
             }
         }
     }

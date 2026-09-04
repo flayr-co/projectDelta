@@ -13,7 +13,7 @@ struct ParsedContentBlock: Identifiable {
 
     enum BlockType {
         case text(String)
-        case math(String)
+        case math(content: String, caption: String?)
         case graph(content: String, graphType: String?)
     }
 }
@@ -33,16 +33,9 @@ struct LessonContentPage: View {
     @Environment(AuthViewModel.self) var authVM
     @Environment(\.colorScheme) var colorScheme
     
-    // Dynamic Theme Logic
-    var themeColor: Color {
-        colorScheme == .dark ? .teal : .blue
-    }
-    
-    var secondaryThemeColor: Color {
-        colorScheme == .dark ? .orange : .red
-    }
+    var themeColor: Color { colorScheme == .dark ? .teal : .blue }
+    var secondaryThemeColor: Color { colorScheme == .dark ? .orange : .red }
 
-    // Core Parser Engine
     var parsedBlocks: [ParsedContentBlock] {
         if let modernBlocks = decodeModernBlocks(from: page.content) {
             return modernBlocks
@@ -76,16 +69,12 @@ struct LessonContentPage: View {
 
             guard let startTag = nextTagRange else {
                 let text = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty {
-                    blocks.append(ParsedContentBlock(type: .text(text)))
-                }
+                if !text.isEmpty { blocks.append(ParsedContentBlock(type: .text(text))) }
                 break
             }
 
             let textBefore = String(remaining[..<startTag.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !textBefore.isEmpty {
-                blocks.append(ParsedContentBlock(type: .text(textBefore)))
-            }
+            if !textBefore.isEmpty { blocks.append(ParsedContentBlock(type: .text(textBefore))) }
 
             remaining = String(remaining[startTag.upperBound...])
             let endTagStr = isMath ? "[/MATH]" : "[/GRAPH]"
@@ -93,7 +82,7 @@ struct LessonContentPage: View {
             if let endTagRange = remaining.range(of: endTagStr) {
                 let innerContent = String(remaining[..<endTagRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
                 if isMath {
-                    blocks.append(ParsedContentBlock(type: .math(innerContent)))
+                    blocks.append(ParsedContentBlock(type: .math(content: innerContent, caption: nil)))
                 } else {
                     blocks.append(ParsedContentBlock(type: .graph(content: GraphContentParser.graphContent(from: innerContent), graphType: GraphContentParser.graphType(from: innerContent))))
                 }
@@ -109,21 +98,15 @@ struct LessonContentPage: View {
     private func decodeModernBlocks(from content: String) -> [ParsedContentBlock]? {
         let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = trimmedContent.data(using: .utf8),
-              let decodedBlocks = try? JSONDecoder().decode([QuestionBlockModel].self, from: data) else {
-            return nil
-        }
+              let decodedBlocks = try? JSONDecoder().decode([QuestionBlockModel].self, from: data) else { return nil }
 
         return decodedBlocks.compactMap { block in
             let trimmedBlockContent = block.content.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmedBlockContent.isEmpty else { return nil }
-
             switch block.type {
-            case QuestionBlockType.math.rawValue:
-                return ParsedContentBlock(type: .math(trimmedBlockContent))
-            case QuestionBlockType.graph.rawValue:
-                return ParsedContentBlock(type: .graph(content: trimmedBlockContent, graphType: block.graphType))
-            default:
-                return ParsedContentBlock(type: .text(trimmedBlockContent))
+            case QuestionBlockType.math.rawValue: return ParsedContentBlock(type: .math(content: trimmedBlockContent, caption: block.caption))
+            case QuestionBlockType.graph.rawValue: return ParsedContentBlock(type: .graph(content: trimmedBlockContent, graphType: block.graphType))
+            default: return ParsedContentBlock(type: .text(trimmedBlockContent))
             }
         }
     }
@@ -144,37 +127,44 @@ struct LessonContentPage: View {
                 ForEach(parsedBlocks) { block in
                     switch block.type {
                     case .text(let textContent):
-                        TextStylingUtility.styledText(from: textContent)
+                        Text(LocalizedStringKey(textContent.parsedInlineMathToMarkdown))
                             .font(.system(size: 18, weight: .medium, design: .rounded))
                             .lineSpacing(8)
                             .foregroundColor(.primary.opacity(0.85))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
                         
-                    case .math(let latexContent):
-                        #if os(macOS)
-                        VStack(spacing: 0) {
-                            LatexView(latex: "$$\n\(latexContent)\n$$")
-                                .frame(minHeight: calculateHeight(for: latexContent))
-                                .padding(24)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.platformSecondarySystemBackground)
-                                .cornerRadius(16)
-                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
-                        }
-                        #else
-                        HStack {
-                            LatexView(latex: "$$\n\(latexContent)\n$$")
-                                .frame(minHeight: calculateHeight(for: latexContent) * 0.75)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                                .background(Color.platformSecondarySystemBackground)
-                                .cornerRadius(12)
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                    case .math(let latexContent, let caption):
+                        let parsedLatex = latexContent.parsedMathToLatex
+                        VStack(alignment: .leading, spacing: 8) {
+                            #if os(macOS)
+                            VStack(spacing: 0) {
+                                LatexView(latex: "$$\n\(parsedLatex)\n$$")
+                                    .frame(minHeight: calculateHeight(for: parsedLatex))
+                                    .padding(24)
+                                    .frame(maxWidth: .infinity)
+                                    .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
+                                    .cornerRadius(16)
+                            }
+                            #else
+                            HStack {
+                                LatexView(latex: "$$\n\(parsedLatex)\n$$")
+                                    .frame(minHeight: calculateHeight(for: parsedLatex) * 0.75)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
+                                    .cornerRadius(12)
+                                Spacer(minLength: 0)
+                            }
+                            #endif
                             
-                            Spacer(minLength: 0)
+                            if let caption = caption, !caption.isEmpty {
+                                Text(LocalizedStringKey(caption.parsedInlineMathToMarkdown))
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 4)
+                            }
                         }
-                        #endif
                         
                     case .graph(let graphContent, let graphType):
                         DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType), isScrollLocked: true)
@@ -228,7 +218,6 @@ struct LessonContentPage: View {
 
                 if isLastPage {
                     VStack(spacing: 20) {
-                        // Premium CTA Cards at the bottom of the content
                         if hasQuiz {
                             NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
                                 HStack {
@@ -254,9 +243,7 @@ struct LessonContentPage: View {
                         }
 
                         Button(action: {
-                            Task {
-                                await lessonVM.advanceToNextLesson(authVM: authVM)
-                            }
+                            Task { await lessonVM.advanceToNextLesson(authVM: authVM) }
                         }) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -297,9 +284,7 @@ struct LessonContentPage: View {
         }
         .scrollIndicators(.hidden)
         .background(Color.clear)
-        .onTapGesture {
-            onBackgroundTap()
-        }
+        .onTapGesture { onBackgroundTap() }
     }
 }
 
@@ -407,7 +392,7 @@ struct ExampleView: View {
                             .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
                             .cornerRadius(12)
                     } else {
-                        TextStylingUtility.styledText(from: item.example)
+                        Text(LocalizedStringKey(item.example.parsedInlineMathToMarkdown))
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
@@ -424,5 +409,13 @@ struct ExampleView: View {
                 .padding(.horizontal)
             }
         }
+    }
+}
+
+// MARK: - Inline Formatting Extensions
+extension String {
+    var parsedInlineMathToMarkdown: String {
+        guard let regex = try? NSRegularExpression(pattern: "\\$(.*?)\\$") else { return self }
+        return regex.stringByReplacingMatches(in: self, range: NSRange(self.startIndex..., in: self), withTemplate: "*$1*")
     }
 }

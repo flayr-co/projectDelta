@@ -128,16 +128,18 @@ struct QuestionBlockModel: Identifiable, Codable, Equatable {
     var type: String
     var content: String
     var graphType: String?
+    var caption: String?
     
-    init(id: String = UUID().uuidString, type: String, content: String, graphType: String? = nil) {
+    init(id: String = UUID().uuidString, type: String, content: String, graphType: String? = nil, caption: String? = nil) {
         self.id = id
         self.type = type
         self.content = content
         self.graphType = graphType
+        self.caption = caption
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, type, content, graphType
+        case id, type, content, graphType, caption
     }
     
     // Indestructible Decoder with Auto-Healing Math Logic
@@ -166,6 +168,7 @@ struct QuestionBlockModel: Identifiable, Codable, Equatable {
         }
         self.content = rawContent
         self.graphType = try container.decodeIfPresent(String.self, forKey: .graphType)
+        self.caption = try container.decodeIfPresent(String.self, forKey: .caption)
     }
 }
 

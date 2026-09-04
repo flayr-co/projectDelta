@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		520B96842BA5375600332AF3 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520B96832BA5375600332AF3 /* AdminView.swift */; };
 		520B96862BA538BD00332AF3 /* AdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520B96852BA538BD00332AF3 /* AdminViewModel.swift */; };
+		520F68A0304AABED0092A83D /* SelectableTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520F689F304AABED0092A83D /* SelectableTextEditor.swift */; };
+		520F68A2304AABFA0092A83D /* KeypadTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520F68A1304AABFA0092A83D /* KeypadTab.swift */; };
+		520F68A4304AAC030092A83D /* InteractiveGraphBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520F68A3304AAC030092A83D /* InteractiveGraphBuilderView.swift */; };
 		5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */; };
 		5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */; };
 		521887B92FB4FB7F00D97803 /* QuizSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */; };
@@ -84,6 +87,9 @@
 /* Begin PBXFileReference section */
 		520B96832BA5375600332AF3 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
 		520B96852BA538BD00332AF3 /* AdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminViewModel.swift; sourceTree = "<group>"; };
+		520F689F304AABED0092A83D /* SelectableTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableTextEditor.swift; sourceTree = "<group>"; };
+		520F68A1304AABFA0092A83D /* KeypadTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeypadTab.swift; sourceTree = "<group>"; };
+		520F68A3304AAC030092A83D /* InteractiveGraphBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveGraphBuilderView.swift; sourceTree = "<group>"; };
 		5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonViewModel.swift; sourceTree = "<group>"; };
 		5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedActionButton.swift; sourceTree = "<group>"; };
 		521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSnapshot.swift; sourceTree = "<group>"; };
@@ -341,7 +347,10 @@
 				52C8ACFD2FDCFBEC0015BABE /* Color+Platform.swift */,
 				527F98852AEF3EA90031F9E6 /* DarkModeBackground.swift */,
 				527F98712AEB22990031F9E6 /* GreetingText.swift */,
+				520F68A3304AAC030092A83D /* InteractiveGraphBuilderView.swift */,
+				520F68A1304AABFA0092A83D /* KeypadTab.swift */,
 				52668ED02BFD06FA0019965F /* LatexView.swift */,
+				520F689F304AABED0092A83D /* SelectableTextEditor.swift */,
 				52DAF6912BED5EF1006EE19F /* TextStylingUtility.swift */,
 				52D998F42ADB359D007F90A6 /* Views+Extensions.swift */,
 			);
@@ -472,12 +481,14 @@
 				52D998F02ADB3120007F90A6 /* Test.swift in Sources */,
 				52CB38B72C0C050200B15F63 /* PracticeTestViewModel.swift in Sources */,
 				527F98782AEC518E0031F9E6 /* Subject.swift in Sources */,
+				520F68A4304AAC030092A83D /* InteractiveGraphBuilderView.swift in Sources */,
 				52BB1A502FE28C6D00A5800A /* TestMode.swift in Sources */,
 				52C68AC32FB64BBF001CD906 /* LessonEditorView.swift in Sources */,
 				52DAF6922BED5EF2006EE19F /* TextStylingUtility.swift in Sources */,
 				52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */,
 				52920AE72B155B7700B60A14 /* QuestionGeneratorViewModel.swift in Sources */,
 				5258BD5C2AE344C200F21A50 /* SettingsRowView.swift in Sources */,
+				520F68A2304AABFA0092A83D /* KeypadTab.swift in Sources */,
 				5258B5A62FB8337600F1600A /* LessonContentPage.swift in Sources */,
 				52D998F32ADB353E007F90A6 /* FirestoreManager.swift in Sources */,
 				526607CC302D851000A260AF /* LinearEquationTemplate.swift in Sources */,
@@ -499,6 +510,7 @@
 				5284D28B2B212C0800409048 /* UserStatsView.swift in Sources */,
 				5258BD5A2AE340D700F21A50 /* ProfileView.swift in Sources */,
 				5256AD8A2B041B57008523F7 /* Constants.swift in Sources */,
+				520F68A0304AABED0092A83D /* SelectableTextEditor.swift in Sources */,
 				52F903DE2BA521D70093E976 /* Lesson.swift in Sources */,
 				5251682B302AE4040070EE8C /* ElectromagneticWaveAnalyzerView.swift in Sources */,
 				52C8ACFE2FDCFBF60015BABE /* Color+Platform.swift in Sources */,

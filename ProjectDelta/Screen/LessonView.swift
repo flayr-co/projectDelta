@@ -52,19 +52,14 @@ struct LessonView: View {
             lessonVM.subjectName = subjectName
             
             if let targetLesson = initialLessonName {
-                // Manually trigger the loading state
                 lessonVM.isLoading = true
-                
-                // Bypass auto-resume: load curriculum then explicitly jump to the target lesson
                 await lessonVM.fetchAllLessons(for: subjectName)
                 await lessonVM.navigateToPage(lessonName: targetLesson, pageNumber: 1, authVM: authVM)
                 
-                // Explicitly drop the loading screen
                 withAnimation {
                     lessonVM.isLoading = false
                 }
             } else {
-                // Fallback to default auto-resume logic
                 await lessonVM.initializeLesson(subjectName: subjectName, authVM: authVM)
             }
             
@@ -109,11 +104,11 @@ struct LessonView: View {
     }
 
     // MARK: - DESKTOP LAYOUT (macOS)
-    #if os(macOS)
+        #if os(macOS)
     private var macOSLayout: some View {
         ZStack(alignment: .top) {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
-
+            
             if lessonVM.isLoading {
                 VStack {
                     Spacer()
@@ -147,7 +142,7 @@ struct LessonView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Color.platformSystemGroupedBackground)
                         .allowsHitTesting(lessonVM.currentPageIndex == index)
-                        .opacity(lessonVM.currentPageIndex == index ? 1.0 : 0.01)
+                        .opacity(lessonVM.currentPageIndex == index ? 1.0 : 0.0)
                         .zIndex(lessonVM.currentPageIndex == index ? 1 : 0)
                     }
                 }
@@ -166,7 +161,7 @@ struct LessonView: View {
                     }
                 }
             }
-
+            
             if showTableOfContents {
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
@@ -176,7 +171,7 @@ struct LessonView: View {
                         }
                     }
                     .zIndex(4)
-
+                
                 TableOfContentsView(lessonVM: lessonVM, subjectName: subjectName, isShowing: $showTableOfContents)
                     .frame(width: 360)
                     .background(Color.platformSystemBackground)
@@ -354,9 +349,6 @@ struct LessonView: View {
                         .foregroundColor(.secondary)
                 }
             } else {
-                // True Eager-Loading Paging ScrollView
-                // Because this is an HStack and not a LazyHStack, SwiftUI is forced to instantly
-                // initialize and render every single graph and equation the millisecond the lesson opens.
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
                         ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.element.id) { index, page in
@@ -372,8 +364,8 @@ struct LessonView: View {
                                     }
                                 }
                             )
+                            .id("\(page.id ?? "")_\(page.content.hashValue)")
                             .containerRelativeFrame(.horizontal, alignment: .center)
-                            .id(index)
                         }
                     }
                     .scrollTargetLayout()

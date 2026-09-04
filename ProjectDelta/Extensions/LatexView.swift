@@ -95,10 +95,26 @@ struct LatexWebView: PlatformViewRepresentable {
     
     private func updateWebView(_ webView: WKWebView, context: Context) {
         let textColor = colorScheme == .dark ? "white" : "black"
-        let latexTextColor = colorScheme == .dark ? "cyan" : "red"
+        
+        // Dynamic adaptive colors based on user theme
+        let cyanColor = colorScheme == .dark ? "cyan" : "blue"
+        let redColor = colorScheme == .dark ? "#FF6B6B" : "red"
+        let greenColor = colorScheme == .dark ? "#4ADE80" : "green"
         
         let processedLatex = latex
-            .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(latexTextColor)}{$1}", options: .regularExpression)
+        // Blue Highlight Engine
+            .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
+            .replacingOccurrences(of: "blue(.*?)blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
+        
+        // Red Highlight Engine
+            .replacingOccurrences(of: "\\*red (.*?) red\\*", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
+            .replacingOccurrences(of: "red(.*?)red", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
+        
+        // Green Highlight Engine
+            .replacingOccurrences(of: "\\*green (.*?) green\\*", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
+            .replacingOccurrences(of: "green(.*?)green", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
+        
+        // Standard Formatting
             .replacingOccurrences(of: "\n", with: " \\\\ ")
             .replacingOccurrences(of: "\\n", with: " \\\\ ")
         
@@ -115,11 +131,11 @@ struct LatexWebView: PlatformViewRepresentable {
                         color: \(textColor);
                         background-color: transparent;
                         margin: 0;
-                        padding: 12px 4px; /* Improved padding to prevent vertical and horizontal clipping */
+                        padding: 12px 4px;
                         display: flex;
                         align-items: center;
                         justify-content: flex-start;
-                        overflow: visible; /* Prevents fraction truncation */
+                        overflow: visible;
                     }
                     #math-container {
                         display: inline-block;

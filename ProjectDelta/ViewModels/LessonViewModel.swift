@@ -24,6 +24,8 @@ class LessonViewModel {
     var isCurrentPageBookmarked: Bool = false
     
     private let db = Firestore.firestore()
+    private var contentListener: ListenerRegistration?
+    private var curriculumListener: ListenerRegistration?
     
     // MARK: - Core Initialization
     
@@ -31,7 +33,6 @@ class LessonViewModel {
         self.isLoading = true
         defer { self.isLoading = false }
         
-        // Silently fetch curriculum in the background so "Next Lesson" navigation works seamlessly
         self.fetchAllLessons(for: subjectName)
         
         print("Starting to fetch the first incomplete lesson for \(subjectName).")
@@ -42,9 +43,7 @@ class LessonViewModel {
             self.currentLessonId = lessonId
             print("First lesson fetched: \(lessonName) with ID \(lessonId)")
             
-            print("Starting to fetch lesson content for \(subjectName), lesson \(lessonName).")
             await fetchLessonContent(for: subjectName, lessonName: lessonName)
-            print("Content fetching completed for lesson \(lessonName).")
             
             if let initialPageNumber = self.lessonPages.first?.pageNumber {
                 await self.navigateToPage(lessonName: lessonName, pageNumber: initialPageNumber, authVM: authVM)
@@ -95,111 +94,107 @@ class LessonViewModel {
     // MARK: - Fetch Logic
     
     func fetchLessonContent(for subjectName: String, lessonName: String) async {
-        do {
-            guard let subjectId = await resolveSubjectId(for: subjectName) else {
-                print("Error: Subject \(subjectName) not found.")
-                return
-            }
-            
-            let lessonQuerySnapshot = try await db.collection("Subjects").document(subjectId)
-                .collection("Lessons").whereField("name", isEqualTo: lessonName).getDocuments()
-            guard let lessonDocument = lessonQuerySnapshot.documents.first,
-                  var lesson = try? lessonDocument.data(as: Lesson.self) else {
-                print("Lesson \(lessonName) not found within \(subjectName).")
-                return
-            }
+        guard let subjectId = await resolveSubjectId(for: subjectName) else {
+            print("Error: Subject \(subjectName) not found.")
+            return
+        }
+        
+        contentListener?.remove()
+        
+        let query = db.collection("Subjects").document(subjectId).collection("Lessons").whereField("name", isEqualTo: lessonName)
+        
+        contentListener = query.addSnapshotListener { [weak self] snapshot, error in
+            guard let self = self, let lessonDocument = snapshot?.documents.first,
+                  var lesson = try? lessonDocument.data(as: Lesson.self) else { return }
             
             lesson.id = lessonDocument.documentID
-            var rawPages: [Page] = []
             
             if let embeddedPages = lesson.pages, !embeddedPages.isEmpty {
-                rawPages = embeddedPages.sorted { $0.pageNumber < $1.pageNumber }
+                let rawPages = embeddedPages.sorted { $0.pageNumber < $1.pageNumber }
+                self.applyCleanedPages(rawPages, to: lesson)
             } else {
-                var pagesQuerySnapshot = try await db.collection("Subjects").document(subjectId)
-                    .collection("Lessons").document(lessonDocument.documentID)
-                    .collection("Pages").order(by: "pageNumber").getDocuments()
-                
-                if pagesQuerySnapshot.isEmpty {
-                    pagesQuerySnapshot = try await db.collection("Subjects").document(subjectId)
+                Task {
+                    var pagesQuerySnapshot = try? await self.db.collection("Subjects").document(subjectId)
                         .collection("Lessons").document(lessonDocument.documentID)
-                        .collection("pages").order(by: "pageNumber").getDocuments()
-                }
-                
-                rawPages = pagesQuerySnapshot.documents.compactMap { document -> Page? in
-                    return try? document.data(as: Page.self)
+                        .collection("Pages").order(by: "pageNumber").getDocuments()
+                    
+                    if pagesQuerySnapshot?.isEmpty == true {
+                        pagesQuerySnapshot = try? await self.db.collection("Subjects").document(subjectId)
+                            .collection("Lessons").document(lessonDocument.documentID)
+                            .collection("pages").order(by: "pageNumber").getDocuments()
+                    }
+                    
+                    let rawPages = pagesQuerySnapshot?.documents.compactMap { try? $0.data(as: Page.self) } ?? []
+                    self.applyCleanedPages(rawPages, to: lesson)
                 }
             }
-            
-            // FIX: Mathematically override corrupted database records by forcefully re-indexing IDs and Page Numbers
-            let cleanedPages = rawPages.enumerated().map { index, page in
-                var p = page
-                p.id = "page_\(index)_\(UUID().uuidString.prefix(6))"
-                p.pageNumber = index + 1
-                return p
-            }
-            
-            self.lessonPages = cleanedPages
-            lesson.pages = cleanedPages
-            self.currentLesson = lesson
-            self.currentLessonId = lesson.id ?? ""
-            self.currentLessonName = lesson.name
-            
-        } catch {
-            print("Firestore query error: \(error.localizedDescription)")
         }
+    }
+    
+    private func applyCleanedPages(_ rawPages: [Page], to lesson: Lesson) {
+        var mutableLesson = lesson
+        let cleanedPages = rawPages.enumerated().map { index, page in
+            var p = page
+            // Retain original ID or use a deterministic string instead of a randomized UUID to prevent SwiftUI layout thrashing
+            if p.id == nil { p.id = "page_\(index)" }
+            p.pageNumber = index + 1
+            return p
+        }
+        
+        self.lessonPages = cleanedPages
+        mutableLesson.pages = cleanedPages
+        self.currentLesson = mutableLesson
+        self.currentLessonId = mutableLesson.id ?? ""
+        self.currentLessonName = mutableLesson.name
     }
     
     func fetchAllLessons(for subjectName: String) {
         Task {
-            do {
-                guard let subjectId = await resolveSubjectId(for: subjectName) else { return }
+            guard let subjectId = await resolveSubjectId(for: subjectName) else { return }
+            
+            curriculumListener?.remove()
+            
+            let query = db.collection("Subjects").document(subjectId).collection("Lessons")
+            
+            curriculumListener = query.addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self, let documents = snapshot?.documents else { return }
                 
-                let lessonSnapshot = try await db.collection("Subjects").document(subjectId).collection("Lessons").getDocuments()
-                guard !lessonSnapshot.isEmpty else {
-                    self.currentSubjectLessons = []
-                    return
-                }
-                
-                var lessonsWithPages = [Lesson]()
-                
-                for document in lessonSnapshot.documents {
-                    guard var lesson = try? document.data(as: Lesson.self) else { continue }
-                    lesson.id = document.documentID
-                    var rawPages: [Page] = []
+                Task {
+                    var lessonsWithPages = [Lesson]()
                     
-                    if let embeddedPages = lesson.pages, !embeddedPages.isEmpty {
-                        rawPages = embeddedPages.sorted { $0.pageNumber < $1.pageNumber }
-                    } else {
-                        var pageSnapshot = try? await db.collection("Subjects").document(subjectId)
-                            .collection("Lessons").document(lesson.id!)
-                            .collection("Pages").order(by: "pageNumber").getDocuments()
+                    for document in documents {
+                        guard var lesson = try? document.data(as: Lesson.self) else { continue }
+                        lesson.id = document.documentID
+                        var rawPages: [Page] = []
                         
-                        if pageSnapshot?.isEmpty == true {
-                            pageSnapshot = try? await db.collection("Subjects").document(subjectId)
+                        if let embeddedPages = lesson.pages, !embeddedPages.isEmpty {
+                            rawPages = embeddedPages.sorted { $0.pageNumber < $1.pageNumber }
+                        } else {
+                            var pageSnapshot = try? await self.db.collection("Subjects").document(subjectId)
                                 .collection("Lessons").document(lesson.id!)
-                                .collection("pages").order(by: "pageNumber").getDocuments()
+                                .collection("Pages").order(by: "pageNumber").getDocuments()
+                            
+                            if pageSnapshot?.isEmpty == true {
+                                pageSnapshot = try? await self.db.collection("Subjects").document(subjectId)
+                                    .collection("Lessons").document(lesson.id!)
+                                    .collection("pages").order(by: "pageNumber").getDocuments()
+                            }
+                            
+                            rawPages = pageSnapshot?.documents.compactMap { try? $0.data(as: Page.self) } ?? []
                         }
                         
-                        rawPages = pageSnapshot?.documents.compactMap { doc -> Page? in
-                            return try? doc.data(as: Page.self)
-                        } ?? []
+                        lesson.pages = rawPages.enumerated().map { index, page in
+                            var p = page
+                            if p.id == nil { p.id = "page_\(lesson.id ?? "")_\(index)" }
+                            p.pageNumber = index + 1
+                            return p
+                        }
+                        
+                        lessonsWithPages.append(lesson)
                     }
                     
-                    // FIX: Standardize curriculum navigation by forcefully rewriting corrupted database indexes
-                    lesson.pages = rawPages.enumerated().map { index, page in
-                        var p = page
-                        p.id = "page_\(lesson.id ?? "")_\(index)"
-                        p.pageNumber = index + 1
-                        return p
-                    }
-                    
-                    lessonsWithPages.append(lesson)
+                    self.currentSubjectLessons = lessonsWithPages.sorted { $0.lessonNumber < $1.lessonNumber }
                 }
-                
-                self.currentSubjectLessons = lessonsWithPages.sorted { $0.lessonNumber < $1.lessonNumber }
-                
-            } catch {
-                print("Error getting lessons for subject \(subjectName): \(error)")
             }
         }
     }
