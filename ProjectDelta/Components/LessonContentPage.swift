@@ -127,12 +127,18 @@ struct LessonContentPage: View {
                 ForEach(parsedBlocks) { block in
                     switch block.type {
                     case .text(let textContent):
-                        Text(LocalizedStringKey(textContent.parsedInlineMathToMarkdown))
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
-                            .lineSpacing(8)
-                            .foregroundColor(.primary.opacity(0.85))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true)
+                        // Route paragraphs containing Math directly through the LatexView text engine
+                        if textContent.contains("$") {
+                            LatexView(latex: textContent, isTextMode: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Text(LocalizedStringKey(textContent.parsedInlineMathToMarkdown))
+                                .font(.system(size: 18, weight: .medium, design: .rounded))
+                                .lineSpacing(8)
+                                .foregroundColor(.primary.opacity(0.85))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         
                     case .math(let latexContent, let caption):
                         let parsedLatex = latexContent.parsedMathToLatex
@@ -392,12 +398,22 @@ struct ExampleView: View {
                             .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
                             .cornerRadius(12)
                     } else {
-                        Text(LocalizedStringKey(item.example.parsedInlineMathToMarkdown))
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
-                            .cornerRadius(12)
-                            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                        // Support native text rendering for math in breakdowns
+                        if item.example.contains("$") {
+                            LatexView(latex: item.example, isTextMode: true)
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                                .cornerRadius(12)
+                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                        } else {
+                            Text(LocalizedStringKey(item.example.parsedInlineMathToMarkdown))
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                                .cornerRadius(12)
+                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                        }
                     }
                     if !item.explanation.isEmpty {
                         Text(item.explanation)

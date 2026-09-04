@@ -2,8 +2,6 @@
 //  LatexView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 5/21/24.
-//
 
 import SwiftUI
 import WebKit
@@ -18,20 +16,21 @@ typealias PlatformViewRepresentable = NSViewRepresentable
 
 struct LatexView: View {
     var latex: String
+    var isTextMode: Bool = false
     @State private var isLoading = true
-    @State private var dynamicHeight: CGFloat = 60
+    @State private var dynamicHeight: CGFloat = 40
     
     var body: some View {
         ZStack {
-            LatexWebView(latex: latex, dynamicHeight: $dynamicHeight, isLoading: $isLoading)
-                .frame(height: max(dynamicHeight, 60))
+            LatexWebView(latex: latex, isTextMode: isTextMode, dynamicHeight: $dynamicHeight, isLoading: $isLoading)
+                .frame(height: max(dynamicHeight, isTextMode ? 24 : 40))
                 #if os(macOS)
                 .allowsHitTesting(false) // Prevents the WKWebView from intercepting scroll wheel events on Mac
                 #endif
             
             if isLoading {
                 ProgressView()
-                    .scaleEffect(1.2)
+                    .scaleEffect(isTextMode ? 0.8 : 1.2)
                     .tint(.primary)
             }
         }
@@ -40,6 +39,7 @@ struct LatexView: View {
 
 struct LatexWebView: PlatformViewRepresentable {
     var latex: String
+    var isTextMode: Bool
     @Binding var dynamicHeight: CGFloat
     @Binding var isLoading: Bool
     @Environment(\.colorScheme) var colorScheme
@@ -66,7 +66,6 @@ struct LatexWebView: PlatformViewRepresentable {
         let configuration = WKWebViewConfiguration()
         let userContentController = WKUserContentController()
         
-        // Inject script to observe height changes and send them to Swift
         let js = """
         const resizeObserver = new ResizeObserver(entries => {
             for (let entry of entries) {
@@ -95,28 +94,38 @@ struct LatexWebView: PlatformViewRepresentable {
     
     private func updateWebView(_ webView: WKWebView, context: Context) {
         let textColor = colorScheme == .dark ? "white" : "black"
-        
-        // Dynamic adaptive colors based on user theme
         let cyanColor = colorScheme == .dark ? "cyan" : "blue"
         let redColor = colorScheme == .dark ? "#FF6B6B" : "red"
         let greenColor = colorScheme == .dark ? "#4ADE80" : "green"
         
-        let processedLatex = latex
-        // Blue Highlight Engine
+        var processedLatex = latex
+            // Blue Highlight Engine
             .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "blue(.*?)blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
-        
-        // Red Highlight Engine
+            
+            // Red Highlight Engine
             .replacingOccurrences(of: "\\*red (.*?) red\\*", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "red(.*?)red", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
-        
-        // Green Highlight Engine
+            
+            // Green Highlight Engine
             .replacingOccurrences(of: "\\*green (.*?) green\\*", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "green(.*?)green", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
+            
+            // Standard Formatting
+            .replacingOccurrences(of: "\n", with: isTextMode ? "<br>" : " \\\\ ")
+            .replacingOccurrences(of: "\\n", with: isTextMode ? "<br>" : " \\\\ ")
         
-        // Standard Formatting
-            .replacingOccurrences(of: "\n", with: " \\\\ ")
-            .replacingOccurrences(of: "\\n", with: " \\\\ ")
+        if isTextMode {
+            // Enable Markdown bold natively in the MathJax HTML renderer for text blocks
+            processedLatex = processedLatex.replacingOccurrences(of: "\\*\\*(.*?)\\*\\*", with: "<b>$1</b>", options: .regularExpression)
+        }
+        
+        // CSS properties to perfectly match SwiftUI Text styling vs Math block styling
+        let displayStyle = isTextMode ? "display: block;" : "display: flex; align-items: center; justify-content: flex-start;"
+        let paddingStyle = isTextMode ? "padding: 2px 0px;" : "padding: 12px 4px;"
+        let fontSize = isTextMode ? "18px" : "110%"
+        let fontWeight = isTextMode ? "500" : "normal"
+        let opacity = isTextMode ? "0.85" : "1.0"
         
         let htmlString = """
             <!DOCTYPE html>
@@ -127,19 +136,22 @@ struct LatexWebView: PlatformViewRepresentable {
                 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
                 <style>
                     body {
-                        font-size: 110%;
+                        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                        font-size: \(fontSize);
+                        font-weight: \(fontWeight);
+                        line-height: 1.6;
                         color: \(textColor);
+                        opacity: \(opacity);
                         background-color: transparent;
                         margin: 0;
-                        padding: 12px 4px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: flex-start;
+                        \(paddingStyle)
+                        \(displayStyle)
                         overflow: visible;
                     }
                     #math-container {
                         display: inline-block;
                         width: 100%;
+                        word-wrap: break-word;
                     }
                 </style>
                 <script>
@@ -199,8 +211,8 @@ struct LatexWebView: PlatformViewRepresentable {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "heightHandler", let height = message.body as? CGFloat {
                 DispatchQueue.main.async {
-                    // Add buffer to ensure bottom of fractions aren't trimmed
-                    let calculatedHeight = height + 15
+                    // Add strict buffer to ensure bottom of vertical fractions aren't clipped
+                    let calculatedHeight = height + (self.parent.isTextMode ? 5 : 15)
                     if calculatedHeight > self.parent.dynamicHeight {
                         self.parent.dynamicHeight = calculatedHeight
                     }

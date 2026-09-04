@@ -643,11 +643,16 @@ struct LiveBlockRenderView: View {
                     ForEach(parsed) { pBlock in
                         switch pBlock.type {
                         case .text(let text):
-                            Text(LocalizedStringKey(text.parsedInlineMathToMarkdown))
-                                .font(.system(size: 21, weight: .regular, design: .serif))
-                                .lineSpacing(12)
-                                .foregroundColor(.primary.opacity(0.9))
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if text.contains("$") {
+                                LatexView(latex: text, isTextMode: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                Text(LocalizedStringKey(text.parsedInlineMathToMarkdown))
+                                    .font(.system(size: 21, weight: .regular, design: .serif))
+                                    .lineSpacing(12)
+                                    .foregroundColor(.primary.opacity(0.9))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         case .math(let latex):
                             LatexView(latex: "$$\n\(latex)\n$$")
                                 .padding(24)
