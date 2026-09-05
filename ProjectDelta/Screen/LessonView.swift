@@ -39,6 +39,7 @@ struct LessonView: View {
         }
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
+        // Dynamically collapses the tab bar when UI controls are visible
         .toolbar(showUIControls ? .hidden : .visible, for: .tabBar)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showUIControls)
         #endif
@@ -72,27 +73,28 @@ struct LessonView: View {
     }
 
     private func checkQuizStatus() async {
-        guard !lessonVM.currentLessonName.isEmpty else { return }
+        let cleanLessonName = lessonVM.currentLessonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanLessonName.isEmpty else { return }
         let db = Firestore.firestore()
         do {
             let byIdSnap = try? await db.collection("Subjects").document(subjectName).collection("Tests")
-                .whereField("subtopic", isEqualTo: lessonVM.currentLessonName).limit(to: 1).getDocuments()
+                .whereField("subtopic", isEqualTo: cleanLessonName).limit(to: 1).getDocuments()
             
             if let docs = byIdSnap?.documents, !docs.isEmpty {
                 withAnimation { hasQuiz = true }
-                testViewModel.fetchTest(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))
+                testViewModel.fetchTest(mode: .quick(subject: subjectName, subtopic: cleanLessonName))
                 return
             }
             
             let querySnap = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
             for doc in querySnap.documents {
                 let testsSnap = try await db.collection("Subjects").document(doc.documentID).collection("Tests")
-                    .whereField("subtopic", isEqualTo: lessonVM.currentLessonName)
+                    .whereField("subtopic", isEqualTo: cleanLessonName)
                     .limit(to: 1)
                     .getDocuments()
                 if !testsSnap.documents.isEmpty {
                     withAnimation { hasQuiz = true }
-                    testViewModel.fetchTest(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))
+                    testViewModel.fetchTest(mode: .quick(subject: subjectName, subtopic: cleanLessonName))
                     return
                 }
             }
@@ -129,7 +131,7 @@ struct LessonView: View {
                 }
             } else {
                 ZStack(alignment: .bottom) {
-                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
+                    ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.element.id) { index, page in
                         LessonContentPage(
                             page: page,
                             isLastPage: index == lessonVM.lessonPages.count - 1,
@@ -284,7 +286,7 @@ struct LessonView: View {
                 Spacer()
 
                 if lessonVM.currentPageIndex >= lessonVM.lessonPages.count - 1 && hasQuiz {
-                    NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
+                    NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName.trimmingCharacters(in: .whitespacesAndNewlines)))) {
                         HStack(spacing: 8) {
                             Text("Assess Knowledge")
                             Image(systemName: "checkmark.seal.fill")
@@ -350,7 +352,7 @@ struct LessonView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
-                        ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.offset) { index, page in
+                        ForEach(Array(lessonVM.lessonPages.enumerated()), id: \.element.id) { index, page in
                             LessonContentPage(
                                 page: page,
                                 isLastPage: index == lessonVM.lessonPages.count - 1,
@@ -363,15 +365,12 @@ struct LessonView: View {
                                     }
                                 }
                             )
-                            .id(index)
-                            // Forces the page to occupy only the horizontal width, preventing total view collapse
-                            .containerRelativeFrame(.horizontal)
+                            .id(index) // MUST match the ScrollView Int binding type
+                            .containerRelativeFrame(.horizontal, alignment: .center)
                         }
                     }
                     .scrollTargetLayout()
                 }
-                // Setting max height forces the safeAreaInsets to snap firmly to the screen's true top and bottom
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .scrollTargetBehavior(.paging)
                 .scrollPosition(id: $scrollPosition)
                 .onChange(of: scrollPosition) { _, newIndex in
@@ -427,12 +426,11 @@ struct LessonView: View {
 
     private var headerView: some View {
         HStack(spacing: 12) {
-            // Refined, perfectly scaled back button
             Button(action: { dismiss() }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(colorScheme == .dark ? Color.red.opacity(0.9) : .red)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 34, height: 34)
                     .background(Color.red.opacity(0.15))
                     .clipShape(Circle())
             }
@@ -454,9 +452,9 @@ struct LessonView: View {
                     }
                 }) {
                     Image(systemName: "list.bullet")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.teal)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 34, height: 34)
                         .background(Color.teal.opacity(0.15))
                         .clipShape(Circle())
                 }
@@ -466,9 +464,9 @@ struct LessonView: View {
                     lessonVM.toggleBookmark(authVM: authVM)
                 }) {
                     Image(systemName: lessonVM.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(lessonVM.isCurrentPageBookmarked ? .teal : .secondary)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 34, height: 34)
                         .background(lessonVM.isCurrentPageBookmarked ? Color.teal.opacity(0.15) : Color.secondary.opacity(0.15))
                         .clipShape(Circle())
                 }
@@ -483,7 +481,6 @@ struct LessonView: View {
 
     private var pageIndicator: some View {
         HStack(spacing: 20) {
-            // Previous Page Arrow with massive hit target
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     let newIndex = max(lessonVM.currentPageIndex - 1, 0)
@@ -491,7 +488,7 @@ struct LessonView: View {
                 }
             }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(.system(size: 18, weight: .heavy))
                     .foregroundColor(lessonVM.currentPageIndex == 0 ? .secondary.opacity(0.3) : .teal)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
@@ -508,7 +505,6 @@ struct LessonView: View {
                 }
             }
 
-            // Next Page Arrow with massive hit target
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     let newIndex = min(lessonVM.currentPageIndex + 1, lessonVM.lessonPages.count - 1)
@@ -516,7 +512,7 @@ struct LessonView: View {
                 }
             }) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(.system(size: 18, weight: .heavy))
                     .foregroundColor(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1 ? .secondary.opacity(0.3) : .teal)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
@@ -524,11 +520,11 @@ struct LessonView: View {
             .buttonStyle(.plain)
             .disabled(lessonVM.currentPageIndex == lessonVM.lessonPages.count - 1)
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 20)
         .background(.ultraThinMaterial, in: Capsule())
         .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
-        .padding(.bottom, 12)
+        .padding(.bottom, 8)
     }
     #endif
 }

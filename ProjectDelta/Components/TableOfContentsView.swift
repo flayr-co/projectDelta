@@ -2,8 +2,6 @@
 //  TableOfContentsView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 4/2/24.
-//
 
 import SwiftUI
 
@@ -17,6 +15,22 @@ struct TableOfContentsView: View {
 
     @State private var selectedTab: Int = 0 // 0 = Curriculum, 1 = Bookmarks
     @State private var searchText: String = ""
+
+    // MARK: - Dynamic Theme Mapping
+    private var themeColor: Color {
+        let lowerName = subjectName.lowercased()
+        if lowerName.contains("geometry") || lowerName.contains("trigonometry") {
+            return .purple
+        } else if lowerName.contains("advanced") {
+            return .orange
+        } else if lowerName.contains("problem") || lowerName.contains("data") || lowerName.contains("statistics") {
+            return .pink
+        } else if lowerName.contains("arithmetic") {
+            return .cyan
+        } else {
+            return .teal
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,7 +73,7 @@ struct TableOfContentsView: View {
                     
                     Text(subjectName)
                         .font(.system(.largeTitle, design: .rounded, weight: .heavy))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(themeColor.gradient)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
                 }
@@ -216,23 +230,23 @@ struct TableOfContentsView: View {
             // Premium Rounded Rectangle Badge
             Text("\(index + 1)")
                 .font(.system(.title3, design: .rounded, weight: .heavy))
-                .foregroundStyle(lesson.completed ? .white : Color.accentColor)
+                .foregroundStyle(lesson.completed ? .white : themeColor)
                 .frame(width: 44, height: 44)
                 .background(
-                    lesson.completed ? Color.green.gradient : Color.accentColor.opacity(0.12).gradient,
+                    lesson.completed ? Color.green.gradient : themeColor.opacity(0.12).gradient,
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(lesson.completed ? Color.clear : Color.accentColor.opacity(0.25), lineWidth: 1)
+                        .strokeBorder(lesson.completed ? Color.clear : themeColor.opacity(0.25), lineWidth: 1)
                 )
                 .shadow(color: lesson.completed ? Color.green.opacity(0.3) : Color.clear, radius: 4, x: 0, y: 2)
             
             VStack(alignment: .leading, spacing: 4) {
-                // Fixed wrap alignment for dynamic text
+                // Fixed wrap alignment for dynamic text to never truncate
                 Text(lesson.name)
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(themeColor) // Inherits subject color
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                 
@@ -240,7 +254,7 @@ struct TableOfContentsView: View {
                     Text(lesson.description)
                         .font(.system(.subheadline, design: .rounded, weight: .medium))
                         .foregroundStyle(.secondary.opacity(0.9))
-                        .lineLimit(2)
+                        .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -273,18 +287,18 @@ struct TableOfContentsView: View {
         }) {
             HStack(spacing: 14) {
                 Image(systemName: "doc.plaintext.fill")
-                    .foregroundStyle(.secondary.opacity(0.6))
+                    .foregroundStyle(themeColor.opacity(0.6))
                     .font(.body)
                 
                 Text("Page \(page.pageNumber)")
                     .font(.system(.body, design: .rounded, weight: .semibold))
-                    .foregroundStyle(.primary.opacity(0.9))
+                    .foregroundStyle(themeColor.opacity(0.9))
                 
                 Spacer()
                 
                 if isBookmarked {
                     Image(systemName: "bookmark.fill")
-                        .foregroundStyle(.teal.gradient)
+                        .foregroundStyle(themeColor.gradient)
                         .font(.body)
                         .transition(.scale.combined(with: .opacity))
                 }

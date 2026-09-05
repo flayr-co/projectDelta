@@ -20,6 +20,8 @@ struct AddQuestionView: View {
     @State private var selectedSubtopic: String = ""
     @Environment(\.dismiss) var dismiss
     
+    let primaryTeal = Color(red: 0.12, green: 0.65, blue: 0.65)
+    
     let mathSubtopics: [String: [String]] = [
         "Algebra": ["Linear Equations", "Systems of Equations", "Inequalities", "Functions"],
         "Advanced Math": ["Polynomials", "Rational Expressions", "Exponents", "Radicals"],
@@ -28,30 +30,33 @@ struct AddQuestionView: View {
     ]
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Header
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Architect Question")
-                        .font(.title)
-                        .fontWeight(.heavy)
-                    Text("Construct independent database modules for \(subject.name).")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+        ZStack {
+            Color.platformSystemGroupedBackground.ignoresSafeArea()
+            
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 28) {
+                    // Premium Header
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Architect Question")
+                            .font(.system(size: 36, weight: .black, design: .rounded))
+                            .foregroundStyle(LinearGradient(colors: [.primary, primaryTeal], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        Text("Construct independent database modules for \(subject.name).")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 24)
+                    
+                    categorizationCard
+                    questionBuilderCard
+                    optionsCard
+                    assistanceCard
+                    
+                    Spacer(minLength: 120)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                .padding(.top, 16)
-                
-                categorizationCard
-                questionBuilderCard
-                optionsCard
-                assistanceCard
-                
-                Spacer(minLength: 80)
             }
         }
-        .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
         .navigationTitle("")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -62,10 +67,10 @@ struct AddQuestionView: View {
                 Button("Cancel") { dismiss() }
                     .buttonStyle(.borderless)
                 
-                Button("Commit") { saveQuestion() }
+                Button("Commit Question") { saveQuestion() }
                     .fontWeight(.bold)
                     .buttonStyle(.borderedProminent)
-                    .tint(.teal)
+                    .tint(primaryTeal)
                     .disabled(questionBlocks.isEmpty || options.contains(where: \.isEmpty))
             }
             #endif
@@ -87,21 +92,23 @@ struct AddQuestionView: View {
             Button(action: saveQuestion) {
                 HStack {
                     Image(systemName: "server.rack")
+                        .font(.system(size: 18, weight: .bold))
                     Text("Commit to Database")
-                        .fontWeight(.bold)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.teal)
+                .padding(.vertical, 18)
+                .background(primaryTeal.gradient)
                 .foregroundColor(.white)
-                .cornerRadius(14)
-                .shadow(color: Color.teal.opacity(0.3), radius: 10, y: 5)
+                .cornerRadius(16)
+                .shadow(color: primaryTeal.opacity(0.3), radius: 10, y: 5)
             }
             .disabled(questionBlocks.isEmpty || options.contains(where: \.isEmpty))
             .opacity(questionBlocks.isEmpty || options.contains(where: \.isEmpty) ? 0.5 : 1.0)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
-            .background(Color.platformSystemGroupedBackground.opacity(0.95))
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+            .padding(.top, 16)
+            .background(.ultraThinMaterial)
         }
         #endif
     }
@@ -114,7 +121,7 @@ struct AddQuestionView: View {
             VStack(spacing: 16) {
                 HStack {
                     Text("Subject")
-                        .fontWeight(.medium)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.secondary)
                     Spacer()
                     Picker("Subject", selection: $selectedSubjectArea) {
@@ -132,7 +139,7 @@ struct AddQuestionView: View {
                 
                 HStack {
                     Text("Subtopic")
-                        .fontWeight(.medium)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.secondary)
                     Spacer()
                     Picker("Subtopic", selection: $selectedSubtopic) {
@@ -150,8 +157,8 @@ struct AddQuestionView: View {
     private var questionBuilderCard: some View {
         FormCard(title: "Problem Canvas", icon: "hammer.fill", iconColor: .purple) {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Inject equations and graphs utilizing the block engine.")
-                    .font(.caption)
+                Text("Inject equations and graphs utilizing the universal block engine.")
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
                 
                 UniversalBlockEditorView(blocks: $questionBlocks)
@@ -162,26 +169,29 @@ struct AddQuestionView: View {
     @ViewBuilder
     private var optionsCard: some View {
         FormCard(title: "Evaluation Parameters", icon: "checklist", iconColor: .orange) {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(spacing: 12) {
-                    ForEach(options.indices, id: \.self) { index in
-                        HStack(spacing: 12) {
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                                    correctIndex = index
-                                }
-                            }) {
-                                Image(systemName: correctIndex == index ? "checkmark.circle.fill" : "circle")
-                                    .font(.title2)
-                                    .foregroundColor(correctIndex == index ? .green : .gray.opacity(0.3))
+            VStack(spacing: 16) {
+                ForEach(options.indices, id: \.self) { index in
+                    HStack(spacing: 16) {
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                correctIndex = index
                             }
-                            .buttonStyle(.plain)
-                            
-                            TextField("Vector \(index + 1)", text: $options[index])
-                                .padding(12)
-                                .background(Color.platformSecondarySystemBackground)
-                                .cornerRadius(8)
+                        }) {
+                            Image(systemName: correctIndex == index ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 24))
+                                .foregroundColor(correctIndex == index ? primaryTeal : .gray.opacity(0.3))
                         }
+                        .buttonStyle(.plain)
+                        
+                        TextField("Vector \(index + 1)", text: $options[index])
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .padding(16)
+                            .background(Color.platformSecondarySystemBackground)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(correctIndex == index ? primaryTeal : Color.clear, lineWidth: 2)
+                            )
                     }
                 }
             }
@@ -191,13 +201,12 @@ struct AddQuestionView: View {
     @ViewBuilder
     private var assistanceCard: some View {
         FormCard(title: "Contextual Hint", icon: "lightbulb.fill", iconColor: .yellow) {
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("Provide diagnostic guidance...", text: $hint, axis: .vertical)
-                    .lineLimit(2...4)
-                    .padding(12)
-                    .background(Color.platformSecondarySystemBackground)
-                    .cornerRadius(8)
-            }
+            TextField("Provide diagnostic guidance...", text: $hint, axis: .vertical)
+                .lineLimit(3...6)
+                .padding(16)
+                .background(Color.yellow.opacity(0.08))
+                .cornerRadius(12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.yellow.opacity(0.3), lineWidth: 1))
         }
     }
     
@@ -227,12 +236,14 @@ struct AddQuestionView: View {
     }
 }
 
-// MARK: - Helper UI Component
+// MARK: - Premium Glass Form Card
 struct FormCard<Content: View>: View {
     let title: String
     let icon: String
     let iconColor: Color
     let content: Content
+    
+    @State private var isHovered = false
     
     init(title: String, icon: String, iconColor: Color, @ViewBuilder content: () -> Content) {
         self.title = title
@@ -242,29 +253,35 @@ struct FormCard<Content: View>: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 16) {
                 ZStack {
-                    Circle()
-                        .fill(iconColor.opacity(0.15))
-                        .frame(width: 32, height: 32)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(iconColor.gradient.opacity(0.15))
+                        .frame(width: 44, height: 44)
                     Image(systemName: icon)
                         .foregroundColor(iconColor)
-                        .font(.subheadline)
+                        .font(.system(size: 20, weight: .bold))
                 }
                 
                 Text(title)
-                    .font(.headline)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             
             Divider()
             
             content
         }
-        .padding()
-        .background(Color.platformSystemBackground)
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
-        .padding(.horizontal)
+        .padding(24)
+        .background(.ultraThinMaterial)
+        .cornerRadius(24)
+        .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 15 : 10, y: isHovered ? 8 : 5)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .padding(.horizontal, 24)
+        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct UserStatsView: View {
     @Environment(AuthViewModel.self) var authViewModel
-    @Environment(QuizViewModel.self) var quizViewModel
+    @Environment(TestSessionViewModel.self) var testSessionVM
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -32,7 +32,7 @@ struct UserStatsView: View {
                         .foregroundColor(.primary)
                         .padding(.horizontal)
                     
-                    if let userProgress = quizViewModel.userProgress, !userProgress.progress.isEmpty {
+                    if let userProgress = testSessionVM.userProgress, !userProgress.progress.isEmpty {
                         let dynamicSubjects = Array(userProgress.progress.keys).sorted()
                         let chartColors: [Color] = [.cyan, .purple, .orange, .green, .pink, .indigo, .mint, .yellow, .red, .teal]
                         
@@ -54,7 +54,7 @@ struct UserStatsView: View {
                                     Task {
                                         try? await authViewModel.createUserProgress(userId: userID)
                                         if let refetched = try? await authViewModel.fetchUserProgress(forUserID: userID) {
-                                            quizViewModel.userProgress = refetched
+                                            testSessionVM.userProgress = refetched
                                         }
                                     }
                                 } label: {
@@ -81,7 +81,7 @@ struct UserStatsView: View {
         .task {
             if let userID = authViewModel.currentUser?.id {
                 if let fetched = try? await authViewModel.fetchUserProgress(forUserID: userID) {
-                    quizViewModel.userProgress = fetched
+                    testSessionVM.userProgress = fetched
                 }
             }
         }

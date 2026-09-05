@@ -1,21 +1,14 @@
-//
-//  UserProgressDonut.swift
-//  ProjectDelta
-//
-//  Created by Jake Meissner on 12/29/23.
-//
-
 import SwiftUI
 import Charts
 
 struct UserProgressPieChart: View {
     @Environment(AuthViewModel.self) var viewModel
-    @Environment(QuizViewModel.self) var quizViewModel
+    @Environment(TestSessionViewModel.self) var testSessionVM // Updated environment injection
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        VStack(spacing: 0) { // Removed outer spacing to let container dictate constraints
-            if let userProgress = quizViewModel.userProgress {
+        VStack(spacing: 0) {
+            if let userProgress = testSessionVM.userProgress { // Updated reference
                 let dynamicSubjects = Array(userProgress.progress.keys).sorted()
                 let chartColors: [Color] = [.cyan, .purple, .orange, .green, .pink, .indigo, .mint, .yellow, .red, .teal]
                 
@@ -23,7 +16,6 @@ struct UserProgressPieChart: View {
                 let totalAttempted = dynamicSubjects.reduce(0) { $0 + (userProgress.progress[$1]?.questionsAttempted ?? 0) }
                 
                 if totalAttempted == 0 {
-                    // Empty state layout handler if no statistics are recorded yet
                     VStack(spacing: 12) {
                         Spacer()
                         ZStack {
@@ -44,7 +36,6 @@ struct UserProgressPieChart: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    // Comprehensive multi-subject analytics rendering
                     HStack(spacing: 24) {
                         Chart {
                             ForEach(Array(dynamicSubjects.enumerated()), id: \.element) { index, subjectName in
@@ -60,7 +51,6 @@ struct UserProgressPieChart: View {
                             }
                         }
                         .chartLegend(.hidden)
-                        // Increased chart size slightly to fill space better
                         .frame(width: 140, height: 140)
                         .overlay {
                             VStack(spacing: 1) {
@@ -74,8 +64,7 @@ struct UserProgressPieChart: View {
                             }
                         }
                         
-                        // Structured interactive color legend block
-                        VStack(alignment: .leading, spacing: 10) { // Increased spacing between legend items
+                        VStack(alignment: .leading, spacing: 10) {
                             ForEach(Array(dynamicSubjects.enumerated()), id: \.element) { index, subjectName in
                                 let progressData = userProgress.progress[subjectName] ?? SubjectProgress(questionsAttempted: 0, questionsCorrect: 0)
                                 HStack(spacing: 8) {
@@ -116,8 +105,6 @@ struct UserProgressPieChart: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        // Removed the hardcoded padding, background, overlay, and shadow.
-        // It now inherits its bounds and styling strictly from the parent MetricsCarouselView card.
         .task {
             await loadOrCreateProgress()
         }
@@ -127,25 +114,19 @@ struct UserProgressPieChart: View {
         guard let userId = viewModel.userSession?.uid else { return }
         do {
             if let fetchedUserProgress = try await viewModel.fetchUserProgress(forUserID: userId) {
-                quizViewModel.userProgress = fetchedUserProgress
+                testSessionVM.userProgress = fetchedUserProgress // Updated reference
             } else {
                 try await viewModel.createUserProgress(userId: userId)
                 if let refetched = try await viewModel.fetchUserProgress(forUserID: userId) {
-                    quizViewModel.userProgress = refetched
+                    testSessionVM.userProgress = refetched // Updated reference
                 }
             }
         } catch {
             print("Progress structural ledger generation requested: \(error.localizedDescription)")
             try? await viewModel.createUserProgress(userId: userId)
             if let refetched = try? await viewModel.fetchUserProgress(forUserID: userId) {
-                quizViewModel.userProgress = refetched
+                testSessionVM.userProgress = refetched // Updated reference
             }
         }
     }
-}
-
-#Preview {
-    UserProgressPieChart()
-        .environment(AuthViewModel())
-        .environment(QuizViewModel(authViewModel: AuthViewModel()))
 }

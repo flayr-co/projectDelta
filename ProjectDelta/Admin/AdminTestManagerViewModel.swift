@@ -124,7 +124,7 @@ class AdminTestManagerViewModel {
         isGenerating = true
         try? await Task.sleep(for: .seconds(0.3)) // Brief UI yield
         
-        self.generatedQuestions = QuestionGeneratorEngine.shared.generateQuestions(
+        self.generatedQuestions = await QuestionGeneratorEngine.shared.generateQuestions(
             subject: finalSubject,
             subtopic: finalLesson,
             count: questionCount,

@@ -20,17 +20,18 @@ struct LessonEditorView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var lessonTitle: String
     @State private var pages: [Page] = []
-    @State private var targetQuestionCount: Int = 10
     
     var lesson: Lesson
     var subject: Subject
+    
+    let primaryTeal = Color(red: 0.12, green: 0.65, blue: 0.65)
+    let glowingPurple = Color(red: 0.6, green: 0.2, blue: 0.9)
     
     init(lesson: Lesson = Lesson(id: nil, name: "", description: "", completed: false, lessonNumber: 1, pages: nil), subject: Subject) {
         self.lesson = lesson
         self.subject = subject
         _lessonTitle = State(initialValue: lesson.name)
         
-        // Initialize pages; if legacy lesson only has a description, migrate it to page 1
         var initialPages = lesson.pages ?? []
         if initialPages.isEmpty && !lesson.description.isEmpty {
             initialPages.append(Page(id: UUID().uuidString, content: lesson.description, pageNumber: 1, readyButtonDisplayed: true))
@@ -39,17 +40,18 @@ struct LessonEditorView: View {
     }
 
     var body: some View {
-        // NavigationStack strictly removed to prevent safe-area intersection bugs when pushed
         ZStack {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
             
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 32) {
-                    // Header
+                    // Premium Glass Header
                     VStack(alignment: .leading, spacing: 8) {
                         Text(lesson.id?.isEmpty == false ? "Edit Lesson" : "Author New Lesson")
-                            .font(.system(size: 34, weight: .black, design: .rounded))
+                            .font(.system(size: 36, weight: .black, design: .rounded))
+                            .foregroundStyle(LinearGradient(colors: [.primary, primaryTeal], startPoint: .topLeading, endPoint: .bottomTrailing))
                         Text("Construct your educational material across multiple pages.")
+                            .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -57,57 +59,62 @@ struct LessonEditorView: View {
                     .padding(.top, 24)
                     
                     // Metadata Card
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 20) {
                         HStack {
-                            Image(systemName: "text.book.closed.fill")
-                                .foregroundColor(.teal)
+                            ZStack {
+                                Circle().fill(primaryTeal.opacity(0.15)).frame(width: 36, height: 36)
+                                Image(systemName: "text.book.closed.fill").foregroundColor(primaryTeal).font(.system(size: 16, weight: .bold))
+                            }
                             Text("Lesson Metadata")
-                                .font(.headline)
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
                         }
                         
                         Divider()
                         
                         TextField("Enter Lesson Title...", text: $lessonTitle)
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                            .padding(16)
+                            .font(.system(size: 24, weight: .heavy, design: .rounded))
+                            .padding(20)
                             .background(Color.platformSecondarySystemBackground)
-                            .cornerRadius(12)
+                            .cornerRadius(16)
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                         
                         HStack {
                             Text("Parent Subject")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
                                 .foregroundColor(.secondary)
-                                .font(.subheadline)
                             Spacer()
                             Text(subject.name)
-                                .fontWeight(.bold)
-                                .foregroundColor(.primary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.teal.opacity(0.15))
-                                .cornerRadius(8)
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundColor(primaryTeal)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(primaryTeal.opacity(0.15))
+                                .clipShape(Capsule())
                         }
                     }
                     .padding(24)
-                    .background(Color.platformSystemBackground)
-                    .cornerRadius(20)
-                    .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(24)
+                    .shadow(color: .black.opacity(0.04), radius: 15, y: 8)
+                    .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                     .padding(.horizontal, 24)
                     
                     // Pages Manager
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 20) {
                         HStack {
-                            Image(systemName: "square.stack.3d.down.right.fill")
-                                .foregroundColor(.purple)
+                            ZStack {
+                                Circle().fill(glowingPurple.opacity(0.15)).frame(width: 36, height: 36)
+                                Image(systemName: "square.stack.3d.down.right.fill").foregroundColor(glowingPurple).font(.system(size: 16, weight: .bold))
+                            }
                             Text("Lesson Pages")
-                                .font(.headline)
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
                             
                             Spacer()
                             
                             Button(action: addNewPage) {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.teal)
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(primaryTeal)
                             }
                             .buttonStyle(.plain)
                         }
@@ -115,22 +122,30 @@ struct LessonEditorView: View {
                         
                         if pages.isEmpty {
                             ContentUnavailableView("No Pages", systemImage: "doc.text", description: Text("Add a page to start building your lesson content."))
-                                .padding(.vertical, 32)
-                        } else {
-                            ForEach($pages.indices, id: \.self) { index in
-                                NavigationLink(destination: PageEditorView(page: $pages[index], pageIndex: index + 1)) {
-                                    PageAdminCard(page: pages[index], displayIndex: index + 1) {
-                                        pages.remove(at: index)
-                                        recalculatePageNumbers()
-                                    }
-                                }
-                                .buttonStyle(.plain)
+                                .padding(.vertical, 40)
+                                .background(Color.platformSystemBackground)
+                                .cornerRadius(24)
                                 .padding(.horizontal, 24)
+                        } else {
+                            LazyVStack(spacing: 16) {
+                                ForEach($pages.indices, id: \.self) { index in
+                                    NavigationLink(destination: PageEditorView(page: $pages[index], pageIndex: index + 1)) {
+                                        PageAdminCard(page: pages[index], displayIndex: index + 1) {
+                                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                                pages.remove(at: index)
+                                                recalculatePageNumbers()
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(.horizontal, 24)
+                                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+                                }
                             }
                         }
                     }
                     
-                    Spacer(minLength: 120)
+                    Spacer(minLength: 140)
                 }
             }
             #if os(macOS)
@@ -142,42 +157,65 @@ struct LessonEditorView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
+            #if os(macOS)
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save Curriculum") { saveLesson() }
                     .fontWeight(.bold)
                     .buttonStyle(.borderedProminent)
-                    .tint(.teal)
+                    .tint(primaryTeal)
                     .disabled(lessonTitle.isEmpty)
             }
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
                     .foregroundColor(.secondary)
             }
+            #endif
         }
         .safeAreaInset(edge: .bottom) {
-            NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle)) {
-                HStack {
-                    Image(systemName: "plus.rectangle.on.rectangle")
-                        .font(.title3)
-                    Text("Create Linked Assessment")
-                        .fontWeight(.bold)
+            VStack(spacing: 12) {
+                #if os(iOS)
+                Button(action: saveLesson) {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Save Curriculum")
+                    }
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(primaryTeal.gradient)
+                    .foregroundColor(.white)
+                    .cornerRadius(16)
+                    .shadow(color: primaryTeal.opacity(0.3), radius: 10, y: 5)
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.purple)
-                .foregroundColor(.white)
-                .cornerRadius(14)
-                .shadow(color: Color.purple.opacity(0.3), radius: 10, y: 5)
+                .buttonStyle(.plain)
+                .disabled(lessonTitle.isEmpty)
+                #endif
+                
+                NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle)) {
+                    HStack {
+                        Image(systemName: "bolt.badge.automatic.fill")
+                            .font(.system(size: 18, weight: .bold))
+                        Text("Create Linked Assessment")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(glowingPurple.gradient)
+                    .foregroundColor(.white)
+                    .cornerRadius(16)
+                    .shadow(color: glowingPurple.opacity(0.4), radius: 15, y: 8)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
-            .background(Color.platformSystemGroupedBackground.opacity(0.95))
+            .padding(.top, 16)
+            .background(.ultraThinMaterial)
         }
     }
     
     private func addNewPage() {
-        withAnimation(.spring) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             let newPage = Page(id: UUID().uuidString, content: "[]", pageNumber: pages.count + 1, readyButtonDisplayed: true)
             pages.append(newPage)
         }
@@ -208,7 +246,7 @@ struct LessonEditorView: View {
             var lessonData: [String: Any] = [
                 "name": lessonTitle,
                 "subject": subject.name,
-                "description": pages.first?.content ?? "", // Legacy support fallback
+                "description": pages.first?.content ?? "",
                 "pages": mappedPages,
                 "completed": lesson.completed,
                 "lessonNumber": lesson.lessonNumber,
@@ -236,56 +274,66 @@ struct PageAdminCard: View {
     let page: Page
     let displayIndex: Int
     let onDelete: () -> Void
+    @State private var isHovered = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 16) {
                 Text("\(displayIndex)")
-                    .font(.system(size: 26, weight: .heavy, design: .rounded))
-                    .foregroundColor(.purple.opacity(0.4))
-                    .frame(width: 32, alignment: .leading)
+                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .foregroundColor(Color(red: 0.6, green: 0.2, blue: 0.9).opacity(0.3))
+                    .frame(width: 36, alignment: .leading)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.purple.opacity(0.1))
-                        .frame(width: 50, height: 50)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(red: 0.6, green: 0.2, blue: 0.9).gradient.opacity(0.15))
+                        .frame(width: 56, height: 56)
                     Image(systemName: "doc.text.fill")
-                        .font(.title2)
-                        .foregroundColor(.purple)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(Color(red: 0.6, green: 0.2, blue: 0.9))
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Page \(displayIndex)")
-                        .font(.headline)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
                     Text(page.readyButtonDisplayed ? "Ready Button Enabled" : "Read-Only Mode")
-                        .font(.caption)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundColor(.secondary)
                 }
                 
                 Spacer()
                 
                 Button(role: .destructive, action: onDelete) {
-                    Image(systemName: "trash")
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.red)
-                        .padding(10)
+                        .frame(width: 44, height: 44)
                         .background(Color.red.opacity(0.1))
                         .clipShape(Circle())
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(20)
         .background(Color.platformSystemBackground)
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
+        .cornerRadius(24)
+        .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 12 : 8, y: isHovered ? 6 : 4)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
 
-// MARK: - Page Editor View (v10.0 Refactor)
+// MARK: - Page Editor View
 struct PageEditorView: View {
     @Binding var page: Page
     let pageIndex: Int
     @State private var blocks: [QuestionBlockModel] = []
+    @State private var autoSaveTask: Task<Void, Never>?
     @Environment(\.dismiss) var dismiss
 
     var body: some View {
@@ -301,7 +349,7 @@ struct PageEditorView: View {
                 .padding(.vertical, 24)
             }
             #if os(iOS)
-            .scrollDismissesKeyboard(.interactively) // Modern iOS native dismissal
+            .scrollDismissesKeyboard(.interactively)
             #endif
             #if os(macOS)
             .safeAreaPadding(.top, 56)
@@ -311,14 +359,20 @@ struct PageEditorView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        // Global tap dismissal fallback
         .onTapGesture {
             #if os(iOS)
             hideKeyboard()
             #endif
         }
         .onAppear { loadBlocks() }
-        .onChange(of: blocks) { _, _ in saveBlocksToPage() }
+        .onChange(of: blocks) { _, _ in queueAutoSave() }
+        .onDisappear {
+            autoSaveTask?.cancel()
+            if let data = try? JSONEncoder().encode(blocks),
+               let jsonString = String(data: data, encoding: .utf8) {
+                page.content = jsonString
+            }
+        }
     }
 
     private func loadBlocks() {
@@ -340,7 +394,6 @@ struct PageEditorView: View {
                 return
             }
         }
-        
         blocks = parseLegacyContentToBlocks(textData)
     }
 
@@ -416,6 +469,28 @@ struct PageEditorView: View {
             page.content = jsonString
         } else {
             page.content = blocks.map { $0.content }.joined(separator: "\n")
+        }
+    }
+
+    private func queueAutoSave() {
+        autoSaveTask?.cancel()
+        autoSaveTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            
+            let snapshot = blocks
+            let jsonString: String? = await Task.detached(priority: .utility) {
+                guard let data = try? JSONEncoder().encode(snapshot) else { return nil }
+                return String(data: data, encoding: .utf8)
+            }.value
+            
+            await MainActor.run {
+                if let json = jsonString {
+                    self.page.content = json
+                } else {
+                    self.page.content = snapshot.map { $0.content }.joined(separator: "\n")
+                }
+            }
         }
     }
 }

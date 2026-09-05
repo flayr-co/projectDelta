@@ -42,7 +42,6 @@ struct ProjectDeltaApp: App {
     @State var viewModel: AuthViewModel
     @State var testViewModel: TestSessionViewModel
     @State var lessonVM: LessonViewModel
-    @State var quizViewModel: QuizViewModel
     
     init() {
         // 1. Force Firebase to configure absolutely first
@@ -54,7 +53,6 @@ struct ProjectDeltaApp: App {
         _viewModel = State(initialValue: auth)
         _testViewModel = State(initialValue: TestSessionViewModel(authViewModel: auth))
         _lessonVM = State(initialValue: LessonViewModel())
-        _quizViewModel = State(initialValue: QuizViewModel(authViewModel: auth))
     }
     
     private static func configureFirestoreForDebugRuns() {
@@ -72,7 +70,6 @@ struct ProjectDeltaApp: App {
                 .environment(viewModel)
                 .environment(testViewModel)
                 .environment(lessonVM)
-                .environment(quizViewModel)
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
@@ -84,7 +81,6 @@ struct ProjectDeltaApp: App {
                 .environment(viewModel)
                 .environment(testViewModel)
                 .environment(lessonVM)
-                .environment(quizViewModel)
         }
     }
     #endif

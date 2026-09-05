@@ -7,7 +7,6 @@ import SwiftUI
 import Charts
 
 // MARK: - Parsed Content Models
-// Swapped UUID() for strict String IDs to stop SwiftUI from constantly destroying and rebuilding views
 struct ParsedContentBlock: Identifiable {
     let id: String
     let type: BlockType
@@ -240,58 +239,53 @@ struct LessonContentPage: View {
                 }
 
                 if isLastPage {
-                    VStack(spacing: 20) {
+                    VStack(spacing: 16) {
                         if hasQuiz {
-                            NavigationLink(destination: UniversalTestView(mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName))) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Ready for a challenge?")
-                                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                                            .foregroundStyle(.white.opacity(0.85))
-                                        Text("Assess Knowledge")
+                            NavigationLink(
+                                destination: UniversalTestView(
+                                    mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName.trimmingCharacters(in: .whitespacesAndNewlines))
+                                )
+                            ) {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("LESSON COMPLETE")
+                                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                                            .foregroundStyle(.white.opacity(0.8))
+                                        Text("Take Practice Assessment")
                                             .font(.system(.title3, design: .rounded, weight: .heavy))
                                             .foregroundStyle(.white)
                                     }
                                     Spacer()
-                                    Image(systemName: "checkmark.seal.fill")
-                                        .font(.system(size: 36))
+                                    Image(systemName: "arrow.right.circle.fill")
+                                        .font(.system(size: 32))
                                         .foregroundStyle(.white)
                                 }
                                 .padding(.horizontal, 24)
-                                .padding(.vertical, 20)
-                                .background(themeColor.gradient, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                                .shadow(color: themeColor.opacity(0.3), radius: 20, y: 10)
+                                .padding(.vertical, 18)
+                                .background(themeColor.gradient, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                .shadow(color: themeColor.opacity(0.35), radius: 15, y: 8)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Button(action: {
+                                Task { await lessonVM.advanceToNextLesson(authVM: authVM) }
+                            }) {
+                                HStack {
+                                    Text("Complete & Continue")
+                                        .font(.headline.weight(.bold))
+                                    Spacer()
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.title2)
+                                }
+                                .padding()
+                                .background(Color.platformSecondarySystemBackground)
+                                .cornerRadius(16)
                             }
                             .buttonStyle(.plain)
                         }
-
-                        Button(action: {
-                            Task { await lessonVM.advanceToNextLesson(authVM: authVM) }
-                        }) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Up Next")
-                                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                                        .foregroundStyle(.secondary)
-                                    Text("Next Lesson")
-                                        .font(.system(.title3, design: .rounded, weight: .heavy))
-                                        .foregroundStyle(.primary)
-                                }
-                                Spacer()
-                                Image(systemName: "arrow.right.circle.fill")
-                                    .font(.system(size: 36))
-                                    .foregroundStyle(themeColor)
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 20)
-                            .background(Color.platformSystemBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 1))
-                            .shadow(color: .black.opacity(0.05), radius: 20, y: 10)
-                        }
-                        .buttonStyle(.plain)
                     }
-                    .padding(.top, 40)
-                    .frame(maxWidth: .infinity)
+                    .padding(.top, 32)
+                    .padding(.bottom, 40)
                 }
             }
             #if os(macOS)

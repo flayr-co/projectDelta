@@ -12,7 +12,7 @@ struct UniversalBlockEditorView: View {
     @State private var isSaved: Bool = false
     
     var body: some View {
-        LazyVStack(spacing: 24) {
+        VStack(spacing: 20) {
             // MARK: Floating Save Header
             HStack {
                 Spacer()
@@ -120,7 +120,7 @@ fileprivate struct BlockEditCell: View {
     @Binding var block: QuestionBlockModel
     var onDelete: () -> Void
     
-    @State private var isEditing: Bool = false
+    @State private var isEditing: Bool
     @FocusState private var isFocused: Bool
     @State private var selectedRange = NSRange(location: 0, length: 0)
     
@@ -130,6 +130,13 @@ fileprivate struct BlockEditCell: View {
     @State private var mathPromptType: MathPromptType = .fraction
     @State private var mathArg1: String = ""
     @State private var mathArg2: String = ""
+    
+    init(block: Binding<QuestionBlockModel>, onDelete: @escaping () -> Void) {
+        self._block = block
+        self.onDelete = onDelete
+        // Unfold automatically if the block is newly added (empty content)
+        self._isEditing = State(initialValue: block.wrappedValue.content.isEmpty)
+    }
     
     // MARK: - Native Formatting Engine
     private func applyFormatting(prefix: String, suffix: String) {
@@ -235,6 +242,14 @@ fileprivate struct BlockEditCell: View {
                 .stroke(isEditing ? colorForType().opacity(0.5) : Color.gray.opacity(0.15), lineWidth: 1)
         )
         .padding(.vertical, 4)
+        .onAppear {
+            if isEditing {
+                // Focus newly added blocks instantly
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isFocused = true
+                }
+            }
+        }
     }
 
     private var summaryText: String {
@@ -492,11 +507,13 @@ fileprivate struct BlockEditCell: View {
             }
             .pickerStyle(.segmented)
             
-            InteractiveGraphBuilderView(
-                content: $block.content,
-                graphType: selectedGraphType
-            )
-            .frame(height: 360)
+            if isEditing {
+                InteractiveGraphBuilderView(
+                    content: $block.content,
+                    graphType: selectedGraphType
+                )
+                .frame(height: 360)
+            }
             
             VStack(alignment: .leading, spacing: 12) {
                 Text("Expressions")
