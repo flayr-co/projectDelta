@@ -151,17 +151,6 @@ struct DynamicGraphView: View {
             
             ZStack {
                 Canvas { context, canvasSize in
-                    let background = Path(roundedRect: CGRect(origin: .zero, size: canvasSize), cornerRadius: 16)
-                    context.fill(background, with: .linearGradient(
-                        Gradient(colors: [
-                            Color.purple.opacity(0.08),
-                            Color.blue.opacity(0.04),
-                            Color.clear
-                        ]),
-                        startPoint: .zero,
-                        endPoint: CGPoint(x: canvasSize.width, y: canvasSize.height)
-                    ))
-                    
                     drawAdaptiveGrid(context: context, size: canvasSize, origin: origin, scale: currentScale, step: step)
                     
                     if let inequality = data.inequality {
@@ -354,11 +343,10 @@ struct DynamicGraphView: View {
                     .padding(16)
                 }
             }
-            .background(Color.platformSecondarySystemGroupedBackground)
+            .background(colorScheme == .dark ? Color.black.opacity(0.3) : Color.primary.opacity(0.04))
             .cornerRadius(16)
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(primaryColor.opacity(0.4), lineWidth: 1.5))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.08), lineWidth: 1))
             .clipped()
-            .shadow(color: primaryColor.opacity(0.2), radius: 12, y: 4)
             .onAppear {
                 if !hasInitializedViewport {
                     applySmartScale(size: size)
@@ -422,123 +410,116 @@ struct DynamicGraphView: View {
     private func applySmartScale(size: CGSize) {
         guard size.width > 0 && size.height > 0 else { return }
         
-        var keyX: [Double] = [0.0]
-        var keyY: [Double] = [0.0]
-        
-        var lines: [(m: Double, b: Double)] = []
-        var verticalLines: [Double] = []
-        
-        for series in activeSeries {
-            if series.xValues.count >= 2, let firstX = series.xValues.first, let lastX = series.xValues.last, let firstY = series.yValues.first, let lastY = series.yValues.last {
-                
-                // Account for vertical lines (x = C)
-                if abs(lastX - firstX) < 0.0001 {
-                    verticalLines.append(firstX)
-                    keyX.append(firstX)
-                    keyY.append(0.0) // Add an arbitrary 0 origin to frame
-                    continue
-                }
-                
-                // Regular Lines (y = mx + b)
-                let m = (lastY - firstY) / (lastX - firstX)
-                let b = firstY - m * firstX
-                if m.isFinite && b.isFinite {
-                    lines.append((m, b))
-                    keyY.append(b) // Frame the Y-intercept
-                    if abs(m) > 0.0001 {
-                        keyX.append(-b/m) // Frame the X-intercept
-                    }
-                }
-            } else if !series.xValues.isEmpty {
-                // Hardcoded points series (point plotting graphs)
-                keyX.append(contentsOf: series.xValues.filter { $0.isFinite })
-                keyY.append(contentsOf: series.yValues.filter { $0.isFinite })
-            }
-        }
-        
-        if let ineq = data.inequality {
-            lines.append((ineq.slope, ineq.intercept))
-            keyY.append(ineq.intercept)
-            if abs(ineq.slope) > 0.0001 {
-                keyX.append(-ineq.intercept / ineq.slope)
-            }
-        }
-        
-        // Calculate intersections between regular lines
-        if lines.count >= 2 {
-            for i in 0..<lines.count {
-                for j in (i+1)..<lines.count {
-                    let l1 = lines[i]
-                    let l2 = lines[j]
-                    let denom = l1.m - l2.m
-                    if abs(denom) > 0.0001 {
-                        let x = (l2.b - l1.b) / denom
-                        let y = l1.m * x + l1.b
-                        keyX.append(x)
-                        keyY.append(y)
-                    }
-                }
-            }
-        }
-        
-        // Calculate intersections between vertical lines and regular lines
-        for vX in verticalLines {
-            for l in lines {
-                keyX.append(vX)
-                keyY.append(l.m * vX + l.b)
-            }
-        }
-        
-        // Filter out absurdly huge values (e.g. asymptotes jumping to infinity)
-        let validX = keyX.filter { abs($0) <= 200 }
-        let validY = keyY.filter { abs($0) <= 200 }
-        
-        var minX = validX.min() ?? -10.0
-        var maxX = validX.max() ?? 10.0
-        var minY = validY.min() ?? -10.0
-        var maxY = validY.max() ?? 10.0
-        
-        // Force a minimum bounding window (so graphs aren't permanently zoomed into micro fractions)
-        if maxX - minX < 12 {
-            let cx = (maxX + minX) / 2
-            minX = cx - 6
-            maxX = cx + 6
-        }
-        if maxY - minY < 12 {
-            let cy = (maxY + minY) / 2
-            minY = cy - 6
-            maxY = cy + 6
-        }
-        
-        // Apply 15% visual padding around the data so lines/points don't rub against the frame edge
-        let pX = (maxX - minX) * 0.15
-        let pY = (maxY - minY) * 0.15
-        minX -= pX
-        maxX += pX
-        minY -= pY
-        maxY += pY
-        
-        // Calculate required zoom multipliers and cap the extremes
-        let scaleX = size.width / CGFloat(maxX - minX)
-        let scaleY = size.height / CGFloat(maxY - minY)
-        
-        let newScale = min(scaleX, scaleY)
-        let finalScale = max(4.0, min(newScale, 80.0))
-        
-        let centerX = (minX + maxX) / 2.0
-        let centerY = (minY + maxY) / 2.0
-        
-        let newPan = CGSize(width: CGFloat(-centerX) * finalScale, height: CGFloat(centerY) * finalScale)
-        
-        DispatchQueue.main.async {
-            self.targetScale = finalScale
-            self.targetPan = newPan
+        Task.detached(priority: .userInitiated) {
+            var keyX: [Double] = [0.0]
+            var keyY: [Double] = [0.0]
             
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                self.currentScale = finalScale
-                self.lastScale = finalScale
-                self.currentPan = newPan
-                self.lastPan = newPan
+            var lines: [(m: Double, b: Double)] = []
+            var verticalLines: [Double] = []
+            
+            for series in activeSeries {
+                if series.xValues.count >= 2, let firstX = series.xValues.first, let lastX = series.xValues.last, let firstY = series.yValues.first, let lastY = series.yValues.last {
+                    
+                    if abs(lastX - firstX) < 0.0001 {
+                        verticalLines.append(firstX)
+                        keyX.append(firstX)
+                        keyY.append(0.0)
+                        continue
+                    }
+                    
+                    let m = (lastY - firstY) / (lastX - firstX)
+                    let b = firstY - m * firstX
+                    if m.isFinite && b.isFinite {
+                        lines.append((m, b))
+                        keyY.append(b)
+                        if abs(m) > 0.0001 {
+                            keyX.append(-b/m)
+                        }
+                    }
+                } else if !series.xValues.isEmpty {
+                    keyX.append(contentsOf: series.xValues.filter { $0.isFinite })
+                    keyY.append(contentsOf: series.yValues.filter { $0.isFinite })
+                }
+            }
+            
+            if let ineq = data.inequality {
+                lines.append((ineq.slope, ineq.intercept))
+                keyY.append(ineq.intercept)
+                if abs(ineq.slope) > 0.0001 {
+                    keyX.append(-ineq.intercept / ineq.slope)
+                }
+            }
+            
+            if lines.count >= 2 {
+                for i in 0..<lines.count {
+                    for j in (i+1)..<lines.count {
+                        let l1 = lines[i]
+                        let l2 = lines[j]
+                        let denom = l1.m - l2.m
+                        if abs(denom) > 0.0001 {
+                            let x = (l2.b - l1.b) / denom
+                            let y = l1.m * x + l1.b
+                            keyX.append(x)
+                            keyY.append(y)
+                        }
+                    }
+                }
+            }
+            
+            for vX in verticalLines {
+                for l in lines {
+                    keyX.append(vX)
+                    keyY.append(l.m * vX + l.b)
+                }
+            }
+            
+            let validX = keyX.filter { abs($0) <= 200 }
+            let validY = keyY.filter { abs($0) <= 200 }
+            
+            var minX = validX.min() ?? -10.0
+            var maxX = validX.max() ?? 10.0
+            var minY = validY.min() ?? -10.0
+            var maxY = validY.max() ?? 10.0
+            
+            if maxX - minX < 12 {
+                let cx = (maxX + minX) / 2
+                minX = cx - 6
+                maxX = cx + 6
+            }
+            if maxY - minY < 12 {
+                let cy = (maxY + minY) / 2
+                minY = cy - 6
+                maxY = cy + 6
+            }
+            
+            let pX = (maxX - minX) * 0.15
+            let pY = (maxY - minY) * 0.15
+            minX -= pX
+            maxX += pX
+            minY -= pY
+            maxY += pY
+            
+            let scaleX = size.width / CGFloat(maxX - minX)
+            let scaleY = size.height / CGFloat(maxY - minY)
+            
+            let newScale = min(scaleX, scaleY)
+            let finalScale = max(4.0, min(newScale, 80.0))
+            
+            let centerX = (minX + maxX) / 2.0
+            let centerY = (minY + maxY) / 2.0
+            
+            let newPan = CGSize(width: CGFloat(-centerX) * finalScale, height: CGFloat(centerY) * finalScale)
+            
+            await MainActor.run {
+                self.targetScale = finalScale
+                self.targetPan = newPan
+                
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    self.currentScale = finalScale
+                    self.lastScale = finalScale
+                    self.currentPan = newPan
+                    self.lastPan = newPan
+                }
             }
         }
     }
@@ -1251,12 +1232,5 @@ extension String {
             i = self.index(after: i)
         }
         return result
-    }
-}
-
-#Preview {
-    ZStack {
-        Color.platformSystemGroupedBackground.ignoresSafeArea()
-        DynamicGraphView(data: sampleData)
     }
 }

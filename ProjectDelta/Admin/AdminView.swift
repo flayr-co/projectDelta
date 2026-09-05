@@ -11,6 +11,9 @@ struct AdminView: View {
     @State private var selectedSubject: Subject?
     @Environment(\.dismiss) var dismiss
     
+    @State private var showingAddSubjectAlert = false
+    @State private var newSubjectName = ""
+    
     // UI Constants
     private let primaryTeal = Color(red: 0.12, green: 0.65, blue: 0.65)
     
@@ -77,7 +80,7 @@ struct AdminView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(action: { /* Add Global Subject Logic */ }) {
+                    Button(action: { showingAddSubjectAlert = true }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 18, weight: .bold))
                             .foregroundStyle(primaryTeal)
@@ -86,6 +89,22 @@ struct AdminView: View {
                             .clipShape(Circle())
                     }
                 }
+            }
+            .alert("Add New Subject", isPresented: $showingAddSubjectAlert) {
+                TextField("Subject Name (e.g. Calculus 1)", text: $newSubjectName)
+                Button("Cancel", role: .cancel) {
+                    newSubjectName = ""
+                }
+                Button("Create") {
+                    let cleanName = newSubjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !cleanName.isEmpty else { return }
+                    Task {
+                        await viewModel.addSubject(name: cleanName)
+                        newSubjectName = ""
+                    }
+                }
+            } message: {
+                Text("Enter the title for your new curriculum sequence.")
             }
             .overlay {
                 if viewModel.isProcessing {
