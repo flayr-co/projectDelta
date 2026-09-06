@@ -13,6 +13,7 @@
 		520F68A6304BC6D50092A83D /* RatiosAndProportionsTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520F68A5304BC6D10092A83D /* RatiosAndProportionsTemplate.swift */; };
 		520F68A9304CF0240092A83D /* InteractiveGraphBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520F68A7304CF0240092A83D /* InteractiveGraphBuilderView.swift */; };
 		520F68AA304CF0240092A83D /* SelectableTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520F68A8304CF0240092A83D /* SelectableTextEditor.swift */; };
+		520F68AC304D090B0092A83D /* EditorToolbarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520F68AB304D090B0092A83D /* EditorToolbarButton.swift */; };
 		5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */; };
 		5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */; };
 		521887B92FB4FB7F00D97803 /* QuizSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */; };
@@ -87,6 +88,7 @@
 		520F68A5304BC6D10092A83D /* RatiosAndProportionsTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatiosAndProportionsTemplate.swift; sourceTree = "<group>"; };
 		520F68A7304CF0240092A83D /* InteractiveGraphBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveGraphBuilderView.swift; sourceTree = "<group>"; };
 		520F68A8304CF0240092A83D /* SelectableTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableTextEditor.swift; sourceTree = "<group>"; };
+		520F68AB304D090B0092A83D /* EditorToolbarButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorToolbarButton.swift; sourceTree = "<group>"; };
 		5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonViewModel.swift; sourceTree = "<group>"; };
 		5213E86E2B9FD3DA007B9314 /* AnimatedActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedActionButton.swift; sourceTree = "<group>"; };
 		521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSnapshot.swift; sourceTree = "<group>"; };
@@ -334,11 +336,12 @@
 			children = (
 				52C8ACFD2FDCFBEC0015BABE /* Color+Platform.swift */,
 				527F98852AEF3EA90031F9E6 /* DarkModeBackground.swift */,
-				520F68A7304CF0240092A83D /* InteractiveGraphBuilderView.swift */,
-				520F68A8304CF0240092A83D /* SelectableTextEditor.swift */,
+				520F68AB304D090B0092A83D /* EditorToolbarButton.swift */,
 				527F98712AEB22990031F9E6 /* GreetingText.swift */,
+				520F68A7304CF0240092A83D /* InteractiveGraphBuilderView.swift */,
 				520F68A1304AABFA0092A83D /* KeypadTab.swift */,
 				52668ED02BFD06FA0019965F /* LatexView.swift */,
+				520F68A8304CF0240092A83D /* SelectableTextEditor.swift */,
 				52DAF6912BED5EF1006EE19F /* TextStylingUtility.swift */,
 				52D998F42ADB359D007F90A6 /* Views+Extensions.swift */,
 			);
@@ -456,6 +459,7 @@
 				527F98862AEF3EA90031F9E6 /* DarkModeBackground.swift in Sources */,
 				5258BD582AE32F0100F21A50 /* RegistrationView.swift in Sources */,
 				52FA58232BBC993D0063091C /* TableOfContentsView.swift in Sources */,
+				520F68AC304D090B0092A83D /* EditorToolbarButton.swift in Sources */,
 				52CF267C2B1BCD6B00E7C99D /* AddTestView.swift in Sources */,
 				52D998F52ADB359D007F90A6 /* Views+Extensions.swift in Sources */,
 				529376592B3F6ADC001CC66A /* UserProgressDonut.swift in Sources */,

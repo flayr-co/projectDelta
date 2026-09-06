@@ -58,6 +58,11 @@ extension String {
     var parsedMathToLatex: String {
         var str = self
         
+        // MathJax/KaTeX compatibility mapping for unsupported math macros
+        str = str.replacingOccurrences(of: "\\bm", with: "\\boldsymbol")
+        str = str.replacingOccurrences(of: "\\begin{align}", with: "\\begin{aligned}")
+        str = str.replacingOccurrences(of: "\\end{align}", with: "\\end{aligned}")
+        
         // 1. Standard formatting & Symbol replacement
         let replacements: [String: String] = [
             "*": " \\times ",
@@ -107,6 +112,30 @@ extension String {
         }
         
         return str
+    }
+    
+    var parsedInlineMathToMarkdown: String {
+        var parsed = self
+        
+        // Convert \bm{text} and unbraced \bmX (e.g. \bmx, \bm0, \bmf) to bold markdown
+        parsed = parsed.replacing(#/\\bm\{([^}]+)\}/#) { match in
+            "**\(match.output.1)**"
+        }
+        parsed = parsed.replacing(#/\\bm([a-zA-Z0-9().]+)/#) { match in
+            "**\(match.output.1)**"
+        }
+        
+        // Convert \textbf{text} to native SwiftUI Markdown (**text**)
+        parsed = parsed.replacing(#/\\textbf\{([^}]+)\}/#) { match in
+            "**\(match.output.1)**"
+        }
+        
+        // Convert \textit{text} to native SwiftUI Markdown (*text*)
+        parsed = parsed.replacing(#/\\textit\{([^}]+)\}/#) { match in
+            "*\(match.output.1)*"
+        }
+        
+        return parsed
     }
 }
 

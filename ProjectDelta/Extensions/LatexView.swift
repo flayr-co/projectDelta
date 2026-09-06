@@ -25,7 +25,7 @@ struct LatexView: View {
         ZStack {
             LatexWebView(latex: latex, isTextMode: isTextMode, dynamicHeight: $dynamicHeight, isLoading: $isLoading)
                 .frame(height: max(dynamicHeight, isTextMode ? 24 : 40))
-                .allowsHitTesting(false) // Prevents WKWebView from hijacking pinch and scroll events on all platforms
+                .allowsHitTesting(false)
             
             if isLoading {
                 ProgressView()
@@ -33,22 +33,20 @@ struct LatexView: View {
                     .tint(.primary)
             }
         }
-        .contentShape(Rectangle()) // Guarantees the entire block area registers the pinch gesture seamlessly
+        .contentShape(Rectangle())
         .scaleEffect(currentScale)
         .gesture(
             MagnificationGesture()
                 .onChanged { val in
-                    // Real-time smooth tracking of the student's pinch gesture
                     currentScale = max(1.0, min(val, 4.0))
                 }
                 .onEnded { _ in
-                    // Elastic snap back into place
                     withAnimation(.interpolatingSpring(stiffness: 300, damping: 15)) {
                         currentScale = 1.0
                     }
                 }
         )
-        .zIndex(currentScale > 1.0 ? 999 : 0) // Dynamically pop out of the layout during zoom
+        .zIndex(currentScale > 1.0 ? 999 : 0)
         .shadow(color: currentScale > 1.0 ? Color.black.opacity(0.15) : .clear, radius: 20, y: 10)
     }
 }
@@ -115,28 +113,20 @@ struct LatexWebView: PlatformViewRepresentable {
         let greenColor = colorScheme == .dark ? "#4ADE80" : "green"
         
         var processedLatex = latex
-            // Blue Highlight Engine
             .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "blue(.*?)blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
-            
-            // Red Highlight Engine
             .replacingOccurrences(of: "\\*red (.*?) red\\*", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "red(.*?)red", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
-            
-            // Green Highlight Engine
             .replacingOccurrences(of: "\\*green (.*?) green\\*", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "green(.*?)green", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
-            
-            // Standard Formatting
+            .replacingOccurrences(of: "\\\\bm", with: "\\\\boldsymbol ")
             .replacingOccurrences(of: "\n", with: isTextMode ? "<br>" : " \\\\ ")
             .replacingOccurrences(of: "\\n", with: isTextMode ? "<br>" : " \\\\ ")
         
         if isTextMode {
-            // Enable Markdown bold natively in the MathJax HTML renderer for text blocks
             processedLatex = processedLatex.replacingOccurrences(of: "\\*\\*(.*?)\\*\\*", with: "<b>$1</b>", options: .regularExpression)
         }
         
-        // CSS properties to perfectly match SwiftUI Text styling vs Math block styling
         let displayStyle = isTextMode ? "display: block;" : "display: flex; align-items: center; justify-content: flex-start;"
         let paddingStyle = isTextMode ? "padding: 2px 0px;" : "padding: 12px 4px;"
         let fontSize = isTextMode ? "18px" : "110%"
@@ -148,8 +138,6 @@ struct LatexWebView: PlatformViewRepresentable {
             <html>
             <head>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-                <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
                 <style>
                     body {
                         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -197,6 +185,7 @@ struct LatexWebView: PlatformViewRepresentable {
                         }
                     };
                 </script>
+                <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
             </head>
             <body>
                 <div id="math-container">
@@ -206,7 +195,6 @@ struct LatexWebView: PlatformViewRepresentable {
             </html>
             """
         
-        // MARK: Only reload the heavy HTML engine if the equation string actually changed
         if context.coordinator.lastLoadedHTML != htmlString {
             context.coordinator.lastLoadedHTML = htmlString
             webView.loadHTMLString(htmlString, baseURL: nil)
@@ -234,7 +222,6 @@ struct LatexWebView: PlatformViewRepresentable {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "heightHandler", let height = message.body as? CGFloat {
                 DispatchQueue.main.async {
-                    // Add strict buffer to ensure bottom of vertical fractions aren't clipped
                     let calculatedHeight = height + (self.parent.isTextMode ? 5 : 15)
                     if calculatedHeight > self.parent.dynamicHeight {
                         self.parent.dynamicHeight = calculatedHeight
@@ -244,3 +231,5 @@ struct LatexWebView: PlatformViewRepresentable {
         }
     }
 }
+
+

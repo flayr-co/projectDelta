@@ -134,11 +134,9 @@ fileprivate struct BlockEditCell: View {
     init(block: Binding<QuestionBlockModel>, onDelete: @escaping () -> Void) {
         self._block = block
         self.onDelete = onDelete
-        // Unfold automatically if the block is newly added (empty content)
         self._isEditing = State(initialValue: block.wrappedValue.content.isEmpty)
     }
     
-    // MARK: - Native Formatting Engine
     private func applyFormatting(prefix: String, suffix: String) {
         if selectedRange.length > 0, let range = Range(selectedRange, in: block.content) {
             let selectedText = String(block.content[range])
@@ -244,7 +242,6 @@ fileprivate struct BlockEditCell: View {
         .padding(.vertical, 4)
         .onAppear {
             if isEditing {
-                // Focus newly added blocks instantly
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     isFocused = true
                 }
@@ -621,27 +618,6 @@ fileprivate struct BlockEditCell: View {
     }
 }
 
-// MARK: - Shared Toolbar Button
-#if os(iOS)
-struct EditorToolbarButton: View {
-    let display: String
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(display)
-                .font(.system(size: 16, weight: .bold, design: .monospaced))
-                .foregroundColor(.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Color(uiColor: .systemGray5))
-                .cornerRadius(8)
-        }
-        .buttonStyle(.plain)
-    }
-}
-#endif
-
 // MARK: - Live Block Rendering Engine
 struct LiveBlockRenderView: View {
     let block: QuestionBlockModel
@@ -657,28 +633,8 @@ struct LiveBlockRenderView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 VStack(alignment: .leading, spacing: 16) {
-                    ForEach(parsed) { pBlock in
-                        switch pBlock.type {
-                        case .text(let text):
-                            if text.contains("$") {
-                                LatexView(latex: text, isTextMode: true)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            } else {
-                                Text(LocalizedStringKey(text.parsedInlineMathToMarkdown))
-                                    .font(.system(size: 21, weight: .regular, design: .serif))
-                                    .lineSpacing(12)
-                                    .foregroundColor(.primary.opacity(0.9))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        case .math(let latex):
-                            LatexView(latex: "$$\n\(latex)\n$$")
-                                .padding(24)
-                                .frame(maxWidth: .infinity)
-                                .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-                                .cornerRadius(16)
-                        case .graph(let graphStr):
-                            InlineGraphRenderer(graphString: graphStr, themeColor: colorScheme == .dark ? .teal : .blue)
-                        }
+                    ForEach(parsed, id: \EditorParsedContentBlock.id) { pBlock in
+                        render(pBlock: pBlock)
                     }
                 }
             }
@@ -712,6 +668,31 @@ struct LiveBlockRenderView: View {
                 .frame(height: 320)
                 .background(Color.platformSecondarySystemBackground)
                 .cornerRadius(12)
+        }
+    }
+    
+    @ViewBuilder
+    private func render(pBlock: EditorParsedContentBlock) -> some View {
+        switch pBlock.type {
+        case .text(let text):
+            if text.contains("$") {
+                LatexView(latex: text.parsedMathToLatex, isTextMode: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(LocalizedStringKey(text.parsedInlineMathToMarkdown))
+                    .font(.system(size: 21, weight: .regular, design: .serif))
+                    .lineSpacing(12)
+                    .foregroundColor(.primary.opacity(0.9))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        case .math(let latex):
+            LatexView(latex: "$$ \(latex) $$")
+                .padding(24)
+                .frame(maxWidth: .infinity)
+                .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
+                .cornerRadius(16)
+        case .graph(let graphStr):
+            InlineGraphRenderer(graphString: graphStr, themeColor: colorScheme == .dark ? .teal : .blue)
         }
     }
 }

@@ -43,7 +43,7 @@ struct LessonContentPage: View {
 
         var blocks: [ParsedContentBlock] = []
         var remaining = page.content
-        var index = 0 // Deterministic indexing
+        var index = 0
 
         while !remaining.isEmpty {
             let mathRange = remaining.range(of: "[MATH]")
@@ -133,67 +133,8 @@ struct LessonContentPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 
-                ForEach(parsedBlocks) { block in
-                    switch block.type {
-                    case .text(let textContent):
-                        if textContent.contains("$") {
-                            LatexView(latex: textContent, isTextMode: true)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            Text(LocalizedStringKey(textContent.parsedInlineMathToMarkdown))
-                                .font(.system(size: 18, weight: .medium, design: .rounded))
-                                .lineSpacing(8)
-                                .foregroundColor(.primary.opacity(0.85))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        
-                    case .math(let latexContent, let caption):
-                        let parsedLatex = latexContent.parsedMathToLatex
-                        VStack(alignment: .leading, spacing: 8) {
-                            #if os(macOS)
-                            VStack(spacing: 0) {
-                                LatexView(latex: "$$\n\(parsedLatex)\n$$")
-                                    .frame(minHeight: calculateHeight(for: parsedLatex))
-                                    .padding(24)
-                                    .frame(maxWidth: .infinity)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .fill(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
-                                            .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.04), radius: 8, y: 3)
-                                    )
-                                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
-                            }
-                            #else
-                            HStack {
-                                LatexView(latex: "$$\n\(parsedLatex)\n$$")
-                                    .frame(minHeight: calculateHeight(for: parsedLatex) * 0.75)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .fill(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
-                                            .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.04), radius: 8, y: 3)
-                                    )
-                                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
-                                Spacer(minLength: 0)
-                            }
-                            #endif
-                            
-                            if let caption = caption, !caption.isEmpty {
-                                Text(LocalizedStringKey(caption.parsedInlineMathToMarkdown))
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 4)
-                            }
-                        }
-                        
-                    case .graph(let graphContent, let graphType):
-                        DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType), isScrollLocked: true)
-                            .aspectRatio(1.0, contentMode: .fit)
-                            .padding(.horizontal, -8)
-                            .padding(.vertical, 16)
-                    }
+                ForEach(parsedBlocks, id: \.id) { block in
+                    render(block: block)
                 }
 
                 if let graphData = page.graphData {
@@ -239,53 +180,62 @@ struct LessonContentPage: View {
                 }
 
                 if isLastPage {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 20) {
                         if hasQuiz {
                             NavigationLink(
                                 destination: UniversalTestView(
                                     mode: .quick(subject: subjectName, subtopic: lessonVM.currentLessonName.trimmingCharacters(in: .whitespacesAndNewlines))
                                 )
                             ) {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("LESSON COMPLETE")
-                                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                                            .foregroundStyle(.white.opacity(0.8))
-                                        Text("Take Practice Assessment")
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Ready for a challenge?")
+                                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                            .foregroundStyle(.white.opacity(0.85))
+                                        Text("Assess Knowledge")
                                             .font(.system(.title3, design: .rounded, weight: .heavy))
                                             .foregroundStyle(.white)
                                     }
                                     Spacer()
-                                    Image(systemName: "arrow.right.circle.fill")
-                                        .font(.system(size: 32))
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .font(.system(size: 36))
                                         .foregroundStyle(.white)
                                 }
                                 .padding(.horizontal, 24)
-                                .padding(.vertical, 18)
-                                .background(themeColor.gradient, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                                .shadow(color: themeColor.opacity(0.35), radius: 15, y: 8)
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            Button(action: {
-                                Task { await lessonVM.advanceToNextLesson(authVM: authVM) }
-                            }) {
-                                HStack {
-                                    Text("Complete & Continue")
-                                        .font(.headline.weight(.bold))
-                                    Spacer()
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.title2)
-                                }
-                                .padding()
-                                .background(Color.platformSecondarySystemBackground)
-                                .cornerRadius(16)
+                                .padding(.vertical, 20)
+                                .background(themeColor.gradient, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                                .shadow(color: themeColor.opacity(0.3), radius: 20, y: 10)
                             }
                             .buttonStyle(.plain)
                         }
+
+                        Button(action: {
+                            Task { await lessonVM.advanceToNextLesson(authVM: authVM) }
+                        }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Up Next")
+                                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                    Text("Next Lesson")
+                                        .font(.system(.title3, design: .rounded, weight: .heavy))
+                                        .foregroundStyle(.primary)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.right.circle.fill")
+                                    .font(.system(size: 36))
+                                    .foregroundStyle(themeColor)
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 20)
+                            .background(Color.platformSystemBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+                            .shadow(color: .black.opacity(0.05), radius: 20, y: 10)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .padding(.top, 32)
-                    .padding(.bottom, 40)
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity)
                 }
             }
             #if os(macOS)
@@ -302,6 +252,70 @@ struct LessonContentPage: View {
         .scrollIndicators(.hidden)
         .background(Color.clear)
         .onTapGesture { onBackgroundTap() }
+    }
+    
+    @ViewBuilder
+    private func render(block: ParsedContentBlock) -> some View {
+        switch block.type {
+        case .text(let textContent):
+            if textContent.contains("$") {
+                LatexView(latex: textContent.parsedMathToLatex, isTextMode: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(LocalizedStringKey(textContent.parsedInlineMathToMarkdown))
+                    .font(.system(size: 18, weight: .medium, design: .rounded))
+                    .lineSpacing(8)
+                    .foregroundColor(.primary.opacity(0.85))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+        case .math(let latexContent, let caption):
+            let parsedLatex = latexContent.parsedMathToLatex
+            VStack(alignment: .leading, spacing: 8) {
+#if os(macOS)
+                VStack(spacing: 0) {
+                    LatexView(latex: "$$ \(parsedLatex) $$")
+                        .frame(minHeight: calculateHeight(for: parsedLatex))
+                        .padding(24)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                                .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.04), radius: 8, y: 3)
+                        )
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                }
+#else
+                HStack {
+                    LatexView(latex: "$$ \(parsedLatex) $$")
+                        .frame(minHeight: calculateHeight(for: parsedLatex) * 0.75)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                                .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.04), radius: 8, y: 3)
+                        )
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                    Spacer(minLength: 0)
+                }
+#endif
+                
+                if let caption = caption, !caption.isEmpty {
+                    Text(LocalizedStringKey(caption.parsedInlineMathToMarkdown))
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 4)
+                }
+            }
+            
+        case .graph(let graphContent, let graphType):
+            DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType), isScrollLocked: true)
+                .aspectRatio(1.0, contentMode: .fit)
+                .padding(.horizontal, -8)
+                .padding(.vertical, 16)
+        }
     }
 }
 
@@ -384,7 +398,6 @@ struct ExampleView: View {
             let parts = line.split(separator: "||", maxSplits: 1, omittingEmptySubsequences: false)
             let example = String(parts[0])
             let explanation = parts.count > 1 ? String(parts[1]) : ""
-            // Deterministic ID blocks memory trashing loops
             return ParsedExampleItem(id: "ex_\(index)", example: example, explanation: explanation)
         }
     }
@@ -400,54 +413,51 @@ struct ExampleView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ForEach(parsedContent) { item in
-                VStack(alignment: .leading, spacing: 12) {
-                    if item.example.contains("$$") {
-                        let latex = item.example.replacingOccurrences(of: "$$", with: "").replacingOccurrences(of: "\\\\newline", with: "\\\\")
-                        LatexView(latex: "$$\n\(latex)\n$$")
-                            .frame(minHeight: calculateHeight(for: latex))
-                            .padding(12)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
-                                    .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.04), radius: 6, y: 2)
-                            )
-                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
-                    } else {
-                        if item.example.contains("$") {
-                            LatexView(latex: item.example, isTextMode: true)
-                                .padding(12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
-                                .cornerRadius(12)
-                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-                        } else {
-                            Text(LocalizedStringKey(item.example.parsedInlineMathToMarkdown))
-                                .padding(12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
-                                .cornerRadius(12)
-                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-                        }
-                    }
-                    if !item.explanation.isEmpty {
-                        Text(item.explanation)
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                    }
-                }
-                .padding(.horizontal)
+            ForEach(parsedContent, id: \.id) { item in
+                render(item: item)
             }
         }
     }
-}
-
-// MARK: - Inline Formatting Extensions
-extension String {
-    var parsedInlineMathToMarkdown: String {
-        guard let regex = try? NSRegularExpression(pattern: "\\$(.*?)\\$") else { return self }
-        return regex.stringByReplacingMatches(in: self, range: NSRange(self.startIndex..., in: self), withTemplate: "*$1*")
+    
+    @ViewBuilder
+    private func render(item: ParsedExampleItem) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if item.example.contains("$$") {
+                let latex = item.example.replacingOccurrences(of: "$$", with: "").replacingOccurrences(of: "\\\\newline", with: "\\\\")
+                LatexView(latex: "$$ \(latex) $$")
+                    .frame(minHeight: calculateHeight(for: latex))
+                    .padding(12)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                            .shadow(color: colorScheme == .dark ? .clear : Color.black.opacity(0.04), radius: 6, y: 2)
+                    )
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+            } else {
+                if item.example.contains("$") {
+                    LatexView(latex: item.example.parsedMathToLatex, isTextMode: true)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                } else {
+                    Text(LocalizedStringKey(item.example.parsedInlineMathToMarkdown))
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                }
+            }
+            if !item.explanation.isEmpty {
+                Text(item.explanation)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 4)
+            }
+        }
+        .padding(.horizontal)
     }
 }
