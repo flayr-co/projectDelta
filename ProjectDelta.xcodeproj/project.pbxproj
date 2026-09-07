@@ -64,7 +64,6 @@
 		52C90ED62FB3D1EB0088A60F /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED52FB3D1EB0088A60F /* FirebaseAuth */; };
 		52C90ED82FB3D1EB0088A60F /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED72FB3D1EB0088A60F /* FirebaseFirestore */; };
 		52C90EDA2FB3D1EB0088A60F /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 52C90ED92FB3D1EB0088A60F /* FirebaseStorage */; };
-		52CB38B72C0C050200B15F63 /* PracticeTestViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */; };
 		52CDD6553000BF0600705307 /* SuperAdminConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CDD6543000BEFE00705307 /* SuperAdminConsoleView.swift */; };
 		52CF267C2B1BCD6B00E7C99D /* AddTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */; };
 		52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */; };
@@ -133,7 +132,6 @@
 		52C68AC22FB64BBF001CD906 /* LessonEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonEditorView.swift; sourceTree = "<group>"; };
 		52C72D672AFB014800BDC77E /* BarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarChartView.swift; sourceTree = "<group>"; };
 		52C8ACFD2FDCFBEC0015BABE /* Color+Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Platform.swift"; sourceTree = "<group>"; };
-		52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PracticeTestViewModel.swift; sourceTree = "<group>"; };
 		52CDD6543000BEFE00705307 /* SuperAdminConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuperAdminConsoleView.swift; sourceTree = "<group>"; };
 		52CF267B2B1BCD6B00E7C99D /* AddTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTestView.swift; sourceTree = "<group>"; };
 		52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicGraphView.swift; sourceTree = "<group>"; };
@@ -313,7 +311,6 @@
 			children = (
 				52BB1A4F2FE28C6D00A5800A /* TestMode.swift */,
 				5213E86C2B9F95ED007B9314 /* LessonViewModel.swift */,
-				52CB38B62C0C050200B15F63 /* PracticeTestViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -379,7 +376,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1430;
-				LastUpgradeCheck = 1510;
+				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					5229BB032AD0CC8A0094395D = {
 						CreatedOnToolsVersion = 14.3;
@@ -454,7 +451,6 @@
 				5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */,
 				5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */,
 				52D998F02ADB3120007F90A6 /* Test.swift in Sources */,
-				52CB38B72C0C050200B15F63 /* PracticeTestViewModel.swift in Sources */,
 				527F98782AEC518E0031F9E6 /* Subject.swift in Sources */,
 				52BB1A502FE28C6D00A5800A /* TestMode.swift in Sources */,
 				52C68AC32FB64BBF001CD906 /* LessonEditorView.swift in Sources */,
@@ -497,6 +493,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -527,6 +524,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = Q492K6S5FU;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -549,6 +547,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -558,6 +557,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -588,6 +588,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = Q492K6S5FU;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -603,6 +604,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				VALIDATE_PRODUCT = YES;
@@ -618,7 +620,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ProjectDelta/Preview Content\"";
-				DEVELOPMENT_TEAM = Q492K6S5FU;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -656,7 +657,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ProjectDelta/Preview Content\"";
-				DEVELOPMENT_TEAM = Q492K6S5FU;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
