@@ -7,6 +7,8 @@ import SwiftUI
 
 struct UniversalBlockEditorView: View {
     @Binding var blocks: [QuestionBlockModel]
+    var importTitle: String = "Bulk Import Lesson"
+    var hideBulkImport: Bool = false
     var onSave: (() -> Void)? = nil
     
     @State private var isSaved: Bool = false
@@ -74,19 +76,21 @@ struct UniversalBlockEditorView: View {
                     AddBlockButton(title: "Graph", icon: "chart.xyaxis.line", color: .purple) { addBlock(type: .graph) }
                 }
                 
-                Button(action: { showingBulkImporter = true }) {
-                    HStack {
-                        Image(systemName: "doc.on.clipboard.fill")
-                        Text("Bulk Import Lesson")
+                if !hideBulkImport {
+                    Button(action: { showingBulkImporter = true }) {
+                        HStack {
+                            Image(systemName: "doc.on.clipboard.fill")
+                            Text(importTitle)
+                        }
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.orange.gradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(Color.orange.gradient)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.top, 16)
             .padding(.bottom, 40)

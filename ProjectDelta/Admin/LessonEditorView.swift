@@ -20,12 +20,14 @@ struct LessonEditorView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var lessonTitle: String
     @State private var pages: [Page] = []
+    @State private var lessonTests: [Test] = []
     
     var lesson: Lesson
     var subject: Subject
     
     let primaryTeal = Color(red: 0.12, green: 0.65, blue: 0.65)
     let glowingPurple = Color(red: 0.6, green: 0.2, blue: 0.9)
+    let vibrantOrange = Color.orange
     
     init(lesson: Lesson = Lesson(id: nil, name: "", description: "", completed: false, lessonNumber: 1, pages: nil), subject: Subject) {
         self.lesson = lesson
@@ -77,6 +79,7 @@ struct LessonEditorView: View {
                             .background(Color.platformSecondarySystemBackground)
                             .cornerRadius(16)
                             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                            .onChange(of: lessonTitle) { _, _ in fetchTests() }
                         
                         HStack {
                             Text("Parent Subject")
@@ -145,6 +148,49 @@ struct LessonEditorView: View {
                         }
                     }
                     
+                    // Assessments Manager
+                    VStack(alignment: .leading, spacing: 20) {
+                        HStack {
+                            ZStack {
+                                Circle().fill(vibrantOrange.opacity(0.15)).frame(width: 36, height: 36)
+                                Image(systemName: "bolt.badge.automatic.fill").foregroundColor(vibrantOrange).font(.system(size: 16, weight: .bold))
+                            }
+                            Text("Lesson Assessments")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                            
+                            Spacer()
+                            
+                            NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle, existingTest: nil)) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(vibrantOrange)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 24)
+                        
+                        if lessonTests.isEmpty {
+                            ContentUnavailableView("No Assessments", systemImage: "doc.questionmark", description: Text("Create an assessment to link practice material to this lesson."))
+                                .padding(.vertical, 40)
+                                .background(Color.platformSystemBackground)
+                                .cornerRadius(24)
+                                .padding(.horizontal, 24)
+                        } else {
+                            LazyVStack(spacing: 16) {
+                                ForEach(Array(lessonTests.enumerated()), id: \.element.id) { index, test in
+                                    NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle, existingTest: test)) {
+                                        TestAdminCard(test: test, displayIndex: index + 1) {
+                                            deleteTest(test)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(.horizontal, 24)
+                                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+                                }
+                            }
+                        }
+                    }
+                    
                     Spacer(minLength: 140)
                 }
             }
@@ -156,6 +202,9 @@ struct LessonEditorView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .onAppear {
+            fetchTests()
+        }
         .toolbar {
             #if os(macOS)
             ToolbarItem(placement: .confirmationAction) {
@@ -191,19 +240,19 @@ struct LessonEditorView: View {
                 .disabled(lessonTitle.isEmpty)
                 #endif
                 
-                NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle)) {
+                NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle, existingTest: nil)) {
                     HStack {
                         Image(systemName: "bolt.badge.automatic.fill")
                             .font(.system(size: 18, weight: .bold))
-                        Text("Create Linked Assessment")
+                        Text("Create New Assessment")
                             .font(.system(size: 16, weight: .bold, design: .rounded))
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(glowingPurple.gradient)
+                    .background(vibrantOrange.gradient)
                     .foregroundColor(.white)
                     .cornerRadius(16)
-                    .shadow(color: glowingPurple.opacity(0.4), radius: 15, y: 8)
+                    .shadow(color: vibrantOrange.opacity(0.4), radius: 15, y: 8)
                 }
                 .buttonStyle(.plain)
             }
@@ -213,6 +262,58 @@ struct LessonEditorView: View {
             .background(.ultraThinMaterial)
         }
     }
+    
+    // MARK: - Local Test Retrieval & Deletion
+    
+    private func fetchTests() {
+        guard let subjectId = subject.id, !lessonTitle.isEmpty else { return }
+        Task {
+            do {
+                let db = Firestore.firestore()
+                let snapshot = try await db.collection("Subjects").document(subjectId)
+                    .collection("Tests")
+                    .whereField("subtopic", isEqualTo: lessonTitle)
+                    .getDocuments()
+                
+                let fetched = snapshot.documents.compactMap { try? $0.data(as: Test.self) }
+                await MainActor.run {
+                    self.lessonTests = fetched.sorted { ($0.title ?? "") < ($1.title ?? "") }
+                }
+            } catch {
+                print("Failed to fetch tests: \(error)")
+            }
+        }
+    }
+
+    private func deleteTest(_ test: Test) {
+        guard let subjectId = subject.id, let testId = test.id else { return }
+        Task {
+            do {
+                let db = Firestore.firestore()
+                let batch = db.batch()
+                let testRef = db.collection("Subjects").document(subjectId).collection("Tests").document(testId)
+                
+                let qSnap = try await testRef.collection("Questions").getDocuments()
+                for doc in qSnap.documents {
+                    batch.deleteDocument(doc.reference)
+                    batch.deleteDocument(db.collection("questions").document(doc.documentID))
+                }
+                
+                batch.deleteDocument(testRef)
+                try await batch.commit()
+                
+                await MainActor.run {
+                    withAnimation {
+                        lessonTests.removeAll { $0.id == testId }
+                    }
+                }
+            } catch {
+                print("Failed to delete test architecture: \(error)")
+            }
+        }
+    }
+    
+    // MARK: - Lesson Page Operations
     
     private func addNewPage() {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -268,6 +369,68 @@ struct LessonEditorView: View {
         }
     }
 }
+
+// MARK: - Test Admin Card
+struct TestAdminCard: View {
+    let test: Test
+    let displayIndex: Int
+    let onDelete: () -> Void
+    @State private var isHovered = false
+    
+    let vibrantOrange = Color.orange
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 16) {
+                Text("\(displayIndex)")
+                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .foregroundColor(vibrantOrange.opacity(0.3))
+                    .frame(width: 36, alignment: .leading)
+                
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(vibrantOrange.gradient.opacity(0.15))
+                        .frame(width: 56, height: 56)
+                    Image(systemName: "checklist")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(vibrantOrange)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(test.title ?? "Assessment")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(.primary)
+                    Text("Linked Assessment")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.red)
+                        .frame(width: 44, height: 44)
+                        .background(Color.red.opacity(0.1))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(20)
+        .background(Color.platformSystemBackground)
+        .cornerRadius(24)
+        .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 12 : 8, y: isHovered ? 6 : 4)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .scaleEffect(isHovered ? 1.01 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+}
+
 
 // MARK: - Page Admin Card
 struct PageAdminCard: View {

@@ -23,9 +23,7 @@ class TestBuilderViewModel {
     var subject: Subject?
     var lessonName: String = ""
     var testTitle: String = ""
-    var questionCount: Int = 10
     var generatedQuestions: [EditableQuestion] = []
-    var isGenerating: Bool = false
     var isSaving: Bool = false
     var showEditor: Bool = false
     var existingTestId: String? = nil
@@ -35,38 +33,43 @@ class TestBuilderViewModel {
         self.subject = subject
         self.lessonName = lesson
         self.existingTestId = testId
-        if let tId = testId { await loadExistingTest(testId: tId) }
+        
+        if let tId = testId {
+            await loadExistingTest(testId: tId)
+        } else {
+            initializeManualBuilder()
+        }
     }
     
     private func loadExistingTest(testId: String) async {
-        isGenerating = true
         guard let subjectId = subject?.id else { return }
         do {
             let snapshot = try await db.collection("Subjects").document(subjectId).collection("Tests").document(testId).collection("Questions").getDocuments()
             let rawQuestions = snapshot.documents.compactMap { try? $0.data(as: Question.self) }
-            self.generatedQuestions = rawQuestions.map { EditableQuestion(question: $0) }
+            self.generatedQuestions = rawQuestions.sorted(by: { ($0.id ?? "") < ($1.id ?? "") }).map { EditableQuestion(question: $0) }
             self.showEditor = true
-        } catch { print("Error: \(error)") }
-        isGenerating = false
+        } catch {
+            print("Error loading test: \(error)")
+        }
     }
     
-    func generateRecommendedTest() async {
-        isGenerating = true
-        try? await Task.sleep(for: .seconds(0.3))
-        
-        let generatedWrappers = await QuestionGeneratorEngine.shared.generateQuestions(
-            subject: subject?.name ?? "",
-            subtopic: lessonName,
-            count: questionCount,
-            testId: existingTestId
-        )
-        
-        self.generatedQuestions = generatedWrappers.map { EditableQuestion(question: $0.question) }
-        
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-            showEditor = true
-            isGenerating = false
+    func initializeManualBuilder() {
+        if generatedQuestions.isEmpty {
+            generatedQuestions.append(EditableQuestion(question: Question(
+                id: UUID().uuidString,
+                correctOptionIndex: 0,
+                options: ["", "", "", ""],
+                points: 10,
+                questionText: "",
+                type: "multiple_choice",
+                subject: subject?.name ?? "",
+                subtopic: lessonName,
+                hint: "",
+                feedback: "",
+                testId: existingTestId
+            )))
         }
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showEditor = true }
     }
     
     func saveTestToDatabase() async {
@@ -86,7 +89,7 @@ class TestBuilderViewModel {
                 "title": testTitle.isEmpty ? "\(lessonName) Test" : testTitle,
                 "createdAt": FieldValue.serverTimestamp()
             ]
-            batch.setData(testData, forDocument: testRef)
+            batch.setData(testData, forDocument: testRef, merge: true)
             
             let existingQuestionsSnap = try await testRef.collection("Questions").getDocuments()
             let existingQIds = Set(existingQuestionsSnap.documents.map { $0.documentID })
@@ -101,13 +104,152 @@ class TestBuilderViewModel {
                 var question = wrapper.question
                 let qId = question.id ?? UUID().uuidString
                 question.id = qId
-                let docData: [String: Any] = ["correctOptionIndex": question.correctOptionIndex, "options": question.options, "points": question.points, "questionText": question.questionText, "type": question.type, "subject": subject.name, "subtopic": lessonName, "hint": question.hint ?? "", "feedback": question.feedback ?? "", "testId": testId]
+                let docData: [String: Any] = [
+                    "correctOptionIndex": question.correctOptionIndex,
+                    "options": question.options,
+                    "points": question.points,
+                    "questionText": question.questionText,
+                    "type": question.type,
+                    "subject": subject.name,
+                    "subtopic": lessonName,
+                    "hint": question.hint ?? "",
+                    "feedback": question.feedback ?? "",
+                    "testId": testId
+                ]
                 batch.setData(docData, forDocument: testRef.collection("Questions").document(qId))
                 batch.setData(docData, forDocument: db.collection("questions").document(qId))
             }
             try await batch.commit()
-        } catch { print("Save failed: \(error)") }
+        } catch {
+            print("Save failed: \(error)")
+        }
         isSaving = false
+    }
+    
+    // MARK: - Bulk Importer Logic
+    func processBulkQuestionImport(text: String) {
+        var remaining = text
+        var newWrappers: [EditableQuestion] = []
+
+        while let qStart = remaining.range(of: "[QUESTION]"),
+              let qEnd = remaining.range(of: "[/QUESTION]") {
+            
+            let qBlock = String(remaining[qStart.upperBound..<qEnd.lowerBound])
+            remaining = String(remaining[qEnd.upperBound...])
+            
+            var question = Question(
+                id: UUID().uuidString,
+                correctOptionIndex: 0,
+                options: ["", "", "", ""],
+                points: 10,
+                questionText: "",
+                type: "multiple_choice",
+                subject: self.subject?.name ?? "",
+                subtopic: self.lessonName,
+                hint: nil,
+                feedback: nil,
+                testId: self.existingTestId
+            )
+            
+            // 1. Parse Block Content
+            if let cStart = qBlock.range(of: "[CONTENT]"), let cEnd = qBlock.range(of: "[/CONTENT]") {
+                let contentRaw = String(qBlock[cStart.upperBound..<cEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                var blocks: [QuestionBlockModel] = []
+                var remainingContent = contentRaw
+                let tags = ["TEXT", "MATH", "GRAPH"]
+                
+                while !remainingContent.isEmpty {
+                    var earliestTag: String? = nil
+                    var earliestIndex: String.Index? = nil
+                    
+                    for tag in tags {
+                        if let range = remainingContent.range(of: "[\(tag)]") {
+                            if earliestIndex == nil || range.lowerBound < earliestIndex! {
+                                earliestIndex = range.lowerBound
+                                earliestTag = tag
+                            }
+                        }
+                    }
+                    
+                    guard let startTag = earliestTag, let startIndex = earliestIndex else { break }
+                    let endTagStr = "[/\(startTag)]"
+                    
+                    let contentStart = remainingContent.range(of: "[\(startTag)]")!.upperBound
+                    remainingContent = String(remainingContent[contentStart...])
+                    
+                    if let endRange = remainingContent.range(of: endTagStr) {
+                        let content = String(remainingContent[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        var block = QuestionBlockModel(
+                            type: startTag == "TEXT" ? QuestionBlockType.text.rawValue : (startTag == "MATH" ? QuestionBlockType.math.rawValue : QuestionBlockType.graph.rawValue),
+                            content: content
+                        )
+                        
+                        remainingContent = String(remainingContent[endRange.upperBound...])
+                        
+                        if startTag == "MATH" {
+                            let nextText = remainingContent.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if nextText.hasPrefix("[CAPTION]") {
+                                if let captionEndRange = remainingContent.range(of: "[/CAPTION]") {
+                                    let capStart = remainingContent.range(of: "[CAPTION]")!.upperBound
+                                    let caption = String(remainingContent[capStart..<captionEndRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                    block.caption = caption
+                                    remainingContent = String(remainingContent[captionEndRange.upperBound...])
+                                }
+                            }
+                        }
+                        blocks.append(block)
+                    } else {
+                        break
+                    }
+                }
+                
+                if let data = try? JSONEncoder().encode(blocks), let json = String(data: data, encoding: .utf8) {
+                    question.questionText = json
+                }
+            }
+            
+            // 2. Parse Multiple Choice Options
+            if let oStart = qBlock.range(of: "[OPTIONS]"), let oEnd = qBlock.range(of: "[/OPTIONS]") {
+                let optionsRaw = String(qBlock[oStart.upperBound..<oEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let lines = optionsRaw.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                
+                var parsedOptions: [String] = []
+                for (index, line) in lines.enumerated() {
+                    let cleanLine = line.trimmingCharacters(in: .whitespaces)
+                    if cleanLine.hasPrefix("*") {
+                        question.correctOptionIndex = index
+                        parsedOptions.append(String(cleanLine.dropFirst()).trimmingCharacters(in: .whitespaces))
+                    } else {
+                        parsedOptions.append(cleanLine)
+                    }
+                }
+                while parsedOptions.count < 4 { parsedOptions.append("") }
+                question.options = Array(parsedOptions.prefix(4))
+            }
+            
+            // 3. Parse Metadata
+            if let hStart = qBlock.range(of: "[HINT]"), let hEnd = qBlock.range(of: "[/HINT]") {
+                question.hint = String(qBlock[hStart.upperBound..<hEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            
+            if let fStart = qBlock.range(of: "[FEEDBACK]"), let fEnd = qBlock.range(of: "[/FEEDBACK]") {
+                question.feedback = String(qBlock[fStart.upperBound..<fEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            
+            newWrappers.append(EditableQuestion(question: question))
+        }
+
+        if !newWrappers.isEmpty {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                // If there was only an empty placeholder, replace it. Otherwise append.
+                if self.generatedQuestions.count == 1 && self.generatedQuestions.first?.question.questionText.isEmpty == true {
+                    self.generatedQuestions = newWrappers
+                } else {
+                    self.generatedQuestions.append(contentsOf: newWrappers)
+                }
+            }
+        }
     }
 }
 
@@ -117,6 +259,8 @@ struct AddTestView: View {
     var existingTest: Test? = nil
     
     @State private var viewModel = TestBuilderViewModel()
+    @State private var showingBulkImporter: Bool = false
+    @State private var bulkImportText: String = ""
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) private var colorScheme
     let emeraldAccent = Color(red: 0.15, green: 0.80, blue: 0.50)
@@ -124,12 +268,7 @@ struct AddTestView: View {
     var body: some View {
         ZStack {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
-            
-            if viewModel.showEditor {
-                editorContent
-            } else {
-                generatorContent
-            }
+            editorContent
         }
         .navigationTitle(existingTest != nil ? "Edit Assessment" : "Build Assessment")
         #if os(iOS)
@@ -137,19 +276,23 @@ struct AddTestView: View {
         #endif
         .toolbar {
             #if os(macOS)
-            if viewModel.showEditor {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button("Cancel") { dismiss() }
-                        .buttonStyle(.borderless)
-                    
-                    Button("Deploy Assessment") {
-                        Task { await viewModel.saveTestToDatabase(); dismiss() }
-                    }
-                    .fontWeight(.bold)
-                    .buttonStyle(.borderedProminent)
-                    .tint(emeraldAccent)
-                    .disabled(viewModel.isSaving)
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(action: { showingBulkImporter = true }) {
+                    Image(systemName: "doc.on.clipboard.fill")
+                        .foregroundColor(.orange)
                 }
+                .buttonStyle(.borderless)
+                
+                Button("Cancel") { dismiss() }
+                    .buttonStyle(.borderless)
+                
+                Button("Deploy Assessment") {
+                    Task { await viewModel.saveTestToDatabase(); dismiss() }
+                }
+                .fontWeight(.bold)
+                .buttonStyle(.borderedProminent)
+                .tint(emeraldAccent)
+                .disabled(viewModel.isSaving)
             }
             #endif
         }
@@ -159,79 +302,37 @@ struct AddTestView: View {
                 viewModel.testTitle = existingTest?.title ?? existingTest?.subject ?? "Untitled Test"
             }
         }
-    }
-    
-    @ViewBuilder
-    private var generatorContent: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "bolt.badge.automatic.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(emeraldAccent.gradient)
-                .shadow(color: emeraldAccent.opacity(0.4), radius: 20, y: 10)
-                .padding(.bottom, 16)
-            
-            Text("Assessment Generator")
-                .font(.system(size: 28, weight: .black, design: .rounded))
-            
-            Text("Intelligently scaffold a 10-question assessment based on \(lessonName).")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            
-            VStack(spacing: 16) {
-                Button(action: { Task { await viewModel.generateRecommendedTest() } }) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(emeraldAccent.gradient)
-                            .frame(height: 64)
-                            .shadow(color: emeraldAccent.opacity(0.4), radius: 15, y: 8)
-                        
-                        if viewModel.isGenerating {
-                            ProgressView().tint(.white).scaleEffect(1.2)
-                        } else {
-                            HStack {
-                                Image(systemName: "wand.and.stars")
-                                Text("Generate Recommended Questions")
-                            }
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+        .sheet(isPresented: $showingBulkImporter) {
+            NavigationStack {
+                VStack {
+                    TextEditor(text: $bulkImportText)
+                        .font(.system(.body, design: .monospaced))
+                        .padding(12)
+                        .background(Color.platformSecondarySystemBackground)
+                        .cornerRadius(12)
+                        .padding()
+                }
+                .navigationTitle("Bulk Import Questions")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingBulkImporter = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Import") {
+                            viewModel.processBulkQuestionImport(text: bulkImportText)
+                            bulkImportText = ""
+                            showingBulkImporter = false
                         }
+                        .fontWeight(.bold)
+                        .tint(.orange)
                     }
                 }
-                .disabled(viewModel.isGenerating)
-                .buttonStyle(.plain)
-                
-                Button(action: {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        viewModel.generatedQuestions = []
-                        viewModel.showEditor = true
-                    }
-                }) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(emeraldAccent, lineWidth: 2)
-                            .background(Color.platformSystemBackground.cornerRadius(20))
-                            .frame(height: 64)
-                        
-                        HStack {
-                            Image(systemName: "hammer.fill")
-                            Text("Build Manually with Blocks")
-                        }
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundColor(emeraldAccent)
-                    }
-                }
-                .disabled(viewModel.isGenerating)
-                .buttonStyle(.plain)
+                .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
             }
-            .padding(.top, 24)
         }
-        .padding(40)
-        .background(.ultraThinMaterial)
-        .cornerRadius(32)
-        .shadow(color: .black.opacity(0.05), radius: 20, y: 10)
-        .padding(.horizontal, 24)
     }
     
     @ViewBuilder
@@ -275,30 +376,50 @@ struct AddTestView: View {
                     }
                 }
                 
-                // Add Button
-                Button(action: {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        viewModel.generatedQuestions.append(EditableQuestion(question: Question(
-                            id: UUID().uuidString, correctOptionIndex: 0, options: ["", "", "", ""], points: 10, questionText: "", type: "multiple_choice", subject: subject.name, subtopic: lessonName, hint: "", feedback: "", testId: viewModel.existingTestId
-                        )))
+                // Add Buttons Row
+                HStack(spacing: 16) {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            viewModel.generatedQuestions.append(EditableQuestion(question: Question(
+                                id: UUID().uuidString, correctOptionIndex: 0, options: ["", "", "", ""], points: 10, questionText: "", type: "multiple_choice", subject: subject.name, subtopic: lessonName, hint: "", feedback: "", testId: viewModel.existingTestId
+                            )))
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Add Manual Question")
+                                .fontWeight(.bold)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(emeraldAccent.opacity(0.10))
+                        .foregroundColor(emeraldAccent)
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(emeraldAccent.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                        )
                     }
-                }) {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add Manual Question")
-                            .fontWeight(.bold)
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { showingBulkImporter = true }) {
+                        HStack {
+                            Image(systemName: "doc.on.clipboard.fill")
+                            Text("Bulk Import Questions")
+                                .fontWeight(.bold)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.orange.opacity(0.10))
+                        .foregroundColor(.orange)
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.orange.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                        )
                     }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(emeraldAccent.opacity(0.10))
-                    .foregroundColor(emeraldAccent)
-                    .cornerRadius(16)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(emeraldAccent.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                    )
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
                 
                 Spacer(minLength: 120)
             }
@@ -396,7 +517,7 @@ struct AdminQuestionEditorCell: View {
                 Divider()
                 
                 VStack(alignment: .leading, spacing: 28) {
-                    UniversalBlockEditorView(blocks: $blocks)
+                    UniversalBlockEditorView(blocks: $blocks, hideBulkImport: true)
                         .onChange(of: blocks) { _, newBlocks in
                             editableQuestion.question.updateWith(blocks: newBlocks)
                         }

@@ -18,14 +18,11 @@ class AdminTestManagerViewModel {
     var customSubjectName: String = ""
     var customLessonName: String = ""
     
-    var questionCount: Int = 10
-    
     var generatedQuestions: [QuestionWrapper] = []
     
     var availableSubjects: [String] = []
     var availableLessons: [String] = []
     
-    var isGenerating: Bool = false
     var isSaving: Bool = false
     var showEditor: Bool = false
     
@@ -54,7 +51,6 @@ class AdminTestManagerViewModel {
     }
     
     private func loadExistingTest(testId: String, subjectName: String) async {
-        isGenerating = true
         do {
             let subjectQuery = try await db.collection("Subjects").whereField("name", isEqualTo: subjectName).getDocuments()
             let subjectDocId = subjectQuery.documents.first?.documentID ?? subjectName
@@ -68,7 +64,6 @@ class AdminTestManagerViewModel {
         } catch {
             print("Failed to load existing test: \(error.localizedDescription)")
         }
-        isGenerating = false
     }
     
     func fetchDropdownData() async {
@@ -120,18 +115,23 @@ class AdminTestManagerViewModel {
         return lessonName == "+ Add New Lesson" ? customLessonName : lessonName
     }
     
-    func generateRecommendedTest() async {
-        isGenerating = true
-        try? await Task.sleep(for: .seconds(0.3)) // Brief UI yield
-        
-        self.generatedQuestions = await QuestionGeneratorEngine.shared.generateQuestions(
-            subject: finalSubject,
-            subtopic: finalLesson,
-            count: questionCount,
-            testId: existingTestId
-        )
-        
-        isGenerating = false
+    func initializeManualBuilder() {
+        if generatedQuestions.isEmpty {
+            let newWrapper = QuestionWrapper(question: Question(
+                id: UUID().uuidString,
+                correctOptionIndex: 0,
+                options: ["", "", "", ""],
+                points: 10,
+                questionText: "",
+                type: "multiple_choice",
+                subject: finalSubject,
+                subtopic: finalLesson,
+                hint: "",
+                feedback: "",
+                testId: existingTestId
+            ))
+            generatedQuestions.append(newWrapper)
+        }
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showEditor = true }
     }
     
@@ -171,7 +171,7 @@ class AdminTestManagerViewModel {
                 batch.deleteDocument(db.collection("questions").document(id))
             }
             
-            // Commit all current questions
+            // Commit all current questions to both nested tests and flat pool
             for wrapper in generatedQuestions {
                 var question = wrapper.question
                 let qId = question.id ?? UUID().uuidString
@@ -238,6 +238,132 @@ class AdminTestManagerViewModel {
         
         isSaving = false
     }
+    
+    // MARK: - Bulk Importer Logic
+    func processBulkQuestionImport(text: String) {
+        var remaining = text
+        var newWrappers: [QuestionWrapper] = []
+
+        while let qStart = remaining.range(of: "[QUESTION]"),
+              let qEnd = remaining.range(of: "[/QUESTION]") {
+            
+            let qBlock = String(remaining[qStart.upperBound..<qEnd.lowerBound])
+            remaining = String(remaining[qEnd.upperBound...])
+            
+            var question = Question(
+                id: UUID().uuidString,
+                correctOptionIndex: 0,
+                options: ["", "", "", ""],
+                points: 10,
+                questionText: "",
+                type: "multiple_choice",
+                subject: self.finalSubject,
+                subtopic: self.finalLesson,
+                hint: nil,
+                feedback: nil,
+                testId: self.existingTestId
+            )
+            
+            // 1. Parse Block Content
+            if let cStart = qBlock.range(of: "[CONTENT]"), let cEnd = qBlock.range(of: "[/CONTENT]") {
+                let contentRaw = String(qBlock[cStart.upperBound..<cEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                var blocks: [QuestionBlockModel] = []
+                var remainingContent = contentRaw
+                let tags = ["TEXT", "MATH", "GRAPH"]
+                
+                while !remainingContent.isEmpty {
+                    var earliestTag: String? = nil
+                    var earliestIndex: String.Index? = nil
+                    
+                    for tag in tags {
+                        if let range = remainingContent.range(of: "[\(tag)]") {
+                            if earliestIndex == nil || range.lowerBound < earliestIndex! {
+                                earliestIndex = range.lowerBound
+                                earliestTag = tag
+                            }
+                        }
+                    }
+                    
+                    guard let startTag = earliestTag, let startIndex = earliestIndex else { break }
+                    let endTagStr = "[/\(startTag)]"
+                    
+                    let contentStart = remainingContent.range(of: "[\(startTag)]")!.upperBound
+                    remainingContent = String(remainingContent[contentStart...])
+                    
+                    if let endRange = remainingContent.range(of: endTagStr) {
+                        let content = String(remainingContent[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        var block = QuestionBlockModel(
+                            type: startTag == "TEXT" ? QuestionBlockType.text.rawValue : (startTag == "MATH" ? QuestionBlockType.math.rawValue : QuestionBlockType.graph.rawValue),
+                            content: content
+                        )
+                        
+                        remainingContent = String(remainingContent[endRange.upperBound...])
+                        
+                        if startTag == "MATH" {
+                            let nextText = remainingContent.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if nextText.hasPrefix("[CAPTION]") {
+                                if let captionEndRange = remainingContent.range(of: "[/CAPTION]") {
+                                    let capStart = remainingContent.range(of: "[CAPTION]")!.upperBound
+                                    let caption = String(remainingContent[capStart..<captionEndRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                    block.caption = caption
+                                    remainingContent = String(remainingContent[captionEndRange.upperBound...])
+                                }
+                            }
+                        }
+                        blocks.append(block)
+                    } else {
+                        break
+                    }
+                }
+                
+                if let data = try? JSONEncoder().encode(blocks), let json = String(data: data, encoding: .utf8) {
+                    question.questionText = json
+                }
+            }
+            
+            // 2. Parse Multiple Choice Options
+            if let oStart = qBlock.range(of: "[OPTIONS]"), let oEnd = qBlock.range(of: "[/OPTIONS]") {
+                let optionsRaw = String(qBlock[oStart.upperBound..<oEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let lines = optionsRaw.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                
+                var parsedOptions: [String] = []
+                for (index, line) in lines.enumerated() {
+                    let cleanLine = line.trimmingCharacters(in: .whitespaces)
+                    if cleanLine.hasPrefix("*") {
+                        question.correctOptionIndex = index
+                        parsedOptions.append(String(cleanLine.dropFirst()).trimmingCharacters(in: .whitespaces))
+                    } else {
+                        parsedOptions.append(cleanLine)
+                    }
+                }
+                while parsedOptions.count < 4 { parsedOptions.append("") }
+                question.options = Array(parsedOptions.prefix(4))
+            }
+            
+            // 3. Parse Metadata
+            if let hStart = qBlock.range(of: "[HINT]"), let hEnd = qBlock.range(of: "[/HINT]") {
+                question.hint = String(qBlock[hStart.upperBound..<hEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            
+            if let fStart = qBlock.range(of: "[FEEDBACK]"), let fEnd = qBlock.range(of: "[/FEEDBACK]") {
+                question.feedback = String(qBlock[fStart.upperBound..<fEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            
+            newWrappers.append(QuestionWrapper(question: question))
+        }
+
+        if !newWrappers.isEmpty {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                // If there was only an empty placeholder, replace it. Otherwise append.
+                if self.generatedQuestions.count == 1 && self.generatedQuestions.first?.question.questionText.isEmpty == true {
+                    self.generatedQuestions = newWrappers
+                } else {
+                    self.generatedQuestions.append(contentsOf: newWrappers)
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Main UI View
@@ -246,6 +372,8 @@ struct AdminTestManagerView: View {
     @State private var viewModel = AdminTestManagerViewModel()
     @State private var expandedQuestionId: UUID? = nil
     @State private var showDeleteAlert: Bool = false
+    @State private var showingBulkImporter: Bool = false
+    @State private var bulkImportText: String = ""
     @Environment(\.dismiss) var dismiss
 
     let subjectName: String
@@ -279,12 +407,50 @@ struct AdminTestManagerView: View {
             #endif
             .scrollDismissesKeyboard(.interactively)
             .task {
-                // Instantly initializes the view model with the freshest parameters possible
                 await viewModel.initialize(subject: subjectName, lesson: lessonName, testId: existingTestId)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
+                }
+                if viewModel.showEditor {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: { showingBulkImporter = true }) {
+                            Image(systemName: "doc.on.clipboard.fill")
+                                .foregroundColor(.orange)
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showingBulkImporter) {
+                NavigationStack {
+                    VStack {
+                        TextEditor(text: $bulkImportText)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(12)
+                            .background(Color.platformSecondarySystemBackground)
+                            .cornerRadius(12)
+                            .padding()
+                    }
+                    .navigationTitle("Bulk Import Questions")
+                    #if os(iOS)
+                    .navigationBarTitleDisplayMode(.inline)
+                    #endif
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showingBulkImporter = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Import") {
+                                viewModel.processBulkQuestionImport(text: bulkImportText)
+                                bulkImportText = ""
+                                showingBulkImporter = false
+                            }
+                            .fontWeight(.bold)
+                            .tint(.orange)
+                        }
+                    }
+                    .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
                 }
             }
         }
@@ -294,16 +460,16 @@ struct AdminTestManagerView: View {
     private var generatorConfigurationSection: some View {
         VStack(spacing: 24) {
             VStack(spacing: 8) {
-                Image(systemName: "wand.and.stars")
+                Image(systemName: "text.badge.plus")
                     .font(.system(size: 48))
                     .foregroundStyle(LinearGradient(colors: [.teal, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .padding(.bottom, 8)
                 
-                Text("Generate a New Test")
+                Text("Manual Assessment Builder")
                     .font(.title2)
                     .fontWeight(.bold)
                 
-                Text("Configure the subject and lesson parameters below to scaffold your assessment.")
+                Text("Configure the subject and lesson parameters below to begin manually adding or bulk importing questions.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -359,23 +525,6 @@ struct AdminTestManagerView: View {
                             .background(Color.platformSystemBackground)
                             .cornerRadius(8)
                     }
-                    
-                    Divider()
-                    
-                    Stepper(value: $viewModel.questionCount, in: 1...50) {
-                        HStack {
-                            Text("Question Count")
-                                .fontWeight(.medium)
-                            Spacer()
-                            Text("\(viewModel.questionCount)")
-                                .fontWeight(.bold)
-                                .foregroundColor(.blue)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(6)
-                        }
-                    }
                 }
                 .padding()
                 .background(Color.platformSecondarySystemGroupedBackground)
@@ -387,7 +536,7 @@ struct AdminTestManagerView: View {
             .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 4)
             
             Button(action: {
-                Task { await viewModel.generateRecommendedTest() }
+                viewModel.initializeManualBuilder()
             }) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
@@ -395,20 +544,15 @@ struct AdminTestManagerView: View {
                         .frame(height: 56)
                         .shadow(color: .blue.opacity(0.3), radius: 10, y: 5)
                     
-                    if viewModel.isGenerating {
-                        ProgressView().tint(.white)
-                    } else {
-                        HStack {
-                            Text("Initialize Test Builder")
-                                .font(.headline)
-                                .fontWeight(.bold)
-                            Image(systemName: "arrow.right")
-                        }
-                        .foregroundColor(.white)
+                    HStack {
+                        Text("Initialize Test Builder")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        Image(systemName: "arrow.right")
                     }
+                    .foregroundColor(.white)
                 }
             }
-            .disabled(viewModel.isGenerating)
         }
     }
     
@@ -454,7 +598,7 @@ struct AdminTestManagerView: View {
                         }
                     }
                     
-                    // The Expanded Editor (Pushes content down perfectly)
+                    // The Expanded Editor
                     if expandedQuestionId == UUID(uuidString: viewModel.generatedQuestions[index1].id.uuidString) {
                         expandedEditor(for: index1)
                             .transition(.asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
@@ -658,7 +802,7 @@ struct AdminManagerQuestionEditorCell: View {
                     .foregroundColor(.secondary)
                     .textCase(.uppercase)
                 
-                UniversalBlockEditorView(blocks: $blocks)
+                UniversalBlockEditorView(blocks: $blocks, importTitle: "Bulk Import Test")
                     .onChange(of: blocks) { _, newBlocks in
                         question.updateWith(blocks: newBlocks)
                     }
