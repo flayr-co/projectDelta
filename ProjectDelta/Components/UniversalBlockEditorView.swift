@@ -10,6 +10,8 @@ struct UniversalBlockEditorView: View {
     var onSave: (() -> Void)? = nil
     
     @State private var isSaved: Bool = false
+    @State private var showingBulkImporter: Bool = false
+    @State private var bulkImportText: String = ""
     
     var body: some View {
         VStack(spacing: 20) {
@@ -71,6 +73,20 @@ struct UniversalBlockEditorView: View {
                     AddBlockButton(title: "Math", icon: "x.squareroot", color: .teal) { addBlock(type: .math) }
                     AddBlockButton(title: "Graph", icon: "chart.xyaxis.line", color: .purple) { addBlock(type: .graph) }
                 }
+                
+                Button(action: { showingBulkImporter = true }) {
+                    HStack {
+                        Image(systemName: "doc.on.clipboard.fill")
+                        Text("Bulk Import Lesson")
+                    }
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.orange.gradient)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
             .padding(.top, 16)
             .padding(.bottom, 40)
@@ -80,11 +96,97 @@ struct UniversalBlockEditorView: View {
             hideKeyboard()
             #endif
         }
+        .sheet(isPresented: $showingBulkImporter) {
+            NavigationStack {
+                VStack {
+                    TextEditor(text: $bulkImportText)
+                        .font(.system(.body, design: .monospaced))
+                        .padding(12)
+                        .background(Color.platformSecondarySystemBackground)
+                        .cornerRadius(12)
+                        .padding()
+                }
+                .navigationTitle("Bulk Importer")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingBulkImporter = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Import") { processBulkImport() }
+                            .fontWeight(.bold)
+                            .tint(.orange)
+                    }
+                }
+                .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
+            }
+        }
     }
     
     private func addBlock(type: QuestionBlockType) {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             blocks.append(QuestionBlockModel(type: type.rawValue, content: ""))
+        }
+    }
+    
+    private func processBulkImport() {
+        var remaining = bulkImportText
+        var newBlocks: [QuestionBlockModel] = []
+        let tags = ["TEXT", "MATH", "GRAPH"]
+        
+        while !remaining.isEmpty {
+            var earliestTag: String? = nil
+            var earliestIndex: String.Index? = nil
+            
+            for tag in tags {
+                if let range = remaining.range(of: "[\(tag)]") {
+                    if earliestIndex == nil || range.lowerBound < earliestIndex! {
+                        earliestIndex = range.lowerBound
+                        earliestTag = tag
+                    }
+                }
+            }
+            
+            guard let startTag = earliestTag, let startIndex = earliestIndex else { break }
+            let endTagStr = "[/\(startTag)]"
+            
+            let contentStart = remaining.range(of: "[\(startTag)]")!.upperBound
+            remaining = String(remaining[contentStart...])
+            
+            if let endRange = remaining.range(of: endTagStr) {
+                let content = String(remaining[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                var block = QuestionBlockModel(
+                    type: startTag == "TEXT" ? QuestionBlockType.text.rawValue : (startTag == "MATH" ? QuestionBlockType.math.rawValue : QuestionBlockType.graph.rawValue),
+                    content: content
+                )
+                
+                remaining = String(remaining[endRange.upperBound...])
+                
+                if startTag == "MATH" {
+                    let nextText = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if nextText.hasPrefix("[CAPTION]") {
+                        if let captionEndRange = remaining.range(of: "[/CAPTION]") {
+                            let capStart = remaining.range(of: "[CAPTION]")!.upperBound
+                            let caption = String(remaining[capStart..<captionEndRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                            block.caption = caption
+                            remaining = String(remaining[captionEndRange.upperBound...])
+                        }
+                    }
+                }
+                newBlocks.append(block)
+            } else {
+                break
+            }
+        }
+        
+        if !newBlocks.isEmpty {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                blocks.append(contentsOf: newBlocks)
+            }
+            bulkImportText = ""
+            showingBulkImporter = false
         }
     }
 }
