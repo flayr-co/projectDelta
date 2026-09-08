@@ -25,34 +25,34 @@ struct AdminView: View {
                 VStack(spacing: 0) {
                     // Premium Glass Header
                     ZStack {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text("Curriculum Architect")
-                                .font(.system(size: 34, weight: .black, design: .rounded))
+                                .font(.system(size: 28, weight: .black, design: .rounded))
                                 .foregroundStyle(LinearGradient(colors: [.primary, primaryTeal], startPoint: .topLeading, endPoint: .bottomTrailing))
                             Text("Manage your subject hierarchy, lessons, and assessment database.")
-                                .font(.subheadline)
+                                .font(.system(size: 14))
                                 .foregroundColor(.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         #if os(macOS)
-                        .frame(maxWidth: 800) // Aligns perfectly with the grid below
+                        .frame(maxWidth: 800)
                         #endif
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, 24)
                     #if os(macOS)
-                    .padding(.top, 44) // Generous clearance for macOS window controls
+                    .padding(.top, 44)
                     #else
-                    .padding(.top, 20)
+                    .padding(.top, 16)
                     #endif
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 16)
                     .background(.ultraThinMaterial)
                     .shadow(color: .black.opacity(0.05), radius: 10, y: 5)
                     .zIndex(10)
                     
                     // Interactive Fluid Grid
                     ScrollView(showsIndicators: false) {
-                        LazyVStack(spacing: 24) {
+                        LazyVStack(spacing: 16) {
                             ForEach(Array(viewModel.subjects.enumerated()), id: \.element.id) { index, subject in
                                 SubjectAdminCard(subject: subject, displayIndex: index + 1, viewModel: viewModel, onEdit: {
                                     selectedSubject = subject
@@ -60,15 +60,14 @@ struct AdminView: View {
                                 .transition(.scale(scale: 0.95).combined(with: .opacity))
                             }
                         }
-                        .padding(32)
-                        .padding(.bottom, 60)
+                        .padding(24)
+                        .padding(.bottom, 120) // Ensures scroll clearance above custom tab bar
                         #if os(macOS)
-                        .frame(maxWidth: 800) // Constrains width on Mac for premium layout
+                        .frame(maxWidth: 800)
                         .frame(maxWidth: .infinity, alignment: .center)
                         #endif
                     }
                     .scrollDismissesKeyboard(.interactively)
-                    // Hoisted navigation destination resolves all console warnings
                     .navigationDestination(item: $selectedSubject) { subject in
                         LessonManagerView(subject: subject, viewModel: viewModel)
                     }
@@ -82,9 +81,9 @@ struct AdminView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: { showingAddSubjectAlert = true }) {
                         Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(primaryTeal)
-                            .padding(8)
+                            .padding(6)
                             .background(primaryTeal.opacity(0.15))
                             .clipShape(Circle())
                     }
@@ -112,15 +111,15 @@ struct AdminView: View {
                         Color.black.opacity(0.4).ignoresSafeArea()
                         VStack(spacing: 16) {
                             ProgressView()
-                                .scaleEffect(1.5)
+                                .scaleEffect(1.2)
                                 .tint(.white)
                             Text("Syncing Database...")
                                 .font(.headline)
                                 .foregroundColor(.white)
                         }
-                        .padding(32)
+                        .padding(24)
                         .background(.ultraThinMaterial)
-                        .cornerRadius(24)
+                        .cornerRadius(20)
                         .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
                     }
                 }
@@ -138,35 +137,35 @@ struct SubjectAdminCard: View {
     @State private var isHovered = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 16) {
                 // Sequence Indicator
                 Text("\(displayIndex)")
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
                     .foregroundColor(.teal.opacity(0.3))
-                    .frame(width: 36, alignment: .leading)
+                    .frame(width: 28, alignment: .leading)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Color.teal.gradient.opacity(0.15))
-                        .frame(width: 56, height: 56)
+                        .frame(width: 44, height: 44)
                     Image(systemName: subject.imageName)
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.teal)
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(subject.name)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
                     Text("\(subject.lessonCount) Lessons")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundColor(.secondary)
                 }
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.secondary.opacity(0.4))
             }
             
@@ -178,9 +177,9 @@ struct SubjectAdminCard: View {
                         Image(systemName: "pencil")
                         Text("Edit Curriculum")
                     }
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 10)
                     .background(Color.teal)
                     .foregroundColor(.white)
                     .clipShape(Capsule())
@@ -189,20 +188,20 @@ struct SubjectAdminCard: View {
                 
                 Button(role: .destructive, action: { Task { await viewModel.deleteSubject(id: subject.id ?? "") } }) {
                     Image(systemName: "trash.fill")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.red)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                         .background(Color.red.opacity(0.1))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(24)
+        .padding(16)
         .background(Color.platformSystemBackground)
-        .cornerRadius(24)
+        .cornerRadius(20)
         .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 12 : 8, y: isHovered ? 6 : 4)
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         .scaleEffect(isHovered ? 1.01 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
         .onHover { hovering in
@@ -224,7 +223,7 @@ struct LessonManagerView: View {
             
             VStack(spacing: 0) {
                 ScrollView {
-                    LazyVStack(spacing: 20) {
+                    LazyVStack(spacing: 16) {
                         ForEach(Array(viewModel.lessons.enumerated()), id: \.element.id) { index, lesson in
                             LessonAdminCard(lesson: lesson, displayIndex: index + 1, onEdit: {
                                 selectedLesson = lesson
@@ -233,7 +232,8 @@ struct LessonManagerView: View {
                             })
                         }
                     }
-                    .padding(32)
+                    .padding(24)
+                    .padding(.bottom, 120) // Tab bar clearance
                     #if os(macOS)
                     .frame(maxWidth: 800)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -256,8 +256,8 @@ struct LessonManagerView: View {
                         Image(systemName: "plus")
                         Text("New Lesson")
                     }
-                    .font(.system(size: 14, weight: .bold))
-                    .padding(.horizontal, 12)
+                    .font(.system(size: 13, weight: .bold))
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(Color.teal.opacity(0.15))
                     .foregroundColor(.teal)
@@ -296,28 +296,27 @@ struct LessonAdminCard: View {
     @State private var isHovered = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 16) {
                 Text("\(displayIndex)")
-                    .font(.system(size: 24, weight: .heavy, design: .rounded))
+                    .font(.system(size: 20, weight: .heavy, design: .rounded))
                     .foregroundColor(.teal.opacity(0.4))
-                    .frame(width: 32, alignment: .leading)
+                    .frame(width: 24, alignment: .leading)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(Color.teal.gradient.opacity(0.1))
-                        .frame(width: 48, height: 48)
+                        .frame(width: 40, height: 40)
                     Image(systemName: "book.pages.fill")
-                        .font(.title2)
+                        .font(.system(size: 18))
                         .foregroundColor(.teal)
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(lesson.name)
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
                     Text("\(lesson.pages?.count ?? 0) Pages")
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
                 }
                 
@@ -325,9 +324,9 @@ struct LessonAdminCard: View {
                 
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "trash.fill")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.red)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 32, height: 32)
                         .background(Color.red.opacity(0.1))
                         .clipShape(Circle())
                 }
@@ -340,19 +339,19 @@ struct LessonAdminCard: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                 }
-                .font(.system(size: 14, weight: .bold))
-                .padding(16)
+                .font(.system(size: 13, weight: .bold))
+                .padding(12)
                 .background(Color.teal.opacity(0.08))
                 .foregroundColor(.teal)
-                .cornerRadius(12)
+                .cornerRadius(10)
             }
             .buttonStyle(.plain)
         }
-        .padding(24)
+        .padding(16)
         .background(Color.platformSystemBackground)
-        .cornerRadius(20)
+        .cornerRadius(16)
         .shadow(color: .black.opacity(isHovered ? 0.06 : 0.03), radius: isHovered ? 12 : 8, y: isHovered ? 6 : 4)
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         .scaleEffect(isHovered ? 1.01 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
         .onHover { hovering in

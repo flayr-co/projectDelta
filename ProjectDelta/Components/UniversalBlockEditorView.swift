@@ -458,11 +458,15 @@ fileprivate struct BlockEditCell: View {
             
             #if os(macOS)
             if isFocused {
-                MathKeypadView(
-                    text: $block.content,
-                    onHighlight: { applyFormatting(prefix: "*blue ", suffix: " blue*") }
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                // Initialize a temporary view model just for the block editor's keypad
+                @State var tempViewModel = MathScratchpadViewModel()
+                MathKeypadView(viewModel: tempViewModel)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // When the keypad updates the view model, push changes to the block content
+                    .onChange(of: tempViewModel.lines) { _, _ in
+                        let stringVal = tempViewModel.lines.flatMap { $0 }.map { $0.value }.joined()
+                        block.content = stringVal
+                    }
             }
             #endif
         }

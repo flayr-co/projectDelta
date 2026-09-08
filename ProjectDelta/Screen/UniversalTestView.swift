@@ -19,6 +19,10 @@ struct UniversalTestView: View {
     @State private var isSubmitting: Bool = false
     @State private var showAdminEditor = false
     
+    // Scratchpad State Integration
+    @State private var isScratchpadVisible: Bool = false
+    @State private var scratchpadViewModel = MathScratchpadViewModel()
+    
     @State private var timeRemaining: Int = 300
     
     @AppStorage("hideCustomTabBar") private var hideCustomTabBar: Bool = false
@@ -61,6 +65,12 @@ struct UniversalTestView: View {
                 lessonName: mode.subtopicName ?? "",
                 existingTestId: testViewModel.questions.first?.testId
             )
+        }
+        .sheet(isPresented: $isScratchpadVisible) {
+            MathScratchpadView(viewModel: scratchpadViewModel)
+                .presentationDetents([.fraction(0.4), .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(colorScheme == .dark ? Color(red: 0.05, green: 0.05, blue: 0.08) : Color.platformSystemBackground)
         }
 #endif
         .task {
@@ -111,41 +121,52 @@ struct UniversalTestView: View {
     // MARK: - macOS Layout
     #if os(macOS)
     private var macOSLayout: some View {
-        ZStack(alignment: .top) {
-            Color.platformSystemGroupedBackground.ignoresSafeArea()
-            
-            if mode.isTimed && !buttonTapped {
-                macOSIntroView
-                    .frame(maxHeight: .infinity)
-            } else if testViewModel.isGeneratingQuiz {
-                VStack(spacing: 20) {
-                    ProgressView()
-                        .controlSize(.large)
-                        .tint(themeColor)
-                    Text("Loading assessment pool...")
-                        .font(.system(.title3, design: .rounded, weight: .semibold))
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxHeight: .infinity)
-            } else if testViewModel.isQuizComplete {
-                quizEndView
-                    .frame(maxHeight: .infinity)
-            } else if !testViewModel.questions.isEmpty {
-                VStack(spacing: 0) {
-                    macOSHeader
-                        .zIndex(1)
-                    
-                    QuestionContentPage(index: currentQuestionIndex, mode: mode, themeColor: themeColor)
-                }
+        HStack(spacing: 0) {
+            ZStack(alignment: .top) {
+                Color.platformSystemGroupedBackground.ignoresSafeArea()
                 
-                VStack {
-                    Spacer()
-                    macOSBottomNavigationBar
-                }
-                .zIndex(2)
-            } else {
-                ContentUnavailableView("No Questions Found", systemImage: "doc.questionmark", description: Text("No questions are currently mapped to this module."))
+                if mode.isTimed && !buttonTapped {
+                    macOSIntroView
+                        .frame(maxHeight: .infinity)
+                } else if testViewModel.isGeneratingQuiz {
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .controlSize(.large)
+                            .tint(themeColor)
+                        Text("Loading assessment pool...")
+                            .font(.system(.title3, design: .rounded, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
                     .frame(maxHeight: .infinity)
+                } else if testViewModel.isQuizComplete {
+                    quizEndView
+                        .frame(maxHeight: .infinity)
+                } else if !testViewModel.questions.isEmpty {
+                    VStack(spacing: 0) {
+                        macOSHeader
+                            .zIndex(1)
+                        
+                        QuestionContentPage(index: currentQuestionIndex, mode: mode, themeColor: themeColor)
+                    }
+                    
+                    VStack {
+                        Spacer()
+                        macOSBottomNavigationBar
+                    }
+                    .zIndex(2)
+                } else {
+                    ContentUnavailableView("No Questions Found", systemImage: "doc.questionmark", description: Text("No questions are currently mapped to this module."))
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            
+            // macOS Glassmorphic Scratchpad Panel
+            if isScratchpadVisible && !testViewModel.isGeneratingQuiz && !testViewModel.isQuizComplete && !testViewModel.questions.isEmpty && (!mode.isTimed || buttonTapped) {
+                Divider().ignoresSafeArea()
+                MathScratchpadView(viewModel: scratchpadViewModel)
+                    .frame(width: 450)
+                    .transition(.move(edge: .trailing))
             }
         }
     }
@@ -188,18 +209,34 @@ struct UniversalTestView: View {
 
                 Spacer()
 
-                if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
-                    Button(action: { showAdminEditor = true }) {
-                        Image(systemName: "pencil")
+                HStack(spacing: 12) {
+                    // Scratchpad Toggle
+                    Button(action: {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            isScratchpadVisible.toggle()
+                        }
+                    }) {
+                        Image(systemName: "pencil.and.scribble")
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(themeColor)
+                            .foregroundColor(isScratchpadVisible ? .white : themeColor)
                             .frame(width: 40, height: 40)
-                            .background(themeColor.opacity(0.12))
+                            .background(isScratchpadVisible ? themeColor : themeColor.opacity(0.12))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
-                } else {
-                    Color.clear.frame(width: 40, height: 40)
+                    .help("Toggle Interactive Scratchpad")
+
+                    if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
+                        Button(action: { showAdminEditor = true }) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(themeColor)
+                                .frame(width: 40, height: 40)
+                                .background(themeColor.opacity(0.12))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
             .padding(.horizontal, 32)
@@ -365,6 +402,27 @@ struct UniversalTestView: View {
                         if selectedQuestionIndex != newValue { selectedQuestionIndex = newValue }
                     }
                     
+                    // iOS Scratchpad Floating Action Button
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                isScratchpadVisible = true
+                            }) {
+                                Image(systemName: "pencil.and.scribble")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 60, height: 60)
+                                    .background(themeColor.gradient)
+                                    .clipShape(Circle())
+                                    .shadow(color: themeColor.opacity(0.4), radius: 12, y: 6)
+                            }
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 100) // Positioned cleanly above the bottom navigation bar
+                        }
+                    }
+                    
                     bottomNavigationBar
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -400,7 +458,7 @@ struct UniversalTestView: View {
 
                 if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
                     Button(action: { showAdminEditor = true }) {
-                        Image(systemName: "pencil")
+                        Image(systemName: "gearshape.fill")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(themeColor)
                             .frame(width: 38, height: 38)
@@ -1080,7 +1138,6 @@ struct IsolatedQuestionCard: View {
                     )
                 }
                 
-                // Changed from `if case .practice = mode` to `if !mode.isTimed`
                 if !mode.isTimed, let feedback = question.feedback, !feedback.isEmpty {
                     collapsibleDiagnosticPill(
                         title: "Step-by-Step Breakdown",

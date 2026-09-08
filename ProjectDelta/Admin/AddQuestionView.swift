@@ -34,26 +34,26 @@ struct AddQuestionView: View {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
             
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 28) {
+                VStack(spacing: 24) {
                     // Premium Header
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("Architect Question")
-                            .font(.system(size: 36, weight: .black, design: .rounded))
+                            .font(.system(size: 28, weight: .black, design: .rounded))
                             .foregroundStyle(LinearGradient(colors: [.primary, primaryTeal], startPoint: .topLeading, endPoint: .bottomTrailing))
                         Text("Construct independent database modules for \(subject.name).")
-                            .font(.subheadline)
+                            .font(.system(size: 14))
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 24)
-                    .padding(.top, 24)
+                    .padding(.top, 16)
                     
                     categorizationCard
                     questionBuilderCard
                     optionsCard
                     assistanceCard
                     
-                    Spacer(minLength: 120)
+                    Spacer(minLength: 140) // Clears the custom tab bar comfortably
                 }
             }
         }
@@ -92,22 +92,22 @@ struct AddQuestionView: View {
             Button(action: saveQuestion) {
                 HStack {
                     Image(systemName: "server.rack")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                     Text("Commit to Database")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
+                .padding(.vertical, 14)
                 .background(primaryTeal.gradient)
                 .foregroundColor(.white)
-                .cornerRadius(16)
-                .shadow(color: primaryTeal.opacity(0.3), radius: 10, y: 5)
+                .cornerRadius(14)
+                .shadow(color: primaryTeal.opacity(0.3), radius: 8, y: 4)
             }
             .disabled(questionBlocks.isEmpty || options.contains(where: \.isEmpty))
             .opacity(questionBlocks.isEmpty || options.contains(where: \.isEmpty) ? 0.5 : 1.0)
             .padding(.horizontal, 24)
-            .padding(.bottom, 24)
-            .padding(.top, 16)
+            .padding(.bottom, 90) // Forces clearance over custom tab bar
+            .padding(.top, 12)
             .background(.ultraThinMaterial)
         }
         #endif
@@ -118,10 +118,10 @@ struct AddQuestionView: View {
     @ViewBuilder
     private var categorizationCard: some View {
         FormCard(title: "Routing Taxonomy", icon: "folder.fill", iconColor: .blue) {
-            VStack(spacing: 16) {
+            VStack(spacing: 12) {
                 HStack {
                     Text("Subject")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(.secondary)
                     Spacer()
                     Picker("Subject", selection: $selectedSubjectArea) {
@@ -139,7 +139,7 @@ struct AddQuestionView: View {
                 
                 HStack {
                     Text("Subtopic")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(.secondary)
                     Spacer()
                     Picker("Subtopic", selection: $selectedSubtopic) {
@@ -156,9 +156,9 @@ struct AddQuestionView: View {
     @ViewBuilder
     private var questionBuilderCard: some View {
         FormCard(title: "Problem Canvas", icon: "hammer.fill", iconColor: .purple) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Inject equations and graphs utilizing the universal block engine.")
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundColor(.secondary)
                 
                 UniversalBlockEditorView(blocks: $questionBlocks)
@@ -169,28 +169,28 @@ struct AddQuestionView: View {
     @ViewBuilder
     private var optionsCard: some View {
         FormCard(title: "Evaluation Parameters", icon: "checklist", iconColor: .orange) {
-            VStack(spacing: 16) {
+            VStack(spacing: 12) {
                 ForEach(options.indices, id: \.self) { index in
-                    HStack(spacing: 16) {
+                    HStack(spacing: 12) {
                         Button(action: {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                                 correctIndex = index
                             }
                         }) {
                             Image(systemName: correctIndex == index ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 24))
+                                .font(.system(size: 20))
                                 .foregroundColor(correctIndex == index ? primaryTeal : .gray.opacity(0.3))
                         }
                         .buttonStyle(.plain)
                         
                         TextField("Vector \(index + 1)", text: $options[index])
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .padding(16)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .padding(12)
                             .background(Color.platformSecondarySystemBackground)
-                            .cornerRadius(12)
+                            .cornerRadius(10)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(correctIndex == index ? primaryTeal : Color.clear, lineWidth: 2)
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(correctIndex == index ? primaryTeal : Color.clear, lineWidth: 1.5)
                             )
                     }
                 }
@@ -203,10 +203,10 @@ struct AddQuestionView: View {
         FormCard(title: "Contextual Hint", icon: "lightbulb.fill", iconColor: .yellow) {
             TextField("Provide diagnostic guidance...", text: $hint, axis: .vertical)
                 .lineLimit(3...6)
-                .padding(16)
+                .padding(12)
                 .background(Color.yellow.opacity(0.08))
-                .cornerRadius(12)
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.yellow.opacity(0.3), lineWidth: 1))
+                .cornerRadius(10)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.yellow.opacity(0.3), lineWidth: 1))
         }
     }
     
@@ -253,30 +253,30 @@ struct FormCard<Content: View>: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(iconColor.gradient.opacity(0.15))
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                     Image(systemName: icon)
                         .foregroundColor(iconColor)
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                 }
                 
                 Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
             }
             
             Divider()
             
             content
         }
-        .padding(24)
+        .padding(16)
         .background(.ultraThinMaterial)
-        .cornerRadius(24)
-        .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 15 : 10, y: isHovered ? 8 : 5)
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .cornerRadius(20)
+        .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 12 : 8, y: isHovered ? 6 : 4)
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         .padding(.horizontal, 24)
         .scaleEffect(isHovered ? 1.01 : 1.0)
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: isHovered)

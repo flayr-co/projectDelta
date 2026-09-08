@@ -340,26 +340,26 @@ struct AddTestView: View {
         @Bindable var bindableVM = viewModel
         
         ScrollView(showsIndicators: false) {
-            LazyVStack(spacing: 24) {
+            LazyVStack(spacing: 20) {
                 // Metadata Header
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Assessment Configuration")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundColor(.secondary)
                         .textCase(.uppercase)
                         .padding(.leading, 4)
                     
                     TextField("Assessment Title...", text: $bindableVM.testTitle)
-                        .font(.system(size: 28, weight: .heavy, design: .rounded))
-                        .padding(20)
+                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .padding(14)
                         .background(Color.platformSystemBackground)
-                        .cornerRadius(20)
-                        .shadow(color: .black.opacity(0.04), radius: 10, y: 4)
-                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                 }
                 
                 // Questions Array
-                LazyVStack(spacing: 20) {
+                LazyVStack(spacing: 16) {
                     ForEach(bindableVM.generatedQuestions) { editableQuestion in
                         let index = viewModel.generatedQuestions.firstIndex(where: { $0.id == editableQuestion.id }) ?? 0
                         
@@ -377,7 +377,7 @@ struct AddTestView: View {
                 }
                 
                 // Add Buttons Row
-                HStack(spacing: 16) {
+                HStack(spacing: 12) {
                     Button(action: {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                             viewModel.generatedQuestions.append(EditableQuestion(question: Question(
@@ -390,14 +390,15 @@ struct AddTestView: View {
                             Text("Add Manual Question")
                                 .fontWeight(.bold)
                         }
-                        .padding()
+                        .font(.system(size: 13))
+                        .padding(12)
                         .frame(maxWidth: .infinity)
                         .background(emeraldAccent.opacity(0.10))
                         .foregroundColor(emeraldAccent)
-                        .cornerRadius(16)
+                        .cornerRadius(14)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(emeraldAccent.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(emeraldAccent.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
                         )
                     }
                     .buttonStyle(.plain)
@@ -408,24 +409,25 @@ struct AddTestView: View {
                             Text("Bulk Import Questions")
                                 .fontWeight(.bold)
                         }
-                        .padding()
+                        .font(.system(size: 13))
+                        .padding(12)
                         .frame(maxWidth: .infinity)
                         .background(Color.orange.opacity(0.10))
                         .foregroundColor(.orange)
-                        .cornerRadius(16)
+                        .cornerRadius(14)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.orange.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.orange.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
                         )
                     }
                     .buttonStyle(.plain)
                 }
                 
-                Spacer(minLength: 120)
+                Spacer(minLength: 140) // Clearance for tab bar & deploy button
             }
             .frame(maxWidth: 800)
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
         }
         .frame(maxWidth: .infinity)
         .scrollDismissesKeyboard(.interactively)
@@ -439,23 +441,24 @@ struct AddTestView: View {
                 Task { await viewModel.saveTestToDatabase(); dismiss() }
             }) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(emeraldAccent.gradient)
-                        .frame(height: 60)
-                        .shadow(color: emeraldAccent.opacity(0.3), radius: 10, y: 5)
+                        .frame(height: 50)
+                        .shadow(color: emeraldAccent.opacity(0.3), radius: 8, y: 4)
                     
                     if viewModel.isSaving {
                         ProgressView().tint(.white)
                     } else {
                         Text("Deploy Assessment")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                     }
                 }
             }
             .disabled(viewModel.isSaving)
             .padding(.horizontal, 20)
-            .padding(.bottom, 16)
+            .padding(.bottom, 90) // Forces clearance over custom tab bar
+            .padding(.top, 12)
             .background(Color.platformSystemGroupedBackground.opacity(0.95))
         }
 #endif
@@ -479,35 +482,35 @@ struct AdminQuestionEditorCell: View {
                     isExpanded.toggle()
                 }
             }) {
-                HStack(spacing: 16) {
+                HStack(spacing: 12) {
                     Text("\(index + 1)")
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
+                        .font(.system(size: 20, weight: .heavy, design: .rounded))
                         .foregroundColor(isExpanded ? emeraldAccent : .secondary.opacity(0.4))
-                        .frame(width: 32, alignment: .leading)
+                        .frame(width: 28, alignment: .leading)
                     
                     Text(isExpanded ? "Editing Question" : "Question \(index + 1)")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundColor(isExpanded ? emeraldAccent : .primary)
                     
                     Spacer()
                     
                     Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(isExpanded ? emeraldAccent : .secondary.opacity(0.3))
                     
-                    Divider().frame(height: 24).padding(.horizontal, 4)
+                    Divider().frame(height: 20).padding(.horizontal, 4)
                     
                     Button(role: .destructive, action: onDelete) {
                         Image(systemName: "trash.fill")
                             .foregroundColor(.red.opacity(0.9))
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .padding(8)
                             .background(Color.red.opacity(0.1))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(20)
+                .padding(16)
                 .background(isExpanded ? emeraldAccent.opacity(0.08) : Color.clear)
             }
             .buttonStyle(.plain)
@@ -516,21 +519,21 @@ struct AdminQuestionEditorCell: View {
             if isExpanded {
                 Divider()
                 
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 24) {
                     UniversalBlockEditorView(blocks: $blocks, hideBulkImport: true)
                         .onChange(of: blocks) { _, newBlocks in
                             editableQuestion.question.updateWith(blocks: newBlocks)
                         }
                     
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Multiple Choice Parameters")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundColor(.secondary)
                             .textCase(.uppercase)
                         
-                        VStack(spacing: 12) {
+                        VStack(spacing: 10) {
                             ForEach(0..<4, id: \.self) { i in
-                                HStack(spacing: 16) {
+                                HStack(spacing: 12) {
                                     Button(action: {
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                                             editableQuestion.question.correctOptionIndex = i
@@ -538,7 +541,7 @@ struct AdminQuestionEditorCell: View {
                                     }) {
                                         Image(systemName: editableQuestion.question.correctOptionIndex == i ? "checkmark.circle.fill" : "circle")
                                             .foregroundColor(editableQuestion.question.correctOptionIndex == i ? emeraldAccent : .gray.opacity(0.4))
-                                            .font(.system(size: 24))
+                                            .font(.system(size: 20))
                                     }
                                     .buttonStyle(.plain)
                                     
@@ -546,22 +549,22 @@ struct AdminQuestionEditorCell: View {
                                         get: { editableQuestion.question.options.indices.contains(i) ? editableQuestion.question.options[i] : "" },
                                         set: { if editableQuestion.question.options.indices.contains(i) { editableQuestion.question.options[i] = $0 } }
                                     ))
-                                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                                    .padding(16)
+                                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                                    .padding(12)
                                     .background(Color.platformSecondarySystemBackground)
-                                    .cornerRadius(12)
+                                    .cornerRadius(10)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(editableQuestion.question.correctOptionIndex == i ? emeraldAccent : Color.clear, lineWidth: 2)
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(editableQuestion.question.correctOptionIndex == i ? emeraldAccent : Color.clear, lineWidth: 1.5)
                                     )
                                 }
                             }
                         }
                     }
                     
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("Feedback & Diagnostics")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundColor(.secondary)
                             .textCase(.uppercase)
                         
@@ -570,19 +573,19 @@ struct AdminQuestionEditorCell: View {
                             set: { editableQuestion.question.hint = $0.isEmpty ? nil : $0 }
                         ), axis: .vertical)
                         .lineLimit(2...4)
-                        .padding(16)
+                        .padding(12)
                         .background(Color.yellow.opacity(0.08))
-                        .cornerRadius(12)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.yellow.opacity(0.3), lineWidth: 1))
+                        .cornerRadius(10)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.yellow.opacity(0.3), lineWidth: 1))
                     }
                 }
-                .padding(24)
+                .padding(20)
             }
         }
         .background(Color.platformSystemBackground)
-        .cornerRadius(24)
-        .shadow(color: .black.opacity(isExpanded ? 0.08 : 0.03), radius: isExpanded ? 20 : 8, y: isExpanded ? 10 : 4)
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(isExpanded ? emeraldAccent.opacity(0.4) : Color.primary.opacity(0.05), lineWidth: isExpanded ? 2 : 1))
+        .cornerRadius(20)
+        .shadow(color: .black.opacity(isExpanded ? 0.06 : 0.03), radius: isExpanded ? 15 : 6, y: isExpanded ? 8 : 4)
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(isExpanded ? emeraldAccent.opacity(0.4) : Color.primary.opacity(0.05), lineWidth: isExpanded ? 1.5 : 1))
         .onAppear {
             blocks = editableQuestion.question.parsedBlocks
             if blocks.isEmpty { isExpanded = true }

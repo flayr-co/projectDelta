@@ -46,77 +46,77 @@ struct LessonEditorView: View {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
             
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 32) {
+                VStack(spacing: 24) {
                     // Premium Glass Header
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text(lesson.id?.isEmpty == false ? "Edit Lesson" : "Author New Lesson")
-                            .font(.system(size: 36, weight: .black, design: .rounded))
+                            .font(.system(size: 28, weight: .black, design: .rounded))
                             .foregroundStyle(LinearGradient(colors: [.primary, primaryTeal], startPoint: .topLeading, endPoint: .bottomTrailing))
                         Text("Construct your educational material across multiple pages.")
-                            .font(.subheadline)
+                            .font(.system(size: 14))
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 24)
-                    .padding(.top, 24)
+                    .padding(.top, 16)
                     
                     // Metadata Card
-                    VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 16) {
                         HStack {
                             ZStack {
-                                Circle().fill(primaryTeal.opacity(0.15)).frame(width: 36, height: 36)
-                                Image(systemName: "text.book.closed.fill").foregroundColor(primaryTeal).font(.system(size: 16, weight: .bold))
+                                Circle().fill(primaryTeal.opacity(0.15)).frame(width: 32, height: 32)
+                                Image(systemName: "text.book.closed.fill").foregroundColor(primaryTeal).font(.system(size: 14, weight: .bold))
                             }
                             Text("Lesson Metadata")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
                         }
                         
                         Divider()
                         
                         TextField("Enter Lesson Title...", text: $lessonTitle)
-                            .font(.system(size: 24, weight: .heavy, design: .rounded))
-                            .padding(20)
+                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .padding(14)
                             .background(Color.platformSecondarySystemBackground)
-                            .cornerRadius(16)
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                            .cornerRadius(12)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                             .onChange(of: lessonTitle) { _, _ in fetchTests() }
                         
                         HStack {
                             Text("Parent Subject")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundColor(.secondary)
                             Spacer()
                             Text(subject.name)
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundColor(primaryTeal)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
                                 .background(primaryTeal.opacity(0.15))
                                 .clipShape(Capsule())
                         }
                     }
-                    .padding(24)
+                    .padding(16)
                     .background(.ultraThinMaterial)
-                    .cornerRadius(24)
+                    .cornerRadius(20)
                     .shadow(color: .black.opacity(0.04), radius: 15, y: 8)
-                    .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.primary.opacity(0.05), lineWidth: 1))
                     .padding(.horizontal, 24)
                     
                     // Pages Manager
-                    VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 16) {
                         HStack {
                             ZStack {
-                                Circle().fill(glowingPurple.opacity(0.15)).frame(width: 36, height: 36)
-                                Image(systemName: "square.stack.3d.down.right.fill").foregroundColor(glowingPurple).font(.system(size: 16, weight: .bold))
+                                Circle().fill(glowingPurple.opacity(0.15)).frame(width: 32, height: 32)
+                                Image(systemName: "square.stack.3d.down.right.fill").foregroundColor(glowingPurple).font(.system(size: 14, weight: .bold))
                             }
                             Text("Lesson Pages")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
                             
                             Spacer()
                             
                             Button(action: addNewPage) {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 24, weight: .bold))
+                                    .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(primaryTeal)
                             }
                             .buttonStyle(.plain)
@@ -125,12 +125,12 @@ struct LessonEditorView: View {
                         
                         if pages.isEmpty {
                             ContentUnavailableView("No Pages", systemImage: "doc.text", description: Text("Add a page to start building your lesson content."))
-                                .padding(.vertical, 40)
+                                .padding(.vertical, 32)
                                 .background(Color.platformSystemBackground)
-                                .cornerRadius(24)
+                                .cornerRadius(20)
                                 .padding(.horizontal, 24)
                         } else {
-                            LazyVStack(spacing: 16) {
+                            LazyVStack(spacing: 12) {
                                 ForEach($pages.indices, id: \.self) { index in
                                     NavigationLink(destination: PageEditorView(page: $pages[index], pageIndex: index + 1)) {
                                         PageAdminCard(page: pages[index], displayIndex: index + 1) {
@@ -149,20 +149,20 @@ struct LessonEditorView: View {
                     }
                     
                     // Assessments Manager
-                    VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 16) {
                         HStack {
                             ZStack {
-                                Circle().fill(vibrantOrange.opacity(0.15)).frame(width: 36, height: 36)
-                                Image(systemName: "bolt.badge.automatic.fill").foregroundColor(vibrantOrange).font(.system(size: 16, weight: .bold))
+                                Circle().fill(vibrantOrange.opacity(0.15)).frame(width: 32, height: 32)
+                                Image(systemName: "bolt.badge.automatic.fill").foregroundColor(vibrantOrange).font(.system(size: 14, weight: .bold))
                             }
                             Text("Lesson Assessments")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .font(.system(size: 17, weight: .bold, design: .rounded))
                             
                             Spacer()
                             
                             NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle, existingTest: nil)) {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 24, weight: .bold))
+                                    .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(vibrantOrange)
                             }
                             .buttonStyle(.plain)
@@ -171,12 +171,12 @@ struct LessonEditorView: View {
                         
                         if lessonTests.isEmpty {
                             ContentUnavailableView("No Assessments", systemImage: "doc.questionmark", description: Text("Create an assessment to link practice material to this lesson."))
-                                .padding(.vertical, 40)
+                                .padding(.vertical, 32)
                                 .background(Color.platformSystemBackground)
-                                .cornerRadius(24)
+                                .cornerRadius(20)
                                 .padding(.horizontal, 24)
                         } else {
-                            LazyVStack(spacing: 16) {
+                            LazyVStack(spacing: 12) {
                                 ForEach(Array(lessonTests.enumerated()), id: \.element.id) { index, test in
                                     NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle, existingTest: test)) {
                                         TestAdminCard(test: test, displayIndex: index + 1) {
@@ -191,7 +191,7 @@ struct LessonEditorView: View {
                         }
                     }
                     
-                    Spacer(minLength: 140)
+                    Spacer(minLength: 160) // Extra padding for safe scrolling past sticky buttons
                 }
             }
             #if os(macOS)
@@ -221,20 +221,20 @@ struct LessonEditorView: View {
             #endif
         }
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 #if os(iOS)
                 Button(action: saveLesson) {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                         Text("Save Curriculum")
                     }
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 14)
                     .background(primaryTeal.gradient)
                     .foregroundColor(.white)
-                    .cornerRadius(16)
-                    .shadow(color: primaryTeal.opacity(0.3), radius: 10, y: 5)
+                    .cornerRadius(14)
+                    .shadow(color: primaryTeal.opacity(0.3), radius: 8, y: 4)
                 }
                 .buttonStyle(.plain)
                 .disabled(lessonTitle.isEmpty)
@@ -243,22 +243,26 @@ struct LessonEditorView: View {
                 NavigationLink(destination: AddTestView(subject: subject, lessonName: lessonTitle, existingTest: nil)) {
                     HStack {
                         Image(systemName: "bolt.badge.automatic.fill")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 16, weight: .bold))
                         Text("Create New Assessment")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 14)
                     .background(vibrantOrange.gradient)
                     .foregroundColor(.white)
-                    .cornerRadius(16)
-                    .shadow(color: vibrantOrange.opacity(0.4), radius: 15, y: 8)
+                    .cornerRadius(14)
+                    .shadow(color: vibrantOrange.opacity(0.4), radius: 10, y: 5)
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 24)
+            #if os(iOS)
+            .padding(.bottom, 90) // Forces clearance over custom tab bar
+            #else
             .padding(.bottom, 24)
-            .padding(.top, 16)
+            #endif
+            .padding(.top, 12)
             .background(.ultraThinMaterial)
         }
     }
@@ -380,28 +384,28 @@ struct TestAdminCard: View {
     let vibrantOrange = Color.orange
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
                 Text("\(displayIndex)")
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .font(.system(size: 20, weight: .heavy, design: .rounded))
                     .foregroundColor(vibrantOrange.opacity(0.3))
-                    .frame(width: 36, alignment: .leading)
+                    .frame(width: 28, alignment: .leading)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(vibrantOrange.gradient.opacity(0.15))
-                        .frame(width: 56, height: 56)
+                        .frame(width: 44, height: 44)
                     Image(systemName: "checklist")
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundColor(vibrantOrange)
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(test.title ?? "Assessment")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
                     Text("Linked Assessment")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundColor(.secondary)
                 }
                 
@@ -409,20 +413,20 @@ struct TestAdminCard: View {
                 
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "trash.fill")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.red)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                         .background(Color.red.opacity(0.1))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(20)
+        .padding(16)
         .background(Color.platformSystemBackground)
-        .cornerRadius(24)
+        .cornerRadius(20)
         .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 12 : 8, y: isHovered ? 6 : 4)
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         .scaleEffect(isHovered ? 1.01 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
         .onHover { hovering in
@@ -430,7 +434,6 @@ struct TestAdminCard: View {
         }
     }
 }
-
 
 // MARK: - Page Admin Card
 struct PageAdminCard: View {
@@ -440,28 +443,28 @@ struct PageAdminCard: View {
     @State private var isHovered = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
                 Text("\(displayIndex)")
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .font(.system(size: 20, weight: .heavy, design: .rounded))
                     .foregroundColor(Color(red: 0.6, green: 0.2, blue: 0.9).opacity(0.3))
-                    .frame(width: 36, alignment: .leading)
+                    .frame(width: 28, alignment: .leading)
                 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Color(red: 0.6, green: 0.2, blue: 0.9).gradient.opacity(0.15))
-                        .frame(width: 56, height: 56)
+                        .frame(width: 44, height: 44)
                     Image(systemName: "doc.text.fill")
-                        .font(.system(size: 24, weight: .bold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundColor(Color(red: 0.6, green: 0.2, blue: 0.9))
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Page \(displayIndex)")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
                     Text(page.readyButtonDisplayed ? "Ready Button Enabled" : "Read-Only Mode")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundColor(.secondary)
                 }
                 
@@ -469,20 +472,20 @@ struct PageAdminCard: View {
                 
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "trash.fill")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.red)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                         .background(Color.red.opacity(0.1))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(20)
+        .padding(16)
         .background(Color.platformSystemBackground)
-        .cornerRadius(24)
+        .cornerRadius(20)
         .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 12 : 8, y: isHovered ? 6 : 4)
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         .scaleEffect(isHovered ? 1.01 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
         .onHover { hovering in

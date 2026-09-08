@@ -18,6 +18,7 @@
 		521887B92FB4FB7F00D97803 /* QuizSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */; };
 		521887BB2FB5131300D97803 /* QuizSnapshotsHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */; };
 		5222C55D304E69A600C02521 /* QuestionPoolEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5222C55C304E69A600C02521 /* QuestionPoolEngine.swift */; };
+		5222C55F304EA08D00C02521 /* MathScratchpadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5222C55E304EA07F00C02521 /* MathScratchpadView.swift */; };
 		5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */; };
 		5229BB0A2AD0CC8A0094395D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB092AD0CC8A0094395D /* ContentView.swift */; };
 		5229BB0C2AD0CC8B0094395D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5229BB0B2AD0CC8B0094395D /* Assets.xcassets */; };
@@ -88,6 +89,7 @@
 		521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSnapshot.swift; sourceTree = "<group>"; };
 		521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSnapshotsHistoryView.swift; sourceTree = "<group>"; };
 		5222C55C304E69A600C02521 /* QuestionPoolEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionPoolEngine.swift; sourceTree = "<group>"; };
+		5222C55E304EA07F00C02521 /* MathScratchpadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathScratchpadView.swift; sourceTree = "<group>"; };
 		5229BB042AD0CC8A0094395D /* ProjectDelta.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProjectDelta.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDeltaApp.swift; sourceTree = "<group>"; };
 		5229BB092AD0CC8A0094395D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -264,6 +266,7 @@
 				5258BD552AE3264400F21A50 /* InputView.swift */,
 				5258B5A52FB8337600F1600A /* LessonContentPage.swift */,
 				5254A5CC2AF19F4200AAAA72 /* MainTabView.swift */,
+				5222C55E304EA07F00C02521 /* MathScratchpadView.swift */,
 				52643E002FCACAEB00859741 /* MetricsCarouselView.swift */,
 				52AFCA092BBF381B0081A309 /* ProgressBar.swift */,
 				521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */,
@@ -427,6 +430,7 @@
 				5263B8732BFBB5CB00CE0DD0 /* ProfileViewDetail.swift in Sources */,
 				527F987C2AEC5D410031F9E6 /* SubjectGridView.swift in Sources */,
 				526CF3002FD75619001DA9D2 /* UniversalBlockEditorView.swift in Sources */,
+				5222C55F304EA08D00C02521 /* MathScratchpadView.swift in Sources */,
 				527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */,
 				5254A5CF2AF1ABAC00AAAA72 /* HomeView.swift in Sources */,
 				52643E012FCACAEB00859741 /* MetricsCarouselView.swift in Sources */,
