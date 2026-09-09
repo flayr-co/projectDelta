@@ -6,6 +6,7 @@
 import SwiftUI
 import FirebaseFirestore
 import Combine
+import Foundation
 
 struct UniversalTestView: View {
     @Environment(AuthViewModel.self) var authViewModel
@@ -33,7 +34,7 @@ struct UniversalTestView: View {
     var mode: TestMode
     
     var themeColor: Color {
-        colorScheme == .dark ? Color(red: 0.15, green: 0.85, blue: 0.75) : Color(red: 0.05, green: 0.65, blue: 0.85)
+        colorScheme == .dark ? Color(red: 0.20, green: 0.88, blue: 0.78) : Color(red: 0.05, green: 0.65, blue: 0.85)
     }
 
     var body: some View {
@@ -44,7 +45,22 @@ struct UniversalTestView: View {
             iOSLayout
 #endif
         }
-        .background(colorScheme == .dark ? Color(red: 0.07, green: 0.07, blue: 0.08) : Color.platformSystemGroupedBackground)
+        .background(
+            ZStack {
+                if colorScheme == .dark {
+                    Color.black.ignoresSafeArea()
+                    RadialGradient(
+                        colors: [themeColor.opacity(0.08), Color.clear],
+                        center: .top,
+                        startRadius: 20,
+                        endRadius: 600
+                    )
+                    .ignoresSafeArea()
+                } else {
+                    Color(red: 0.96, green: 0.97, blue: 0.99).ignoresSafeArea()
+                }
+            }
+        )
         .navigationBarBackButtonHidden(true)
 #if os(macOS)
         .toolbar(.hidden, for: .windowToolbar)
@@ -68,9 +84,11 @@ struct UniversalTestView: View {
         }
         .sheet(isPresented: $isScratchpadVisible) {
             MathScratchpadView(viewModel: scratchpadViewModel)
-                .presentationDetents([.fraction(0.4), .large])
+                .presentationDetents([.fraction(0.55), .fraction(0.85), .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(colorScheme == .dark ? Color(red: 0.05, green: 0.05, blue: 0.08) : Color.platformSystemBackground)
+                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.85)))
+                .presentationCornerRadius(36)
+                .presentationBackground(.ultraThinMaterial)
         }
 #endif
         .task {
@@ -96,9 +114,13 @@ struct UniversalTestView: View {
                 hideCustomTabBar = true
             }
         }
+        .onChange(of: currentQuestionIndex) { _, _ in
+            scratchpadViewModel.clearAll()
+        }
     }
     
-    // MARK: - Timer Logic
+    // MARK: - Core Logic & Data Extraction
+    
     private func handleTimerTick() {
         guard mode.isTimed, buttonTapped, !testViewModel.isQuizComplete, !testViewModel.isGeneratingQuiz, !testViewModel.questions.isEmpty else { return }
         if timeRemaining > 0 {
@@ -117,25 +139,42 @@ struct UniversalTestView: View {
         let seconds = timeRemaining % 60
         return String(format: "%02d:%02d", minutes, seconds)
     }
+    
+    private func extractMath(from question: Question) -> String {
+        if !question.parsedBlocks.isEmpty {
+            for block in question.parsedBlocks {
+                if block.type == QuestionBlockType.math.rawValue {
+                    return block.content
+                }
+            }
+            for block in question.parsedBlocks {
+                if block.type == QuestionBlockType.text.rawValue, block.content.contains("$") {
+                    let parts = block.content.split(separator: "$")
+                    if parts.count > 1 { return String(parts[1]) }
+                }
+            }
+        }
+        return question.questionText.replacingOccurrences(of: "$", with: "")
+    }
 
     // MARK: - macOS Layout
     #if os(macOS)
     private var macOSLayout: some View {
         HStack(spacing: 0) {
             ZStack(alignment: .top) {
-                Color.platformSystemGroupedBackground.ignoresSafeArea()
+                Color.clear.ignoresSafeArea()
                 
                 if mode.isTimed && !buttonTapped {
                     macOSIntroView
                         .frame(maxHeight: .infinity)
                 } else if testViewModel.isGeneratingQuiz {
-                    VStack(spacing: 20) {
+                    VStack(spacing: 24) {
                         ProgressView()
                             .controlSize(.large)
                             .tint(themeColor)
                         Text("Loading assessment pool...")
                             .font(.system(.title3, design: .rounded, weight: .semibold))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                     .frame(maxHeight: .infinity)
                 } else if testViewModel.isQuizComplete {
@@ -161,12 +200,12 @@ struct UniversalTestView: View {
             }
             .frame(maxWidth: .infinity)
             
-            // macOS Glassmorphic Scratchpad Panel
             if isScratchpadVisible && !testViewModel.isGeneratingQuiz && !testViewModel.isQuizComplete && !testViewModel.questions.isEmpty && (!mode.isTimed || buttonTapped) {
                 Divider().ignoresSafeArea()
                 MathScratchpadView(viewModel: scratchpadViewModel)
-                    .frame(width: 450)
-                    .transition(.move(edge: .trailing))
+                    .frame(width: 460)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .background(.ultraThinMaterial)
             }
         }
     }
@@ -176,12 +215,11 @@ struct UniversalTestView: View {
             HStack {
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .frame(width: 40, height: 40)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 34, height: 34)
+                        .background(Color.primary.opacity(0.06), in: .circle)
+                        .overlay(Circle().stroke(Color.primary.opacity(0.08), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
 
@@ -189,39 +227,42 @@ struct UniversalTestView: View {
                 
                 HStack(spacing: 12) {
                     Text(mode.subtopicName ?? mode.subjectName)
-                        .font(.system(.headline, design: .rounded, weight: .bold))
-                        .foregroundColor(.primary)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
                     
                     if mode.isTimed {
-                        Divider().frame(height: 16)
+                        Divider().frame(height: 14)
                         HStack(spacing: 6) {
                             Image(systemName: "timer")
                             Text(timeString).monospacedDigit()
                         }
-                        .font(.system(.subheadline, design: .rounded, weight: .bold))
-                        .foregroundColor(timeRemaining <= 60 ? .red : themeColor)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(timeRemaining <= 60 ? .red : themeColor)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background((timeRemaining <= 60 ? Color.red : themeColor).opacity(0.12))
-                        .clipShape(Capsule())
+                        .background((timeRemaining <= 60 ? Color.red : themeColor).opacity(0.12), in: .capsule)
                     }
                 }
 
                 Spacer()
 
-                HStack(spacing: 12) {
-                    // Scratchpad Toggle
+                HStack(spacing: 8) {
                     Button(action: {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            isScratchpadVisible.toggle()
+                        if scratchpadViewModel.isEmpty {
+                            if currentQuestionIndex < testViewModel.questions.count {
+                                let activeQuestion = testViewModel.questions[currentQuestionIndex]
+                                scratchpadViewModel.loadEquation(extractMath(from: activeQuestion))
+                            }
                         }
+                        withAnimation(.snappy) { isScratchpadVisible.toggle() }
                     }) {
                         Image(systemName: "pencil.and.scribble")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(isScratchpadVisible ? .white : themeColor)
-                            .frame(width: 40, height: 40)
-                            .background(isScratchpadVisible ? themeColor : themeColor.opacity(0.12))
-                            .clipShape(Circle())
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(isScratchpadVisible ? .white : themeColor)
+                            .frame(width: 36, height: 36)
+                            .background(isScratchpadVisible ? themeColor : themeColor.opacity(0.12), in: .circle)
+                            .overlay(Circle().stroke(isScratchpadVisible ? Color.clear : themeColor.opacity(0.3), lineWidth: 1))
+                            .shadow(color: isScratchpadVisible ? themeColor.opacity(0.4) : .clear, radius: 8, y: 3)
                     }
                     .buttonStyle(.plain)
                     .help("Toggle Interactive Scratchpad")
@@ -229,18 +270,17 @@ struct UniversalTestView: View {
                     if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
                         Button(action: { showAdminEditor = true }) {
                             Image(systemName: "gearshape.fill")
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(themeColor)
-                                .frame(width: 40, height: 40)
-                                .background(themeColor.opacity(0.12))
-                                .clipShape(Circle())
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, height: 36)
+                                .background(Color.primary.opacity(0.06), in: .circle)
                         }
                         .buttonStyle(.plain)
                     }
                 }
             }
             .padding(.horizontal, 32)
-            .padding(.top, 24)
+            .padding(.top, 20)
             .padding(.bottom, 16)
             
             GeometryReader { geo in
@@ -248,51 +288,49 @@ struct UniversalTestView: View {
                     Capsule()
                         .fill(Color.primary.opacity(0.06))
                     Capsule()
-                        .fill(themeColor.gradient)
+                        .fill(LinearGradient(colors: [themeColor.opacity(0.8), themeColor], startPoint: .leading, endPoint: .trailing))
                         .frame(width: geo.size.width * CGFloat(currentQuestionIndex + 1) / CGFloat(max(testViewModel.questions.count, 1)))
-                        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: currentQuestionIndex)
+                        .shadow(color: themeColor.opacity(0.5), radius: 6, y: 0)
+                        .animation(.snappy, value: currentQuestionIndex)
                 }
             }
-            .frame(height: 5)
+            .frame(height: 4)
             .padding(.horizontal, 32)
         }
     }
     
     private var macOSBottomNavigationBar: some View {
-        HStack(spacing: 16) {
-            Button(action: { withAnimation { currentQuestionIndex -= 1 } }) {
+        HStack(spacing: 12) {
+            Button(action: { withAnimation(.snappy) { currentQuestionIndex -= 1 } }) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(currentQuestionIndex == 0 ? .secondary.opacity(0.3) : .primary)
-                    .frame(width: 50, height: 50)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(currentQuestionIndex == 0 ? Color.secondary.opacity(0.3) : Color.primary)
+                    .frame(width: 44, height: 44)
+                    .background(Color.primary.opacity(0.06), in: .circle)
+                    .overlay(Circle().stroke(Color.primary.opacity(0.08), lineWidth: 1))
             }
             .buttonStyle(.plain)
             .disabled(currentQuestionIndex == 0)
 
             Spacer()
             
-            Text("\(currentQuestionIndex + 1) of \(testViewModel.questions.count)")
-                .font(.system(.headline, design: .rounded, weight: .heavy))
+            Text("Question \(currentQuestionIndex + 1) of \(testViewModel.questions.count)")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .padding(.horizontal, 24)
-                .frame(height: 50)
-                .background(.ultraThinMaterial)
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
+                .frame(height: 44)
+                .background(.ultraThinMaterial, in: .capsule)
+                .overlay(Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1))
 
             Spacer()
 
             if currentQuestionIndex < testViewModel.questions.count - 1 {
-                Button(action: { withAnimation { currentQuestionIndex += 1 } }) {
+                Button(action: { withAnimation(.snappy) { currentQuestionIndex += 1 } }) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 50, height: 50)
-                        .background(themeColor.gradient)
-                        .clipShape(Circle())
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(themeColor.gradient, in: .circle)
                         .shadow(color: themeColor.opacity(0.35), radius: 8, y: 4)
                 }
                 .buttonStyle(.plain)
@@ -304,16 +342,15 @@ struct UniversalTestView: View {
                         isSubmitting = false
                     }
                 }) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         Text(isSubmitting ? "Submitting..." : "Turn In")
                         Image(systemName: "checkmark.circle.fill")
                     }
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .frame(height: 50)
-                    .background(themeColor.gradient)
-                    .clipShape(Capsule())
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .frame(height: 44)
+                    .background(themeColor.gradient, in: .capsule)
                     .shadow(color: themeColor.opacity(0.35), radius: 8, y: 4)
                 }
                 .buttonStyle(.plain)
@@ -322,47 +359,50 @@ struct UniversalTestView: View {
         }
         .padding(.horizontal, 32)
         .padding(.bottom, 32)
-        .frame(maxWidth: 820)
+        .frame(maxWidth: 700)
     }
     
     private var macOSIntroView: some View {
-        VStack(spacing: 28) {
+        VStack(spacing: 24) {
             ZStack {
                 Circle()
                     .fill(themeColor.opacity(0.12))
                     .frame(width: 120, height: 120)
+                    .overlay(Circle().stroke(themeColor.opacity(0.3), lineWidth: 1))
                 Image(systemName: "timer")
-                    .font(.system(size: 56, weight: .regular))
-                    .foregroundColor(themeColor)
+                    .font(.system(size: 56, weight: .light))
+                    .foregroundStyle(themeColor)
             }
             
             VStack(spacing: 8) {
                 Text(mode.subtopicName ?? "General \(mode.subjectName)")
                     .font(.system(.title3, design: .rounded, weight: .bold))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 Text("Timed Assessment")
                     .font(.system(size: 38, weight: .black, design: .rounded))
                 Text("5 Minute Session • Instant Diagnostic Breakdown")
-                    .font(.system(.body, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .font(.system(.body, design: .rounded, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
             
             Button {
-                withAnimation(.easeInOut(duration: 0.4)) {
+                withAnimation(.snappy) {
                     buttonTapped = true
                     timeRemaining = 300
                 }
                 testViewModel.fetchTest(mode: mode)
             } label: {
                 Text("Begin Exam")
-                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
                     .padding(.horizontal, 40)
                     .padding(.vertical, 16)
             }
             .buttonStyle(.borderedProminent)
             .tint(themeColor)
-            .clipShape(Capsule())
-            .shadow(color: themeColor.opacity(0.35), radius: 12, y: 6)
+            .clipShape(.capsule)
+            .shadow(color: themeColor.opacity(0.35), radius: 15, y: 8)
+            .padding(.top, 16)
         }
     }
     #endif
@@ -372,7 +412,7 @@ struct UniversalTestView: View {
     private var iOSLayout: some View {
         VStack(spacing: 0) {
             iOSHeader
-                .zIndex(1)
+                .zIndex(2)
                 
             if mode.isTimed && !buttonTapped {
                 introView
@@ -384,7 +424,7 @@ struct UniversalTestView: View {
                         .tint(themeColor)
                     Text("Configuring assessment...")
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
             } else if testViewModel.isQuizComplete {
@@ -402,26 +442,18 @@ struct UniversalTestView: View {
                         if selectedQuestionIndex != newValue { selectedQuestionIndex = newValue }
                     }
                     
-                    // iOS Scratchpad Floating Action Button
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                isScratchpadVisible = true
-                            }) {
-                                Image(systemName: "pencil.and.scribble")
-                                    .font(.system(size: 24, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 60, height: 60)
-                                    .background(themeColor.gradient)
-                                    .clipShape(Circle())
-                                    .shadow(color: themeColor.opacity(0.4), radius: 12, y: 6)
-                            }
-                            .padding(.trailing, 20)
-                            .padding(.bottom, 100) // Positioned cleanly above the bottom navigation bar
-                        }
-                    }
+                    // Scrim gradient behind navigation bar for zero collision
+                    LinearGradient(
+                        colors: [
+                            Color.clear,
+                            (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99)).opacity(0.85),
+                            (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99))
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 120)
+                    .allowsHitTesting(false)
                     
                     bottomNavigationBar
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -440,102 +472,130 @@ struct UniversalTestView: View {
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.primary)
+                        .foregroundStyle(.primary)
                         .frame(width: 38, height: 38)
-                        .background(Color.secondary.opacity(0.12))
-                        .clipShape(Circle())
+                        .background(.ultraThinMaterial, in: .circle)
+                        .overlay(Circle().stroke(Color.primary.opacity(0.08), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
 
                 Spacer()
                 
                 Text(mode.subtopicName ?? mode.subjectName)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 Spacer()
-
-                if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
-                    Button(action: { showAdminEditor = true }) {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(themeColor)
+                
+                HStack(spacing: 8) {
+                    Button(action: {
+                        if scratchpadViewModel.isEmpty {
+                            if currentQuestionIndex < testViewModel.questions.count {
+                                let activeQuestion = testViewModel.questions[currentQuestionIndex]
+                                scratchpadViewModel.loadEquation(extractMath(from: activeQuestion))
+                            }
+                        }
+                        withAnimation(.snappy) { isScratchpadVisible.toggle() }
+                    }) {
+                        Image(systemName: "pencil.and.scribble")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(isScratchpadVisible ? .white : themeColor)
                             .frame(width: 38, height: 38)
-                            .background(themeColor.opacity(0.15))
-                            .clipShape(Circle())
+                            .background(isScratchpadVisible ? themeColor : themeColor.opacity(0.12), in: .circle)
+                            .overlay(Circle().stroke(isScratchpadVisible ? Color.clear : themeColor.opacity(0.3), lineWidth: 1))
+                            .shadow(color: isScratchpadVisible ? themeColor.opacity(0.4) : .clear, radius: 8, y: 3)
                     }
                     .buttonStyle(.plain)
-                } else {
-                    Color.clear.frame(width: 38, height: 38)
+
+                    if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
+                        Button(action: { showAdminEditor = true }) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 38, height: 38)
+                                .background(.ultraThinMaterial, in: .circle)
+                                .overlay(Circle().stroke(Color.primary.opacity(0.08), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 20)
             .padding(.top, 10)
             .padding(.bottom, 12)
             
+            // Luminous glowing progress indicator
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color.primary.opacity(0.06))
                     Capsule()
-                        .fill(themeColor.gradient)
+                        .fill(LinearGradient(colors: [themeColor.opacity(0.7), themeColor], startPoint: .leading, endPoint: .trailing))
                         .frame(width: geo.size.width * CGFloat(currentQuestionIndex + 1) / CGFloat(max(testViewModel.questions.count, 1)))
-                        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: currentQuestionIndex)
+                        .shadow(color: themeColor.opacity(0.6), radius: 4, y: 0)
+                        .animation(.snappy, value: currentQuestionIndex)
                 }
             }
-            .frame(height: 4)
-            .padding(.horizontal, 18)
+            .frame(height: 3)
+            .padding(.horizontal, 20)
             .padding(.bottom, 8)
         }
-        .background(colorScheme == .dark ? Color(red: 0.07, green: 0.07, blue: 0.08) : Color.platformSystemGroupedBackground)
+        .background(.ultraThinMaterial)
+        .overlay(
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundStyle(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06)),
+            alignment: .bottom
+        )
     }
     
     private var introView: some View {
         VStack {
             Spacer()
             
-            VStack(spacing: 20) {
+            VStack(spacing: 24) {
                 ZStack {
                     Circle()
                         .fill(themeColor.opacity(0.12))
-                        .frame(width: 100, height: 100)
+                        .frame(width: 120, height: 120)
+                        .overlay(Circle().stroke(themeColor.opacity(0.25), lineWidth: 1.5))
+                        .shadow(color: themeColor.opacity(0.2), radius: 20, y: 10)
                     Image(systemName: "timer")
-                        .font(.system(size: 46))
+                        .font(.system(size: 52, weight: .light))
                         .foregroundStyle(themeColor)
                 }
                 
                 Text(mode.subtopicName ?? "General \(mode.subjectName)")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                 
                 Text("Timed Assessment")
-                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .font(.system(size: 36, weight: .black, design: .rounded))
                     .multilineTextAlignment(.center)
                 
                 Text("5 minutes to complete all questions.")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 24)
-            .padding(.bottom, 48)
+            .padding(.bottom, 50)
             
             Button(action: {
-                withAnimation(.easeInOut(duration: 0.4)) {
+                withAnimation(.snappy) {
                     buttonTapped = true
                     timeRemaining = 300
                 }
                 testViewModel.fetchTest(mode: mode)
             }) {
                 Text("Begin Exam")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
-                    .background(themeColor.gradient)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .shadow(color: themeColor.opacity(0.3), radius: 12, y: 6)
+                    .background(themeColor.gradient, in: .rect(cornerRadius: 22, style: .continuous))
+                    .shadow(color: themeColor.opacity(0.4), radius: 16, y: 8)
             }
             .padding(.horizontal, 24)
             
@@ -544,68 +604,42 @@ struct UniversalTestView: View {
     }
     
     private var bottomNavigationBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             Button(action: {
                 if currentQuestionIndex > 0 {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        currentQuestionIndex -= 1
-                    }
+                    withAnimation(.snappy) { currentQuestionIndex -= 1 }
                 }
             }) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(currentQuestionIndex == 0 ? .secondary.opacity(0.25) : .primary)
-                    .frame(width: 48, height: 48)
-                    .background(Color.primary.opacity(0.06))
-                    .clipShape(Circle())
+                    .foregroundStyle(currentQuestionIndex == 0 ? Color.secondary.opacity(0.25) : Color.primary)
+                    .frame(width: 44, height: 44)
+                    .background(Color.primary.opacity(0.06), in: .circle)
             }
             .buttonStyle(.plain)
             .disabled(currentQuestionIndex == 0)
             
             Spacer(minLength: 0)
             
-            Menu {
-                Picker("Navigate Questions", selection: Binding(
-                    get: { currentQuestionIndex },
-                    set: { newValue in withAnimation { currentQuestionIndex = newValue } }
-                )) {
-                    ForEach(0..<testViewModel.questions.count, id: \.self) { index in
-                        Text("Question \(index + 1)").tag(index)
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text("\(currentQuestionIndex + 1) of \(testViewModel.questions.count)")
-                        .font(.system(size: 14, weight: .heavy, design: .rounded))
-                        .monospacedDigit()
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.secondary)
-                }
-                .foregroundColor(.primary)
-                .padding(.horizontal, 16)
-                .frame(height: 48)
-                .background(Color.primary.opacity(0.06))
-                .clipShape(Capsule())
-            }
-            .fixedSize(horizontal: true, vertical: false)
+            Text("Question \(currentQuestionIndex + 1) of \(testViewModel.questions.count)")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+                .frame(minWidth: 140)
             
             Spacer(minLength: 0)
             
             let isLastQuestion = currentQuestionIndex == testViewModel.questions.count - 1
             if !isLastQuestion {
                 Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        currentQuestionIndex += 1
-                    }
+                    withAnimation(.snappy) { currentQuestionIndex += 1 }
                 }) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 17, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 48, height: 48)
-                        .background(themeColor.gradient)
-                        .clipShape(Circle())
-                        .shadow(color: themeColor.opacity(0.35), radius: 8, y: 3)
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(themeColor.gradient, in: .circle)
+                        .shadow(color: themeColor.opacity(0.4), radius: 8, y: 3)
                 }
                 .buttonStyle(.plain)
             } else {
@@ -616,26 +650,39 @@ struct UniversalTestView: View {
                         isSubmitting = false
                     }
                 }) {
-                    Text(isSubmitting ? "..." : "Turn In")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .frame(height: 48)
-                        .background(themeColor.gradient)
-                        .clipShape(Capsule())
-                        .shadow(color: themeColor.opacity(0.35), radius: 8, y: 3)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 17, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(themeColor.gradient, in: .circle)
+                        .shadow(color: themeColor.opacity(0.4), radius: 8, y: 3)
                 }
                 .buttonStyle(.plain)
                 .disabled(isSubmitting)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 16)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    Capsule()
+                        .stroke(
+                            LinearGradient(
+                                colors: colorScheme == .dark
+                                    ? [Color.white.opacity(0.2), Color.white.opacity(0.04)]
+                                    : [Color.black.opacity(0.08), Color.black.opacity(0.02)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 20, y: 10)
+        )
+        .padding(.horizontal, 28)
+        .padding(.bottom, 24)
     }
     #endif
 
@@ -650,46 +697,46 @@ struct UniversalTestView: View {
                     let correctCount = snapshot.score
                     let incorrectCount = max(snapshot.totalQuestions - correctCount, 0)
                     
+                    let strokeGradient = AngularGradient(
+                        colors: [ringColor.opacity(0.6), ringColor],
+                        center: .center,
+                        startAngle: .degrees(-90),
+                        endAngle: .degrees(270)
+                    )
+                    
                     // Top Radial Dashboard
                     VStack(spacing: 20) {
                         ZStack {
                             Circle()
-                                .stroke(Color.primary.opacity(0.06), lineWidth: 16)
-                                .frame(width: 170, height: 170)
+                                .stroke(Color.primary.opacity(0.05), lineWidth: 18)
+                                .frame(width: 180, height: 180)
                             
                             Circle()
                                 .trim(from: 0.0, to: CGFloat(percentage))
-                                .stroke(
-                                    AngularGradient(
-                                        colors: [ringColor.opacity(0.5), ringColor],
-                                        center: .center,
-                                        startAngle: .degrees(-90),
-                                        endAngle: .degrees(270)
-                                    ),
-                                    style: StrokeStyle(lineWidth: 16, lineCap: .round)
-                                )
+                                .stroke(strokeGradient, style: StrokeStyle(lineWidth: 18, lineCap: .round))
                                 .rotationEffect(.degrees(-90))
-                                .frame(width: 170, height: 170)
-                                .animation(.spring(response: 1.0, dampingFraction: 0.75).delay(0.15), value: percentage)
+                                .frame(width: 180, height: 180)
+                                .shadow(color: ringColor.opacity(0.4), radius: 12, y: 4)
+                                .animation(.spring(response: 1.2, dampingFraction: 0.75).delay(0.2), value: percentage)
                             
                             VStack(spacing: 0) {
                                 Text("\(percentageInt)%")
-                                    .font(.system(size: 44, weight: .black, design: .rounded))
-                                    .foregroundColor(.primary)
+                                    .font(.system(size: 42, weight: .black, design: .rounded))
+                                    .foregroundStyle(.primary)
                                 Text(getLetterGrade(for: percentageInt))
                                     .font(.system(size: 24, weight: .heavy, design: .rounded))
-                                    .foregroundColor(ringColor)
+                                    .foregroundStyle(ringColor)
                             }
                         }
-                        .padding(.top, 28)
+                        .padding(.top, 24)
                         
                         VStack(spacing: 6) {
                             Text("Assessment Complete")
-                                .font(.system(size: 26, weight: .black, design: .rounded))
-                                .foregroundColor(.primary)
+                                .font(.system(size: 24, weight: .black, design: .rounded))
+                                .foregroundStyle(.primary)
                             Text("Comprehensive performance overview and solutions.")
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                                .foregroundColor(.secondary)
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
                         }
                         
@@ -703,14 +750,14 @@ struct UniversalTestView: View {
                     }
                     
                     // Question Diagnostic Review
-                    VStack(spacing: 18) {
+                    VStack(spacing: 20) {
                         ForEach(Array(snapshot.questionResults.enumerated()), id: \.element.id) { index, result in
                             VStack(alignment: .leading, spacing: 0) {
                                 // Question Card Header
                                 HStack {
                                     Text("Question \(index + 1)")
-                                        .font(.system(size: 12, weight: .heavy, design: .rounded))
-                                        .foregroundColor(result.isCorrect ? .green : .red)
+                                        .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                        .foregroundStyle(result.isCorrect ? .green : .red)
                                         .textCase(.uppercase)
                                     Spacer()
                                     HStack(spacing: 5) {
@@ -719,15 +766,14 @@ struct UniversalTestView: View {
                                         Text(result.isCorrect ? "Correct" : "Incorrect")
                                             .font(.system(size: 12, weight: .bold, design: .rounded))
                                     }
-                                    .foregroundColor(result.isCorrect ? .green : .red)
+                                    .foregroundStyle(result.isCorrect ? .green : .red)
                                     .padding(.horizontal, 10)
-                                    .padding(.vertical, 4)
-                                    .background((result.isCorrect ? Color.green : Color.red).opacity(0.12))
-                                    .clipShape(Capsule())
+                                    .padding(.vertical, 5)
+                                    .background((result.isCorrect ? Color.green : Color.red).opacity(0.12), in: .capsule)
                                 }
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 14)
-                                .background(Color.primary.opacity(0.02))
+                                .background(Color.primary.opacity(0.03))
                                 
                                 Divider()
                                 
@@ -742,17 +788,23 @@ struct UniversalTestView: View {
                                                             .frame(maxWidth: .infinity, alignment: .leading)
                                                     } else {
                                                         Text(LocalizedStringKey(block.content.parsedInlineMathToMarkdown))
-                                                            .font(.system(size: 17, weight: .bold, design: .rounded))
-                                                            .foregroundColor(.primary)
+                                                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                                                            .foregroundStyle(.primary)
                                                             .fixedSize(horizontal: false, vertical: true)
                                                     }
                                                 } else if block.type == QuestionBlockType.math.rawValue {
                                                     LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
                                                         .frame(maxWidth: .infinity, alignment: .center)
-                                                        .padding(.vertical, 8)
-                                                        .padding(.horizontal, 12)
-                                                        .background(Color.primary.opacity(0.03))
-                                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                                        .padding(.vertical, 16)
+                                                        .padding(.horizontal, 16)
+                                                        .background(
+                                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                                .fill(colorScheme == .dark ? Color(white: 0.08) : Color(white: 0.96))
+                                                                .overlay(
+                                                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                                                )
+                                                        )
                                                 } else if block.type == QuestionBlockType.graph.rawValue {
                                                     InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
                                                         .frame(height: 180)
@@ -765,15 +817,15 @@ struct UniversalTestView: View {
                                                 .frame(maxWidth: .infinity, alignment: .leading)
                                         } else {
                                             Text(LocalizedStringKey(result.questionText.parsedInlineMathToMarkdown))
-                                                .font(.system(size: 17, weight: .bold, design: .rounded))
-                                                .foregroundColor(.primary)
+                                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                                .foregroundStyle(.primary)
                                                 .fixedSize(horizontal: false, vertical: true)
                                         }
                                     }
                                     
                                     // User Choice vs Correct Solution
                                     VStack(spacing: 8) {
-                                        let userChoice = (result.userSelectedOptionIndex != nil && result.options.indices.contains(result.userSelectedOptionIndex!)) ? result.options[result.userSelectedOptionIndex!] : "No Answer Submitted"
+                                        let userChoice = (result.userSelectedOptionIndex != nil && result.userSelectedOptionIndex! >= 0 && result.userSelectedOptionIndex! < result.options.count) ? result.options[result.userSelectedOptionIndex!] : "No Answer Submitted"
                                         
                                         answerMetricRow(
                                             label: "Your Answer",
@@ -782,7 +834,7 @@ struct UniversalTestView: View {
                                             isUserChoice: true
                                         )
                                         
-                                        if !result.isCorrect && result.options.indices.contains(result.correctOptionIndex) {
+                                        if !result.isCorrect && result.correctOptionIndex >= 0 && result.correctOptionIndex < result.options.count {
                                             answerMetricRow(
                                                 label: "Correct Solution",
                                                 text: result.options[result.correctOptionIndex],
@@ -798,10 +850,10 @@ struct UniversalTestView: View {
                                             HStack(spacing: 8) {
                                                 Image(systemName: "text.book.closed.fill")
                                                     .font(.system(size: 14))
-                                                    .foregroundColor(themeColor)
+                                                    .foregroundStyle(themeColor)
                                                 Text("Step-by-Step Breakdown")
                                                     .font(.system(size: 13, weight: .black, design: .rounded))
-                                                    .foregroundColor(.primary)
+                                                    .foregroundStyle(.primary)
                                                     .textCase(.uppercase)
                                             }
                                             
@@ -809,18 +861,27 @@ struct UniversalTestView: View {
                                         }
                                         .padding(20)
                                         .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.primary.opacity(0.02))
-                                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+                                        .background(Color.primary.opacity(0.03), in: .rect(cornerRadius: 18, style: .continuous))
+                                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.primary.opacity(0.06), lineWidth: 1))
                                         .padding(.top, 8)
                                     }
                                 }
                                 .padding(20)
                             }
-                            .background(Color.platformSystemBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                            .shadow(color: .black.opacity(0.03), radius: 10, y: 4)
-                            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.primary.opacity(0.06), lineWidth: 1))
+                            .background(colorScheme == .dark ? Color(white: 0.12) : Color.white)
+                            .clipShape(.rect(cornerRadius: 22, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: colorScheme == .dark ? [Color.white.opacity(0.12), Color.white.opacity(0.03)] : [Color.black.opacity(0.06), Color.clear],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1
+                                    )
+                            )
+                            .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.04), radius: 14, y: 6)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -834,12 +895,11 @@ struct UniversalTestView: View {
                             Image(systemName: "arrow.right.circle.fill")
                         }
                         .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: 320)
-                        .frame(height: 54)
-                        .background(themeColor.gradient)
-                        .clipShape(Capsule())
-                        .shadow(color: themeColor.opacity(0.35), radius: 12, y: 6)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: 300)
+                        .frame(height: 52)
+                        .background(themeColor.gradient, in: .capsule)
+                        .shadow(color: themeColor.opacity(0.35), radius: 12, y: 5)
                     }
                     .buttonStyle(.plain)
                     .padding(.top, 16)
@@ -848,7 +908,7 @@ struct UniversalTestView: View {
             .padding(.bottom, 60)
 #if os(macOS)
             .frame(maxWidth: .infinity, alignment: .center)
-            .safeAreaPadding(.top, 48)
+            .safeAreaPadding(.top, 40)
 #endif
         }
     }
@@ -857,25 +917,27 @@ struct UniversalTestView: View {
     @ViewBuilder
     private func kpiPill(title: String, value: String, icon: String, color: Color) -> some View {
         VStack(spacing: 4) {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 Image(systemName: icon)
                     .font(.system(size: 11, weight: .bold))
                 Text(title)
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .textCase(.uppercase)
             }
-            .foregroundColor(.secondary)
+            .foregroundStyle(.secondary)
             
             Text(value)
-                .font(.system(size: 18, weight: .heavy, design: .rounded))
-                .foregroundColor(color)
+                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .foregroundStyle(color)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(Color.platformSystemBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.02), radius: 6, y: 2)
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .padding(.vertical, 14)
+        .background(colorScheme == .dark ? Color(white: 0.12) : Color.white, in: .rect(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(colorScheme == .dark ? 0.1 : 0.05), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.03), radius: 8, y: 4)
     }
     
     @ViewBuilder
@@ -883,7 +945,7 @@ struct UniversalTestView: View {
         HStack(alignment: .center, spacing: 10) {
             Text(label + ":")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
                 .frame(width: 90, alignment: .leading)
             
             if text.contains("$") {
@@ -892,14 +954,18 @@ struct UniversalTestView: View {
             } else {
                 Text(LocalizedStringKey(text.parsedInlineMathToMarkdown))
                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(isUserChoice ? (isCorrect ? .green : .red) : .primary)
+                    .foregroundStyle(isUserChoice ? (isCorrect ? .green : .red) : .primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(isUserChoice ? (isCorrect ? Color.green.opacity(0.08) : Color.red.opacity(0.08)) : Color.primary.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            isUserChoice
+                ? (isCorrect ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                : Color.primary.opacity(0.04),
+            in: .rect(cornerRadius: 12, style: .continuous)
+        )
     }
     
     private func fetchUserProgress() async {
@@ -939,6 +1005,7 @@ struct QuestionContentPage: View {
     let themeColor: Color
     
     @Environment(TestSessionViewModel.self) var testViewModel
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -949,13 +1016,14 @@ struct QuestionContentPage: View {
                     themeColor: themeColor,
                     mode: mode
                 )
-                .padding(.top, 14)
+                .padding(.top, 20)
             }
         }
         #if os(macOS)
-        .safeAreaPadding(.bottom, 32)
+        .safeAreaPadding(.bottom, 60)
         #else
-        .safeAreaPadding(.bottom, 110)
+        // Generous padding ensures hints and options never collide with the floating bottom bar
+        .safeAreaPadding(.bottom, 140)
         #endif
     }
 }
@@ -968,6 +1036,7 @@ struct IsolatedQuestionCard: View {
     let mode: TestMode
     
     @Environment(TestSessionViewModel.self) var testViewModel
+    @Environment(\.colorScheme) var colorScheme
     
     @State private var isHintExpanded: Bool = false
     @State private var isFeedbackExpanded: Bool = false
@@ -976,27 +1045,42 @@ struct IsolatedQuestionCard: View {
     
     let optionLetters = ["A", "B", "C", "D", "E", "F"]
     
+    // OLED obsidian surface with subtle ambient depth
+    var cardSurfaceColor: Color {
+        colorScheme == .dark ? Color(red: 0.10, green: 0.11, blue: 0.13) : Color.white
+    }
+    
+    var cardBorderGradient: LinearGradient {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [Color.white.opacity(0.16), Color.white.opacity(0.03)]
+                : [Color.black.opacity(0.08), Color.black.opacity(0.02)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    
     var body: some View {
         let qId = question.id ?? UUID().uuidString
         let selectedIndex = testViewModel.userAnswers[qId]
         
         #if os(macOS)
-        let mainSpacing: CGFloat = 24
-        let canvasPadding: CGFloat = 28
-        let optionSpacing: CGFloat = 12
-        let questionFontSize: CGFloat = 22
+        let mainSpacing: CGFloat = 28
+        let canvasPadding: CGFloat = 36
+        let optionSpacing: CGFloat = 14
+        let questionFontSize: CGFloat = 24
         #else
-        let mainSpacing: CGFloat = 18
-        let canvasPadding: CGFloat = 20
-        let optionSpacing: CGFloat = 10
-        let questionFontSize: CGFloat = 19
+        let mainSpacing: CGFloat = 20
+        let canvasPadding: CGFloat = 26
+        let optionSpacing: CGFloat = 12
+        let questionFontSize: CGFloat = 21
         #endif
         
         VStack(alignment: .leading, spacing: mainSpacing) {
             
             // 1. Primary Problem Canvas
             if !question.parsedBlocks.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 20) {
                     ForEach(question.parsedBlocks) { block in
                         if block.type == QuestionBlockType.text.rawValue {
                             if block.content.contains("$") {
@@ -1004,79 +1088,108 @@ struct IsolatedQuestionCard: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
                                 Text(LocalizedStringKey(block.content.parsedInlineMathToMarkdown))
-                                    .font(.system(size: questionFontSize, weight: .black, design: .rounded))
-                                    .foregroundColor(.primary)
+                                    .font(.system(size: questionFontSize, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.primary)
                                     .multilineTextAlignment(.leading)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         } else if block.type == QuestionBlockType.math.rawValue {
                             LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 22)
                                 .frame(maxWidth: .infinity, alignment: .center)
-                                .background(Color.primary.opacity(0.03))
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                // High-contrast, glowing recessed viewport
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        .fill(colorScheme == .dark ? Color(red: 0.05, green: 0.06, blue: 0.07) : Color(white: 0.96))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                                .stroke(
+                                                    LinearGradient(
+                                                        colors: colorScheme == .dark
+                                                            ? [themeColor.opacity(0.3), Color.white.opacity(0.05)]
+                                                            : [Color.black.opacity(0.08), Color.clear],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    ),
+                                                    lineWidth: 1
+                                                )
+                                        )
+                                        .shadow(color: colorScheme == .dark ? Color.black.opacity(0.5) : Color.clear, radius: 8, y: 4)
+                                )
                             
                             if let caption = block.caption, !caption.isEmpty {
                                 Text(LocalizedStringKey(caption.parsedInlineMathToMarkdown))
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 4)
+                                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.top, 6)
                             }
                         } else if block.type == QuestionBlockType.graph.rawValue {
                             let isInteractive = blockInteractionStates[block.id] ?? false
                             
                             ZStack(alignment: .topTrailing) {
                                 InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
-                                    .padding(.vertical, 6)
+                                    .padding(.vertical, 10)
                                     .allowsHitTesting(isInteractive)
                                 
 #if os(iOS)
                                 Button {
-                                    withAnimation { blockInteractionStates[block.id] = !isInteractive }
+                                    withAnimation(.snappy) { blockInteractionStates[block.id] = !isInteractive }
                                 } label: {
                                     Image(systemName: isInteractive ? "lock.open.fill" : "lock.fill")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundColor(isInteractive ? .white : themeColor)
-                                        .padding(8)
-                                        .background(isInteractive ? themeColor : Color.platformSecondarySystemBackground)
-                                        .clipShape(Circle())
-                                        .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(isInteractive ? Color.white : themeColor)
+                                        .padding(10)
+                                        .background(isInteractive ? themeColor : Color.primary.opacity(0.08), in: .circle)
+                                        .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
                                 }
-                                .padding(8)
+                                .padding(12)
 #endif
                             }
                         }
                     }
                 }
                 .padding(canvasPadding)
-                .background(Color.platformSystemBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .shadow(color: .black.opacity(0.03), radius: 12, y: 5)
-                .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.primary.opacity(0.06), lineWidth: 1))
+                .background(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(cardSurfaceColor)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .stroke(cardBorderGradient, lineWidth: 1.2)
+                        )
+                        .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.04), radius: 20, y: 8)
+                )
             }
             
-            // 2. Tactile Multiple Choice Options
+            // 2. Multiple Choice Options
             VStack(spacing: optionSpacing) {
-                ForEach(question.options.indices, id: \.self) { optIndex in
+                ForEach(0..<question.options.count, id: \.self) { optIndex in
                     let optionText = question.options[optIndex]
                     let isSelected = selectedIndex == optIndex
                     let isHovered = hoveredOption == optIndex
                     let letter = optIndex < optionLetters.count ? optionLetters[optIndex] : "\(optIndex + 1)"
                     
                     Button(action: {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.7)) {
+                        withAnimation(.snappy) {
                             testViewModel.selectAnswer(for: qId, optionIndex: optIndex)
                         }
                     }) {
-                        HStack(spacing: 14) {
-                            // Letter Identifier Badge
+                        HStack(spacing: 16) {
+                            // High-contrast Letter Badge
                             Text(letter)
-                                .font(.system(size: 14, weight: .heavy, design: .rounded))
-                                .foregroundColor(isSelected ? .white : .secondary)
-                                .frame(width: 32, height: 32)
-                                .background(isSelected ? themeColor : Color.primary.opacity(0.06))
-                                .clipShape(Circle())
+                                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                                .foregroundStyle(isSelected ? Color.black : Color.primary)
+                                .frame(width: 36, height: 36)
+                                .background(
+                                    Circle()
+                                        .fill(isSelected ? themeColor : Color.primary.opacity(0.08))
+                                        .overlay(
+                                            Circle()
+                                                .stroke(isSelected ? Color.white.opacity(0.4) : Color.primary.opacity(0.1), lineWidth: 1)
+                                        )
+                                        .shadow(color: isSelected ? themeColor.opacity(0.6) : Color.clear, radius: 8, y: 0)
+                                )
                             
                             if optionText.contains("$") {
                                 LatexView(latex: optionText.parsedMathToLatex, isTextMode: true)
@@ -1084,11 +1197,11 @@ struct IsolatedQuestionCard: View {
                             } else {
                                 Text(LocalizedStringKey(optionText.parsedInlineMathToMarkdown))
                                     .multilineTextAlignment(.leading)
-                                    .foregroundColor(isSelected ? themeColor : .primary)
+                                    .foregroundStyle(isSelected ? (colorScheme == .dark ? Color.white : themeColor) : Color.primary)
                                     #if os(macOS)
-                                    .font(.system(.title3, design: .rounded, weight: isSelected ? .bold : .semibold))
+                                    .font(.system(.title3, design: .rounded, weight: isSelected ? .heavy : .semibold))
                                     #else
-                                    .font(.system(size: 17, weight: isSelected ? .bold : .semibold, design: .rounded))
+                                    .font(.system(size: 17, weight: isSelected ? .bold : .medium, design: .rounded))
                                     #endif
                             }
                             
@@ -1096,24 +1209,40 @@ struct IsolatedQuestionCard: View {
                             
                             if isSelected {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(themeColor)
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundStyle(themeColor)
+                                    .shadow(color: themeColor.opacity(0.5), radius: 6, y: 0)
                                     .transition(.scale.combined(with: .opacity))
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 16)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 18)
                         .contentShape(Rectangle())
-                        .background(isSelected ? themeColor.opacity(0.09) : (isHovered ? Color.primary.opacity(0.03) : Color.platformSystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(isSelected ? themeColor : Color.primary.opacity(0.06), lineWidth: isSelected ? 2 : 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .fill(
+                                    isSelected
+                                        ? (colorScheme == .dark ? themeColor.opacity(0.18) : themeColor.opacity(0.10))
+                                        : (isHovered ? Color.primary.opacity(0.05) : cardSurfaceColor)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                        .stroke(
+                                            isSelected
+                                                ? themeColor
+                                                : (colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)),
+                                            lineWidth: isSelected ? 2 : 1
+                                        )
+                                )
+                                .shadow(
+                                    color: isSelected ? themeColor.opacity(0.25) : .black.opacity(colorScheme == .dark ? 0.25 : 0.03),
+                                    radius: isSelected ? 12 : 6,
+                                    y: isSelected ? 4 : 2
+                                )
                         )
-                        .shadow(color: isSelected ? themeColor.opacity(0.18) : .black.opacity(0.02), radius: 8, y: 3)
-                        .scaleEffect(isSelected ? 1.015 : 1.0)
+                        .scaleEffect(isSelected ? 1.01 : 1.0)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(KeypadPressStyle())
                     #if os(iOS)
                     .sensoryFeedback(.selection, trigger: selectedIndex)
                     #endif
@@ -1125,13 +1254,13 @@ struct IsolatedQuestionCard: View {
                 }
             }
             
-            // 3. Compact Pedagogical Accordions
-            VStack(spacing: 8) {
+            // 3. Compact Accordions
+            VStack(spacing: 14) {
                 if let hint = question.hint, !hint.isEmpty {
                     collapsibleDiagnosticPill(
                         title: "Need a Hint?",
                         icon: "lightbulb.fill",
-                        color: .yellow,
+                        color: Color(red: 1.0, green: 0.75, blue: 0.0),
                         isExpanded: $isHintExpanded,
                         content: hint,
                         isProgressive: false
@@ -1149,71 +1278,76 @@ struct IsolatedQuestionCard: View {
                     )
                 }
             }
-            .padding(.top, 4)
+            .padding(.top, 8)
         }
         .padding(.horizontal, 20)
         #if os(macOS)
-        .frame(maxWidth: 800)
+        .frame(maxWidth: 820)
         .frame(maxWidth: .infinity, alignment: .center)
         #endif
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isHintExpanded)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isFeedbackExpanded)
     }
     
     @ViewBuilder
     private func collapsibleDiagnosticPill(title: String, icon: String, color: Color, isExpanded: Binding<Bool>, content: String, isProgressive: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(.snappy) {
                     isExpanded.wrappedValue.toggle()
                 }
             }) {
-                HStack(spacing: 10) {
+                HStack(spacing: 14) {
                     Image(systemName: icon)
-                        .font(.system(size: 14))
-                        .foregroundColor(color)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(color)
                     Text(title)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
                     Spacer()
-                    Image(systemName: isExpanded.wrappedValue ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.secondary)
+                    Image(systemName: isExpanded.wrappedValue ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(color)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             
             if isExpanded.wrappedValue {
-                Divider().padding(.horizontal, 16)
+                Divider()
+                    .padding(.horizontal, 20)
+                    .opacity(0.6)
                 Group {
                     if isProgressive {
                         ProgressiveStepsView(content: content, themeColor: themeColor)
-                            .padding(14)
+                            .padding(20)
                     } else if content.contains("||") {
                         ExampleView(text: content, themeColor: themeColor)
-                            .padding(14)
+                            .padding(20)
                     } else if content.contains("$") {
                         LatexView(latex: content.parsedMathToLatex, isTextMode: true)
-                            .padding(14)
+                            .padding(20)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text(LocalizedStringKey(content.parsedInlineMathToMarkdown))
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
-                            .padding(14)
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .padding(20)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .background(Color.platformSystemBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.02), radius: 6, y: 2)
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(cardSurfaceColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(cardBorderGradient, lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(colorScheme == .dark ? 0.25 : 0.03), radius: 10, y: 4)
+        )
     }
 }
 
@@ -1222,27 +1356,36 @@ struct ProgressiveStepsView: View {
     let content: String
     let themeColor: Color
     @State private var revealedCount: Int = 1
+    @Environment(\.colorScheme) var colorScheme
     
     var steps: [String] {
         if content.contains("\n") {
-            return content.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            let lines = content.components(separatedBy: "\n")
+            return lines.compactMap { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                return trimmed.isEmpty ? nil : trimmed
+            }
         } else {
             let parts = content.components(separatedBy: ". ")
-            return parts.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.map { $0.hasSuffix(".") ? $0 : $0 + "." }
+            return parts.compactMap { part in
+                let trimmed = part.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty { return nil }
+                return trimmed.hasSuffix(".") ? trimmed : trimmed + "."
+            }
         }
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             ForEach(0..<min(revealedCount, steps.count), id: \.self) { index in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
                         Image(systemName: "arrow.turn.down.right")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(themeColor)
+                            .foregroundStyle(themeColor)
                         Text("STEP \(index + 1)")
                             .font(.system(size: 12, weight: .black, design: .rounded))
-                            .foregroundColor(themeColor)
+                            .foregroundStyle(themeColor)
                     }
                     
                     let stepText = steps[index]
@@ -1251,20 +1394,26 @@ struct ProgressiveStepsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text(LocalizedStringKey(stepText.parsedInlineMathToMarkdown))
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .foregroundColor(.primary)
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(16)
-                .background(themeColor.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(themeColor.opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(themeColor.opacity(0.25), lineWidth: 1)
+                        )
+                )
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
             
             if revealedCount < steps.count {
                 Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(.snappy) {
                         revealedCount += 1
                     }
                 }) {
@@ -1272,16 +1421,15 @@ struct ProgressiveStepsView: View {
                         Image(systemName: "eye.fill")
                         Text("Reveal Next Step")
                     }
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(themeColor.gradient)
-                    .clipShape(Capsule())
-                    .shadow(color: themeColor.opacity(0.3), radius: 8, y: 4)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(themeColor.gradient, in: .capsule)
+                    .shadow(color: themeColor.opacity(0.35), radius: 10, y: 4)
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 4)
+                .buttonStyle(KeypadPressStyle())
+                .padding(.top, 6)
             }
         }
     }
