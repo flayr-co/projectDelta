@@ -948,8 +948,11 @@ struct UniversalTestView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 90, alignment: .leading)
             
-            if text.contains("$") {
-                LatexView(latex: text.parsedMathToLatex, isTextMode: true)
+            let hasMath = text.contains("$") || text.contains("\\")
+            let formattedText = (hasMath && !text.contains("$")) ? "$\(text)$" : text
+            
+            if hasMath {
+                LatexView(latex: formattedText.parsedMathToLatex, isTextMode: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text(LocalizedStringKey(text.parsedInlineMathToMarkdown))
@@ -1191,8 +1194,11 @@ struct IsolatedQuestionCard: View {
                                         .shadow(color: isSelected ? themeColor.opacity(0.6) : Color.clear, radius: 8, y: 0)
                                 )
                             
-                            if optionText.contains("$") {
-                                LatexView(latex: optionText.parsedMathToLatex, isTextMode: true)
+                            let hasMath = optionText.contains("$") || optionText.contains("\\")
+                            let formattedOption = (hasMath && !optionText.contains("$")) ? "$\(optionText)$" : optionText
+                            
+                            if hasMath {
+                                LatexView(latex: formattedOption.parsedMathToLatex, isTextMode: true)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
                                 Text(LocalizedStringKey(optionText.parsedInlineMathToMarkdown))
@@ -1324,8 +1330,9 @@ struct IsolatedQuestionCard: View {
                     } else if content.contains("||") {
                         ExampleView(text: content, themeColor: themeColor)
                             .padding(20)
-                    } else if content.contains("$") {
-                        LatexView(latex: content.parsedMathToLatex, isTextMode: true)
+                    } else if content.contains("$") || content.contains("\\") {
+                        let formattedContent = (content.contains("\\") && !content.contains("$")) ? "$\(content)$" : content
+                        LatexView(latex: formattedContent.parsedMathToLatex, isTextMode: true)
                             .padding(20)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
@@ -1389,8 +1396,11 @@ struct ProgressiveStepsView: View {
                     }
                     
                     let stepText = steps[index]
-                    if stepText.contains("$") {
-                        LatexView(latex: stepText.parsedMathToLatex, isTextMode: true)
+                    let hasMath = stepText.contains("$") || stepText.contains("\\")
+                    let formattedStep = (hasMath && !stepText.contains("$")) ? "$\(stepText)$" : stepText
+                    
+                    if hasMath {
+                        LatexView(latex: formattedStep.parsedMathToLatex, isTextMode: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text(LocalizedStringKey(stepText.parsedInlineMathToMarkdown))
