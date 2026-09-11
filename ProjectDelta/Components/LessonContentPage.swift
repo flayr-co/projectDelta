@@ -139,7 +139,6 @@ struct LessonContentPage: View {
 
                 if let graphData = page.graphData {
                     DynamicGraphView(data: graphData, isScrollLocked: true)
-                        .aspectRatio(1.0, contentMode: .fit)
                         .padding(.horizontal, -8)
                         .padding(.vertical, 16)
                 }
@@ -312,7 +311,6 @@ struct LessonContentPage: View {
             
         case .graph(let graphContent, let graphType):
             DynamicGraphView(data: GraphContentParser.graphData(from: graphContent, graphType: graphType), isScrollLocked: true)
-                .aspectRatio(1.0, contentMode: .fit)
                 .padding(.horizontal, -8)
                 .padding(.vertical, 16)
         }
