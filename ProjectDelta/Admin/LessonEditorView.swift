@@ -24,14 +24,16 @@ struct LessonEditorView: View {
     
     var lesson: Lesson
     var subject: Subject
+    var onSave: (() -> Void)? = nil
     
     let primaryTeal = Color(red: 0.12, green: 0.65, blue: 0.65)
     let glowingPurple = Color(red: 0.6, green: 0.2, blue: 0.9)
     let vibrantOrange = Color.orange
     
-    init(lesson: Lesson = Lesson(id: nil, name: "", description: "", completed: false, lessonNumber: 1, pages: nil), subject: Subject) {
+    init(lesson: Lesson = Lesson(id: nil, name: "", description: "", completed: false, lessonNumber: 1, pages: nil), subject: Subject, onSave: (() -> Void)? = nil) {
         self.lesson = lesson
         self.subject = subject
+        self.onSave = onSave
         _lessonTitle = State(initialValue: lesson.name)
         
         var initialPages = lesson.pages ?? []
@@ -366,7 +368,11 @@ struct LessonEditorView: View {
                     lessonData["id"] = newDocRef.documentID
                     try await newDocRef.setData(lessonData)
                 }
-                dismiss()
+                
+                await MainActor.run {
+                    onSave?()
+                    dismiss()
+                }
             } catch {
                 print("Failed to save lesson architecture: \(error.localizedDescription)")
             }

@@ -240,7 +240,16 @@ struct LessonManagerView: View {
                     #endif
                 }
                 .navigationDestination(item: $selectedLesson) { lesson in
-                    LessonEditorView(lesson: lesson, subject: subject)
+                    LessonEditorView(
+                        lesson: lesson,
+                        subject: subject,
+                        onSave: {
+                            Task {
+                                await viewModel.fetchLessons(for: subject.id ?? "")
+                                await viewModel.fetchSubjects()
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -270,7 +279,13 @@ struct LessonManagerView: View {
             NavigationStack {
                 LessonEditorView(
                     lesson: Lesson(id: nil, name: "", description: "", completed: false, lessonNumber: viewModel.lessons.count + 1, pages: nil),
-                    subject: subject
+                    subject: subject,
+                    onSave: {
+                        Task {
+                            await viewModel.fetchLessons(for: subject.id ?? "")
+                            await viewModel.fetchSubjects()
+                        }
+                    }
                 )
             }
         }

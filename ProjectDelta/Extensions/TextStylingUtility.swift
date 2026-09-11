@@ -14,7 +14,7 @@ struct TextStylingUtility {
         var isItalic = false
         var currentColor: Color = .primary
 
-        let regex = try! NSRegularExpression(pattern: "(\\*b|\\*b|\\*i|\\*i|\\*blue|\\*blue|\\\\newline)")
+        let regex = try! NSRegularExpression(pattern: "(\\*\\*|\\*|\\*blue|blue\\*|\\\\newline)")
         let range = NSRange(markupText.startIndex..<markupText.endIndex, in: markupText)
         let components = regex.splitTextAndSeparator(markupText, range: range)
 
@@ -25,27 +25,18 @@ struct TextStylingUtility {
             }
 
             var currentText = Text(component.text)
-            if isBold {
-                currentText = currentText.bold()
-            }
-            if isItalic {
-                currentText = currentText.italic()
-            }
+            if isBold { currentText = currentText.bold() }
+            if isItalic { currentText = currentText.italic() }
             currentText = currentText.foregroundColor(currentColor)
 
             textView = textView + currentText
 
             switch component.separator {
-            case "*b":
-                isBold.toggle()
-            case "*i":
-                isItalic.toggle()
-            case "*blue":
-                currentColor = .blue
-            case "blue*":
-                currentColor = .primary
-            default:
-                break
+            case "**": isBold.toggle()
+            case "*": isItalic.toggle()
+            case "*blue": currentColor = .blue
+            case "blue*": currentColor = .primary
+            default: break
             }
         }
 
@@ -77,11 +68,3 @@ private extension NSRegularExpression {
         return components
     }
 }
-
-
-
-
-
-//#Preview {
-//    TextStylingUtility()
-//}

@@ -113,18 +113,24 @@ struct LatexWebView: PlatformViewRepresentable {
         let greenColor = colorScheme == .dark ? "#4ADE80" : "green"
         
         var processedLatex = latex
+            // Safely parse robust asterisks color tags
             .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
-            .replacingOccurrences(of: "blue(.*?)blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "\\*red (.*?) red\\*", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
-            .replacingOccurrences(of: "red(.*?)red", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "\\*green (.*?) green\\*", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
-            .replacingOccurrences(of: "green(.*?)green", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
+            // Parse fallback plaintext color tags
+            .replacingOccurrences(of: "blue (.*?) blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
+            .replacingOccurrences(of: "red (.*?) red", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
+            .replacingOccurrences(of: "green (.*?) green", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
+            // Parse squished tags if present
+            .replacingOccurrences(of: "blue(.*?)blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
+            // Format math functions safely
             .replacingOccurrences(of: "\\\\bm", with: "\\\\boldsymbol ")
             .replacingOccurrences(of: "\n", with: isTextMode ? "<br>" : " \\\\ ")
             .replacingOccurrences(of: "\\n", with: isTextMode ? "<br>" : " \\\\ ")
         
         if isTextMode {
             processedLatex = processedLatex.replacingOccurrences(of: "\\*\\*(.*?)\\*\\*", with: "<b>$1</b>", options: .regularExpression)
+            processedLatex = processedLatex.replacingOccurrences(of: "\\*(.*?)\\*", with: "<i>$1</i>", options: .regularExpression)
         }
         
         let displayStyle = isTextMode ? "display: block;" : "display: flex; align-items: center; justify-content: flex-start;"
@@ -153,6 +159,8 @@ struct LatexWebView: PlatformViewRepresentable {
                         \(displayStyle)
                         overflow: visible;
                     }
+                    b, strong { font-weight: 800 !important; color: inherit; }
+                    i, em { font-style: italic; color: inherit; }
                     #math-container {
                         display: inline-block;
                         width: 100%;
@@ -231,5 +239,3 @@ struct LatexWebView: PlatformViewRepresentable {
         }
     }
 }
-
-

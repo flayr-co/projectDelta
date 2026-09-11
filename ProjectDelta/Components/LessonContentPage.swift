@@ -87,9 +87,14 @@ struct LessonContentPage: View {
             let endTagStr = isMath ? "[/MATH]" : "[/GRAPH]"
 
             if let endTagRange = remaining.range(of: endTagStr) {
-                let innerContent = String(remaining[..<endTagRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                var innerContent = String(remaining[..<endTagRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                
                 if isMath {
-                    blocks.append(ParsedContentBlock(id: "block_\(index)", type: .math(content: innerContent, caption: nil)))
+                    var captionText: String? = nil
+                    if let extracted = extractCaption(from: &innerContent) {
+                        captionText = extracted
+                    }
+                    blocks.append(ParsedContentBlock(id: "block_\(index)", type: .math(content: innerContent, caption: captionText)))
                 } else {
                     blocks.append(ParsedContentBlock(id: "block_\(index)", type: .graph(content: GraphContentParser.graphContent(from: innerContent), graphType: GraphContentParser.graphType(from: innerContent))))
                 }
@@ -113,11 +118,59 @@ struct LessonContentPage: View {
             let trimmedBlockContent = block.content.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmedBlockContent.isEmpty else { return nil }
             switch block.type {
-            case QuestionBlockType.math.rawValue: return ParsedContentBlock(id: block.id, type: .math(content: trimmedBlockContent, caption: block.caption))
-            case QuestionBlockType.graph.rawValue: return ParsedContentBlock(id: block.id, type: .graph(content: trimmedBlockContent, graphType: block.graphType))
-            default: return ParsedContentBlock(id: block.id, type: .text(trimmedBlockContent))
+            case QuestionBlockType.math.rawValue:
+                var actualContent = trimmedBlockContent
+                var actualCaption = block.caption
+                
+                // Rescue trapped captions from legacy database saves directly out of the JSON string
+                if let extracted = extractCaption(from: &actualContent) {
+                    actualCaption = extracted
+                }
+                
+                return ParsedContentBlock(id: block.id, type: .math(content: actualContent, caption: actualCaption))
+            case QuestionBlockType.graph.rawValue:
+                return ParsedContentBlock(id: block.id, type: .graph(content: trimmedBlockContent, graphType: block.graphType))
+            default:
+                return ParsedContentBlock(id: block.id, type: .text(trimmedBlockContent))
             }
         }
+    }
+    
+    // MARK: - Legacy Data Rescue Engines
+    private func extractCaption(from content: inout String) -> String? {
+        if let regex = try? NSRegularExpression(pattern: "\\[CAPTION\\](.*?)\\[/CAPTION\\]", options: [.caseInsensitive, .dotMatchesLineSeparators]) {
+            let nsString = content as NSString
+            if let match = regex.firstMatch(in: content, range: NSRange(location: 0, length: nsString.length)) {
+                let caption = nsString.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                content = regex.stringByReplacingMatches(in: content, range: NSRange(location: 0, length: nsString.length), withTemplate: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return caption
+            }
+        }
+        return nil
+    }
+
+    private func cleanLegacyText(_ text: String) -> String {
+        var cleaned = text
+        
+        // 1. Rescue \times \times -> ** (handles various spacing)
+        if let timesRegex = try? NSRegularExpression(pattern: "(?:\\\\times\\s*){2,}") {
+            let range = NSRange(cleaned.startIndex..., in: cleaned)
+            cleaned = timesRegex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "**")
+        }
+        
+        // 2. Rescue \bmx -> \boldsymbol{x}
+        if let bmLetterRegex = try? NSRegularExpression(pattern: "\\\\bm([a-zA-Z])") {
+            let range = NSRange(cleaned.startIndex..., in: cleaned)
+            cleaned = bmLetterRegex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "\\\\boldsymbol{$1}")
+        }
+        
+        // 3. Rescue \bm{x} -> \boldsymbol{x}
+        if let bmBraceRegex = try? NSRegularExpression(pattern: "\\\\bm(?![a-zA-Z])") {
+            let range = NSRange(cleaned.startIndex..., in: cleaned)
+            cleaned = bmBraceRegex.stringByReplacingMatches(in: cleaned, range: range, withTemplate: "\\\\boldsymbol")
+        }
+        
+        return cleaned
     }
 
     private func calculateHeight(for latex: String) -> CGFloat {
@@ -257,11 +310,13 @@ struct LessonContentPage: View {
     private func render(block: ParsedContentBlock) -> some View {
         switch block.type {
         case .text(let textContent):
-            if textContent.contains("$") {
-                LatexView(latex: textContent.parsedMathToLatex, isTextMode: true)
+            let sanitizedText = cleanLegacyText(textContent)
+            
+            if sanitizedText.contains("$") || sanitizedText.contains("\\") {
+                LatexView(latex: sanitizedText, isTextMode: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text(LocalizedStringKey(textContent.parsedInlineMathToMarkdown))
+                Text(LocalizedStringKey(sanitizedText))
                     .font(.system(size: 18, weight: .medium, design: .rounded))
                     .lineSpacing(8)
                     .foregroundColor(.primary.opacity(0.85))
@@ -270,12 +325,11 @@ struct LessonContentPage: View {
             }
             
         case .math(let latexContent, let caption):
-            let parsedLatex = latexContent.parsedMathToLatex
             VStack(alignment: .leading, spacing: 8) {
 #if os(macOS)
                 VStack(spacing: 0) {
-                    LatexView(latex: "$$ \(parsedLatex) $$")
-                        .frame(minHeight: calculateHeight(for: parsedLatex))
+                    LatexView(latex: "$$ \(latexContent) $$")
+                        .frame(minHeight: calculateHeight(for: latexContent))
                         .padding(24)
                         .frame(maxWidth: .infinity)
                         .background(
@@ -287,8 +341,8 @@ struct LessonContentPage: View {
                 }
 #else
                 HStack {
-                    LatexView(latex: "$$ \(parsedLatex) $$")
-                        .frame(minHeight: calculateHeight(for: parsedLatex) * 0.75)
+                    LatexView(latex: "$$ \(latexContent) $$")
+                        .frame(minHeight: calculateHeight(for: latexContent) * 0.75)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .background(
@@ -302,7 +356,7 @@ struct LessonContentPage: View {
 #endif
                 
                 if let caption = caption, !caption.isEmpty {
-                    Text(LocalizedStringKey(caption.parsedInlineMathToMarkdown))
+                    Text(LocalizedStringKey(caption))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 4)
@@ -434,14 +488,14 @@ struct ExampleView: View {
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.primary.opacity(0.05), lineWidth: 1))
             } else {
                 if item.example.contains("$") {
-                    LatexView(latex: item.example.parsedMathToLatex, isTextMode: true)
+                    LatexView(latex: item.example, isTextMode: true)
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)
                         .cornerRadius(12)
                         .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                 } else {
-                    Text(LocalizedStringKey(item.example.parsedInlineMathToMarkdown))
+                    Text(LocalizedStringKey(item.example))
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.white)

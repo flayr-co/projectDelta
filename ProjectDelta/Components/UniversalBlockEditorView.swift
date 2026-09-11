@@ -159,21 +159,21 @@ struct UniversalBlockEditorView: View {
                         .padding()
                 }
                 .navigationTitle("Bulk Exporter")
-#if os(iOS)
+                #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
-#endif
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Close") { showingBulkExporter = false }
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Copy") {
-#if canImport(UIKit)
+                            #if canImport(UIKit)
                             UIPasteboard.general.string = bulkExportText
-#elseif canImport(AppKit)
+                            #elseif canImport(AppKit)
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(bulkExportText, forType: .string)
-#endif
+                            #endif
                             showingBulkExporter = false
                         }
                         .fontWeight(.bold)
@@ -216,25 +216,22 @@ struct UniversalBlockEditorView: View {
             remaining = String(remaining[contentStart...])
             
             if let endRange = remaining.range(of: endTagStr) {
-                let content = String(remaining[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                var content = String(remaining[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
                 var block = QuestionBlockModel(
                     type: startTag == "TEXT" ? QuestionBlockType.text.rawValue : (startTag == "MATH" ? QuestionBlockType.math.rawValue : QuestionBlockType.graph.rawValue),
                     content: content
                 )
                 
-                remaining = String(remaining[endRange.upperBound...])
-                
                 if startTag == "MATH" {
-                    let nextText = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if nextText.hasPrefix("[CAPTION]") {
-                        if let captionEndRange = remaining.range(of: "[/CAPTION]") {
-                            let capStart = remaining.range(of: "[CAPTION]")!.upperBound
-                            let caption = String(remaining[capStart..<captionEndRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-                            block.caption = caption
-                            remaining = String(remaining[captionEndRange.upperBound...])
-                        }
+                    if let capStart = content.range(of: "[CAPTION]"), let capEnd = content.range(of: "[/CAPTION]") {
+                        let captionText = String(content[capStart.upperBound..<capEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        block.caption = captionText
+                        content = String(content[..<capStart.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        block.content = content
                     }
                 }
+                
+                remaining = String(remaining[endRange.upperBound...])
                 newBlocks.append(block)
             } else {
                 break
@@ -249,7 +246,7 @@ struct UniversalBlockEditorView: View {
             showingBulkImporter = false
         }
     }
-    
+
     private func generateRawText() -> String {
         var result = ""
         
@@ -869,7 +866,7 @@ struct LiveBlockRenderView: View {
         switch pBlock.type {
         case .text(let text):
             if text.contains("$") {
-                LatexView(latex: text.parsedMathToLatex, isTextMode: true)
+                LatexView(latex: text, isTextMode: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Text(LocalizedStringKey(text.parsedInlineMathToMarkdown))
