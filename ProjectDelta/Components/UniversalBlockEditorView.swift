@@ -14,6 +14,8 @@ struct UniversalBlockEditorView: View {
     @State private var isSaved: Bool = false
     @State private var showingBulkImporter: Bool = false
     @State private var bulkImportText: String = ""
+    @State private var showingBulkExporter: Bool = false
+    @State private var bulkExportText: String = ""
     
     var body: some View {
         VStack(spacing: 20) {
@@ -77,19 +79,38 @@ struct UniversalBlockEditorView: View {
                 }
                 
                 if !hideBulkImport {
-                    Button(action: { showingBulkImporter = true }) {
-                        HStack {
-                            Image(systemName: "doc.on.clipboard.fill")
-                            Text(importTitle)
+                    HStack(spacing: 12) {
+                        Button(action: { showingBulkImporter = true }) {
+                            HStack {
+                                Image(systemName: "doc.on.clipboard.fill")
+                                Text(importTitle)
+                            }
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.orange.gradient)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.orange.gradient)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .buttonStyle(.plain)
+                        
+                        Button(action: {
+                            bulkExportText = generateRawText()
+                            showingBulkExporter = true
+                        }) {
+                            HStack {
+                                Image(systemName: "doc.text.magnifyingglass")
+                                Text("Export Raw")
+                            }
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.indigo.gradient)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.top, 16)
@@ -122,6 +143,41 @@ struct UniversalBlockEditorView: View {
                         Button("Import") { processBulkImport() }
                             .fontWeight(.bold)
                             .tint(.orange)
+                    }
+                }
+                .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
+            }
+        }
+        .sheet(isPresented: $showingBulkExporter) {
+            NavigationStack {
+                VStack {
+                    TextEditor(text: .constant(bulkExportText))
+                        .font(.system(.body, design: .monospaced))
+                        .padding(12)
+                        .background(Color.platformSecondarySystemBackground)
+                        .cornerRadius(12)
+                        .padding()
+                }
+                .navigationTitle("Bulk Exporter")
+#if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+#endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { showingBulkExporter = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Copy") {
+#if canImport(UIKit)
+                            UIPasteboard.general.string = bulkExportText
+#elseif canImport(AppKit)
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(bulkExportText, forType: .string)
+#endif
+                            showingBulkExporter = false
+                        }
+                        .fontWeight(.bold)
+                        .tint(.indigo)
                     }
                 }
                 .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
@@ -192,6 +248,33 @@ struct UniversalBlockEditorView: View {
             bulkImportText = ""
             showingBulkImporter = false
         }
+    }
+    
+    private func generateRawText() -> String {
+        var result = ""
+        
+        for block in blocks {
+            let tag: String
+            if block.type == QuestionBlockType.text.rawValue {
+                tag = "TEXT"
+            } else if block.type == QuestionBlockType.math.rawValue {
+                tag = "MATH"
+            } else if block.type == QuestionBlockType.graph.rawValue {
+                tag = "GRAPH"
+            } else {
+                tag = block.type.uppercased()
+            }
+            
+            result += "[\(tag)]\n\(block.content)\n"
+            
+            if tag == "MATH", let cap = block.caption, !cap.isEmpty {
+                result += "[CAPTION]\(cap)[/CAPTION]\n"
+            }
+            
+            result += "[/\(tag)]\n\n"
+        }
+        
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
