@@ -28,6 +28,7 @@ class MathScratchpadViewModel {
     var cursorIndex: Int = 0
     
     var activeVariables: [String] = ["x", "y", "θ"]
+    var isCalculatorEnabled: Bool = false
     
     var isEmpty: Bool {
         lines.count == 1 && lines[0].isEmpty
@@ -135,6 +136,49 @@ class MathScratchpadViewModel {
         }
     }
     
+    // Crash-proof mathematical evaluation for simple numeric lines
+    func calculateCurrentLine() -> String? {
+        guard isCalculatorEnabled else { return nil }
+        let tokens = lines[activeLineIndex]
+        guard !tokens.isEmpty else { return nil }
+        
+        let valid = tokens.allSatisfy { $0.type == .number || ["+", "-", "×", "÷", "(", ")", ".", "\\pi"].contains($0.value) }
+        guard valid else { return nil }
+        
+        var mathString = ""
+        for t in tokens {
+            if t.value == "×" { mathString += "*" }
+            else if t.value == "÷" { mathString += ".0/" }
+            else if t.value == "\\pi" { mathString += "3.14159265359" }
+            else { mathString += t.value }
+        }
+        
+        let allowed = CharacterSet(charactersIn: "0123456789+-*/(). ")
+        guard mathString.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
+        
+        // Strict layout validation to prevent NSExpression crashes
+        let pattern = "([\\+\\-\\*\\/]{2,}|[\\+\\-\\*\\/]$|^[\\*\\/])|\\(\\)"
+        if mathString.range(of: pattern, options: .regularExpression) != nil { return nil }
+        
+        var open = 0
+        for char in mathString {
+            if char == "(" { open += 1 }
+            if char == ")" { open -= 1 }
+            if open < 0 { return nil }
+        }
+        if open != 0 { return nil }
+        
+        let exp = NSExpression(format: mathString)
+        if let result = exp.expressionValue(with: nil, context: nil) as? Double {
+            if result.isNaN || result.isInfinite { return nil }
+            let formatter = NumberFormatter()
+            formatter.minimumFractionDigits = 0
+            formatter.maximumFractionDigits = 5
+            return formatter.string(from: NSNumber(value: result))
+        }
+        return nil
+    }
+    
     func loadEquation(_ equation: String) {
         self.clearAll()
         let cleanInput = equation.replacingOccurrences(of: " ", with: "")
@@ -209,16 +253,29 @@ struct MathScratchpadView: View {
                 
                 Spacer()
                 
-                Button(action: {
-                    withAnimation(.snappy) { viewModel.clearAll() }
-                }) {
-                    Image(systemName: "trash.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.red)
-                        .padding(9)
-                        .background(Color.red.opacity(0.12), in: .circle)
+                HStack(spacing: 12) {
+                    Button(action: {
+                        withAnimation(.snappy) { viewModel.isCalculatorEnabled.toggle() }
+                    }) {
+                        Image(systemName: viewModel.isCalculatorEnabled ? "equal.circle.fill" : "plus.forwardslash.minus")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(viewModel.isCalculatorEnabled ? Color.white : Color.green)
+                            .padding(8)
+                            .background(viewModel.isCalculatorEnabled ? Color.green : Color.green.opacity(0.12), in: .circle)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: {
+                        withAnimation(.snappy) { viewModel.clearAll() }
+                    }) {
+                        Image(systemName: "trash.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color.red)
+                            .padding(9)
+                            .background(Color.red.opacity(0.12), in: .circle)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 24)
             .padding(.top, 20)
@@ -230,6 +287,7 @@ struct MathScratchpadView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(0..<viewModel.lines.count, id: \.self) { lineIndex in
                             MathLineView(
+                                viewModel: viewModel,
                                 tokens: viewModel.lines[lineIndex],
                                 isActive: lineIndex == viewModel.activeLineIndex,
                                 cursorIndex: lineIndex == viewModel.activeLineIndex ? viewModel.cursorIndex : nil,
@@ -294,7 +352,6 @@ struct MathScratchpadView: View {
                     }
                 }
                 .onChange(of: isKeypadExpanded) { _, _ in
-                    // Delay slightly to allow the keypad expansion layout pass to complete before calculating the scroll target
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                         withAnimation(.snappy) {
                             proxy.scrollTo(viewModel.activeLineIndex, anchor: .bottom)
@@ -344,7 +401,7 @@ struct DotGridBackground: View {
 
 struct FlowLayout: Layout {
     var spacing: CGFloat = 0
-    var lineSpacing: CGFloat = 8
+    var lineSpacing: CGFloat = 4
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
@@ -406,6 +463,7 @@ struct FlowLayout: Layout {
 // MARK: - Line & Token Rendering
 
 struct MathLineView: View {
+    let viewModel: MathScratchpadViewModel
     let tokens: [MathToken]
     let isActive: Bool
     let cursorIndex: Int?
@@ -426,32 +484,50 @@ struct MathLineView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     let latexString = tokens.map { $0.value }.joined()
                     
-                    // INLINE PREVIEW: Pre-warmed with \phantom to prevent WKWebView init lag and layout jumping
+                    // Focal Point: Pre-warmed Inline Preview
                     LatexView(latex: "$$ \(latexString.isEmpty ? "\\phantom{A}" : latexString) $$")
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 8)
-                        .padding(.leading, 14)
+                        .padding(.top, 6)
+                        .padding(.leading, 8)
                         .opacity(latexString.isEmpty ? 0 : 1)
                     
-                    FlowLayout(spacing: 0, lineSpacing: 10) {
-                        Color.clear
-                            .frame(width: 10, height: 24)
-                            .contentShape(Rectangle())
-                            .onTapGesture { onCursorTap(0) }
-                            .overlay(alignment: .trailing) {
-                                if cursorIndex == 0 { BlinkingCursor() }
-                            }
-                        
-                        ForEach(0..<tokens.count, id: \.self) { i in
-                            TokenView(token: tokens[i])
-                                .onTapGesture { onCursorTap(i + 1) }
+                    HStack(alignment: .top) {
+                        // Deemphasized Raw Input
+                        FlowLayout(spacing: 0, lineSpacing: 4) {
+                            Color.clear
+                                .frame(width: 6, height: 18)
+                                .contentShape(Rectangle())
+                                .onTapGesture { onCursorTap(0) }
                                 .overlay(alignment: .trailing) {
-                                    if cursorIndex == i + 1 { BlinkingCursor() }
+                                    if cursorIndex == 0 { BlinkingCursor() }
                                 }
+                            
+                            ForEach(0..<tokens.count, id: \.self) { i in
+                                TokenView(token: tokens[i])
+                                    .onTapGesture { onCursorTap(i + 1) }
+                                    .overlay(alignment: .trailing) {
+                                        if cursorIndex == i + 1 { BlinkingCursor() }
+                                    }
+                            }
+                        }
+                        .opacity(0.6)
+                        
+                        Spacer(minLength: 8)
+                        
+                        // Inline Calculator Result Injection
+                        if let result = viewModel.calculateCurrentLine() {
+                            Text("= \(result)")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.green)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.12), in: .capsule)
+                                .transition(.scale.combined(with: .opacity))
                         }
                     }
-                    .padding(.vertical, 8)
+                    .padding(.bottom, 12)
                     .padding(.trailing, 12)
+                    .padding(.leading, 8)
                 }
             } else {
                 let latexString = tokens.map { $0.value }.joined()
@@ -471,10 +547,10 @@ struct MathLineView: View {
                 }
             }
         }
-        .frame(minHeight: 52)
+        .frame(minHeight: 44)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isActive ? (colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03)) : Color.clear)
+                .fill(isActive ? (colorScheme == .dark ? Color.white.opacity(0.02) : Color.black.opacity(0.015)) : Color.clear)
         )
     }
 }
@@ -486,7 +562,7 @@ struct BlinkingCursor: View {
     var body: some View {
         Capsule()
             .fill(emeraldAccent)
-            .frame(width: 2.5, height: 22)
+            .frame(width: 2.5, height: 18)
             .offset(x: 1.25)
             .shadow(color: emeraldAccent.opacity(0.8), radius: 4, y: 0)
             .opacity(isBlinking ? 1.0 : 0.0)
@@ -504,18 +580,17 @@ struct TokenView: View {
     
     var body: some View {
         Text(token.value)
-            .font(.system(size: 20, weight: weightForType(token.type), design: .rounded))
+            .font(.system(size: 15, weight: weightForType(token.type), design: .monospaced))
             .italic(token.type == .variable)
             .foregroundStyle(colorForType(token.type))
             .padding(.horizontal, paddingForType(token.type))
-            .background(backgroundForType(token.type), in: .rect(cornerRadius: 6, style: .continuous))
             .contentShape(Rectangle())
     }
     
     private func paddingForType(_ type: TokenType) -> CGFloat {
         switch type {
-        case .operatorSymbol, .structural: return 3
-        case .function: return 2
+        case .operatorSymbol, .structural: return 2
+        case .function: return 1
         case .number, .variable: return 0.5
         }
     }
@@ -535,13 +610,6 @@ struct TokenView: View {
         case .operatorSymbol: return Color(red: 1.0, green: 0.60, blue: 0.15)
         case .function: return colorScheme == .dark ? Color(red: 0.85, green: 0.55, blue: 1.0) : Color.purple
         case .structural: return .secondary
-        }
-    }
-    
-    private func backgroundForType(_ type: TokenType) -> Color {
-        switch type {
-        case .function: return Color.primary.opacity(0.04)
-        default: return Color.clear
         }
     }
 }

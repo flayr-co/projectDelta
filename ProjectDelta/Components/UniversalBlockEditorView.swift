@@ -540,7 +540,7 @@ fileprivate struct BlockEditCell: View {
             if isFocused {
                 // Initialize a temporary view model just for the block editor's keypad
                 @State var tempViewModel = MathScratchpadViewModel()
-                MathKeypadView(viewModel: tempViewModel)
+                MathKeypadView(viewModel: tempViewModel, isExpanded: .constant(true))
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     // When the keypad updates the view model, push changes to the block content
                     .onChange(of: tempViewModel.lines) { _, _ in
