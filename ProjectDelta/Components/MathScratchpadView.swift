@@ -135,13 +135,10 @@ class MathScratchpadViewModel {
         }
     }
     
-    // Parses and loads an initial equation into the scratchpad without destroying LaTeX formatting
     func loadEquation(_ equation: String) {
         self.clearAll()
-        
-        // Removed aggressive LaTeX stripping to keep structure intact
         let cleanInput = equation.replacingOccurrences(of: " ", with: "")
-        
+            
         var parsedTokens: [MathToken] = []
         var currentNumber = ""
         var currentVariable = ""
@@ -184,7 +181,6 @@ class MathScratchpadViewModel {
         
         if !parsedTokens.isEmpty {
             self.lines[0] = parsedTokens
-            // Automatically push to a new line so the loaded equation renders
             self.newLine()
         }
     }
@@ -196,6 +192,7 @@ struct MathScratchpadView: View {
     @Bindable var viewModel: MathScratchpadViewModel
     @Environment(\.colorScheme) var colorScheme
     @FocusState private var isCanvasFocused: Bool
+    @State private var isKeypadExpanded: Bool = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -227,19 +224,6 @@ struct MathScratchpadView: View {
             .padding(.top, 20)
             .padding(.bottom, 12)
             
-            // Live Preview of the Active Equation
-            let activeLineString = viewModel.lines[viewModel.activeLineIndex].map { $0.value }.joined()
-            if !activeLineString.isEmpty {
-                LatexView(latex: "$$ \(activeLineString) $$")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03))
-                    )
-                    .padding(.horizontal, 20)
-            }
-            
             // Equation Canvas
             ScrollViewReader { proxy in
                 ScrollView {
@@ -265,7 +249,7 @@ struct MathScratchpadView: View {
                 .background(DotGridBackground())
                 .focusable()
                 .focused($isCanvasFocused)
-                // Hardware Keyboard Intercepts mapping keystrokes to view model inputs
+                // Hardware Keyboard Intercepts mapped cleanly to suppress OS beeps
                 .onKeyPress(phases: .down) { press in
                     if press.key == .delete || press.key == KeyEquivalent("\u{7F}") || press.key == KeyEquivalent("\u{08}") {
                         viewModel.backspace()
@@ -284,7 +268,7 @@ struct MathScratchpadView: View {
                         return .handled
                     }
                     if press.key == .space {
-                        return .handled // Gracefully consume spacebar so it doesn't beep
+                        return .handled // Gracefully consume spacebar
                     }
                     if let char = press.characters.first {
                         if char.isNumber {
@@ -293,9 +277,12 @@ struct MathScratchpadView: View {
                         } else if char.isLetter {
                             viewModel.insert(String(char), type: .variable)
                             return .handled
-                        } else if ["+", "-", "=", "(", ")", "/", "*", "^", ".", "<", ">"].contains(char) {
+                        } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">"].contains(char) {
                             let mappedChar = char == "/" ? "÷" : (char == "*" ? "×" : String(char))
                             viewModel.insert(mappedChar, type: .operatorSymbol)
+                            return .handled
+                        } else if ["(", ")", "[", "]", "{", "}"].contains(char) {
+                            viewModel.insert(String(char), type: .structural)
                             return .handled
                         }
                     }
@@ -306,10 +293,18 @@ struct MathScratchpadView: View {
                         proxy.scrollTo(newIndex, anchor: .bottom)
                     }
                 }
+                .onChange(of: isKeypadExpanded) { _, _ in
+                    // Delay slightly to allow the keypad expansion layout pass to complete before calculating the scroll target
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        withAnimation(.snappy) {
+                            proxy.scrollTo(viewModel.activeLineIndex, anchor: .bottom)
+                        }
+                    }
+                }
             }
             
             // Custom Keypad
-            MathKeypadView(viewModel: viewModel)
+            MathKeypadView(viewModel: viewModel, isExpanded: $isKeypadExpanded)
         }
         .background(
             ZStack {
@@ -346,6 +341,7 @@ struct DotGridBackground: View {
 }
 
 // MARK: - Layout Engine
+
 struct FlowLayout: Layout {
     var spacing: CGFloat = 0
     var lineSpacing: CGFloat = 8
@@ -427,25 +423,36 @@ struct MathLineView: View {
                 .padding(.vertical, 6)
             
             if isActive {
-                FlowLayout(spacing: 0, lineSpacing: 10) {
-                    Color.clear
-                        .frame(width: 10, height: 32)
-                        .contentShape(Rectangle())
-                        .onTapGesture { onCursorTap(0) }
-                        .overlay(alignment: .trailing) {
-                            if cursorIndex == 0 { BlinkingCursor() }
-                        }
+                VStack(alignment: .leading, spacing: 0) {
+                    let latexString = tokens.map { $0.value }.joined()
                     
-                    ForEach(0..<tokens.count, id: \.self) { i in
-                        TokenView(token: tokens[i])
-                            .onTapGesture { onCursorTap(i + 1) }
+                    // INLINE PREVIEW: Pre-warmed with \phantom to prevent WKWebView init lag and layout jumping
+                    LatexView(latex: "$$ \(latexString.isEmpty ? "\\phantom{A}" : latexString) $$")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 8)
+                        .padding(.leading, 14)
+                        .opacity(latexString.isEmpty ? 0 : 1)
+                    
+                    FlowLayout(spacing: 0, lineSpacing: 10) {
+                        Color.clear
+                            .frame(width: 10, height: 24)
+                            .contentShape(Rectangle())
+                            .onTapGesture { onCursorTap(0) }
                             .overlay(alignment: .trailing) {
-                                if cursorIndex == i + 1 { BlinkingCursor() }
+                                if cursorIndex == 0 { BlinkingCursor() }
                             }
+                        
+                        ForEach(0..<tokens.count, id: \.self) { i in
+                            TokenView(token: tokens[i])
+                                .onTapGesture { onCursorTap(i + 1) }
+                                .overlay(alignment: .trailing) {
+                                    if cursorIndex == i + 1 { BlinkingCursor() }
+                                }
+                        }
                     }
+                    .padding(.vertical, 8)
+                    .padding(.trailing, 12)
                 }
-                .padding(.vertical, 12)
-                .padding(.trailing, 12)
             } else {
                 let latexString = tokens.map { $0.value }.joined()
                 
@@ -543,85 +550,134 @@ struct TokenView: View {
 
 struct MathKeypadView: View {
     @Bindable var viewModel: MathScratchpadViewModel
-    @State private var triggerHaptic = false
+    @Binding var isExpanded: Bool
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         VStack(spacing: 10) {
             // Context Variables & Functions Rail
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(["x", "y", "θ", "π"], id: \.self) { variable in
-                        let isPi = variable == "π"
-                        KeypadButton(text: variable, type: isPi ? .function : .variable, style: .variable) {
-                            viewModel.insert(isPi ? "\\pi" : variable, type: isPi ? .function : .variable)
-                            triggerHaptic.toggle()
+            HStack(spacing: 8) {
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        isExpanded.toggle()
+                        playHaptic()
+                    }
+                }) {
+                    Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.up.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(isExpanded ? Color.orange : Color.blue)
+                        .frame(width: 44, height: 44)
+                        .background(Color.primary.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(KeypadPressStyle())
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(["x", "y", "θ", "π"], id: \.self) { variable in
+                            let isPi = variable == "π"
+                            KeypadButton(text: variable, type: isPi ? .function : .variable, style: .variable) {
+                                viewModel.insert(isPi ? "\\pi" : variable, type: isPi ? .function : .variable)
+                                playHaptic()
+                            }
+                            .frame(width: 50)
+                        }
+                        
+                        Divider().frame(height: 22)
+                        
+                        ForEach(["sin", "cos", "tan", "ln"], id: \.self) { fn in
+                            KeypadButton(text: fn, type: .function, style: .function) {
+                                viewModel.insert("\\\(fn)(", type: .function)
+                                viewModel.insert(")", type: .structural)
+                                viewModel.moveCursorLeft() // Trap cursor inside parenthesis
+                                playHaptic()
+                            }
+                            .frame(width: 54)
+                        }
+                        
+                        KeypadButton(text: "√", type: .function, style: .function) {
+                            viewModel.insert("\\sqrt{", type: .function)
+                            viewModel.insert("}", type: .structural)
+                            viewModel.moveCursorLeft() // Trap cursor inside brace
+                            playHaptic()
                         }
                         .frame(width: 50)
-                    }
-                    
-                    Divider().frame(height: 22)
-                    
-                    ForEach(["sin", "cos", "tan", "ln"], id: \.self) { fn in
-                        KeypadButton(text: fn, type: .function, style: .function) {
-                            viewModel.insert("\\\(fn)(", type: .function)
-                            viewModel.insert(")", type: .structural)
-                            viewModel.moveCursorLeft()
-                            triggerHaptic.toggle()
+                        
+                        Divider().frame(height: 22)
+                        
+                        KeypadButton(icon: "arrow.right", style: .action) {
+                            viewModel.moveCursorRight()
+                            playHaptic()
                         }
                         .frame(width: 54)
                     }
-                    
-                    KeypadButton(text: "√", type: .function, style: .function) {
-                        viewModel.insert("\\sqrt{", type: .function)
-                        viewModel.insert("}", type: .structural)
-                        viewModel.moveCursorLeft()
-                        triggerHaptic.toggle()
-                    }
-                    .frame(width: 50)
-                    
-                    Divider().frame(height: 22)
-                    
-                    KeypadButton(icon: "arrow.right", style: .action) {
-                        viewModel.moveCursorRight()
-                        triggerHaptic.toggle()
-                    }
-                    .frame(width: 54)
                 }
-                .padding(.horizontal, 16)
             }
-            .frame(height: 42)
+            .frame(height: 44)
+            .padding(.horizontal, 16)
             .padding(.top, 14)
             
             // Grid-based Math Keypad
             Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+                if isExpanded {
+                    GridRow {
+                        KeypadButton(text: "a/b", type: .function, style: .action) {
+                            viewModel.insert("\\frac{", type: .function)
+                            viewModel.insert("}", type: .structural)
+                            viewModel.insert("{", type: .structural)
+                            viewModel.insert("}", type: .structural)
+                            viewModel.moveCursorLeft()
+                            viewModel.moveCursorLeft()
+                            viewModel.moveCursorLeft()
+                            playHaptic()
+                        }
+                        KeypadButton(text: "(", type: .structural, style: .operator) { viewModel.insert("(", type: .structural); playHaptic() }
+                        KeypadButton(text: ")", type: .structural, style: .operator) { viewModel.insert(")", type: .structural); playHaptic() }
+                        KeypadButton(text: "[", type: .structural, style: .operator) { viewModel.insert("[", type: .structural); playHaptic() }
+                        KeypadButton(text: "]", type: .structural, style: .operator) { viewModel.insert("]", type: .structural); playHaptic() }
+                    }
+                    
+                    GridRow {
+                        KeypadButton(text: "{", type: .structural, style: .operator) { viewModel.insert("\\{", type: .structural); playHaptic() }
+                        KeypadButton(text: "}", type: .structural, style: .operator) { viewModel.insert("\\}", type: .structural); playHaptic() }
+                        KeypadButton(text: "∫", type: .function, style: .operator) { viewModel.insert("\\int", type: .function); playHaptic() }
+                        KeypadButton(text: "∞", type: .number, style: .operator) { viewModel.insert("\\infty", type: .number); playHaptic() }
+                        KeypadButton(text: "°", type: .operatorSymbol, style: .operator) { viewModel.insert("^{\\circ}", type: .operatorSymbol); playHaptic() }
+                    }
+                }
+                
                 GridRow {
-                    KeypadButton(text: "7", style: .number) { viewModel.insert("7", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "8", style: .number) { viewModel.insert("8", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "9", style: .number) { viewModel.insert("9", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "÷", type: .operatorSymbol, style: .operator) { viewModel.insert("÷", type: .operatorSymbol); triggerHaptic.toggle() }
-                    KeypadButton(icon: "delete.left.fill", style: .destructive) { viewModel.backspace(); triggerHaptic.toggle() }
+                    KeypadButton(text: "7", style: .number) { viewModel.insert("7", type: .number); playHaptic() }
+                    KeypadButton(text: "8", style: .number) { viewModel.insert("8", type: .number); playHaptic() }
+                    KeypadButton(text: "9", style: .number) { viewModel.insert("9", type: .number); playHaptic() }
+                    KeypadButton(text: "÷", type: .operatorSymbol, style: .operator) { viewModel.insert("÷", type: .operatorSymbol); playHaptic() }
+                    KeypadButton(icon: "delete.left.fill", style: .destructive) { viewModel.backspace(); playHaptic() }
                 }
                 GridRow {
-                    KeypadButton(text: "4", style: .number) { viewModel.insert("4", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "5", style: .number) { viewModel.insert("5", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "6", style: .number) { viewModel.insert("6", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "×", type: .operatorSymbol, style: .operator) { viewModel.insert("×", type: .operatorSymbol); triggerHaptic.toggle() }
-                    KeypadButton(text: "^", type: .operatorSymbol, style: .operator) { viewModel.insert("^", type: .operatorSymbol); triggerHaptic.toggle() }
+                    KeypadButton(text: "4", style: .number) { viewModel.insert("4", type: .number); playHaptic() }
+                    KeypadButton(text: "5", style: .number) { viewModel.insert("5", type: .number); playHaptic() }
+                    KeypadButton(text: "6", style: .number) { viewModel.insert("6", type: .number); playHaptic() }
+                    KeypadButton(text: "×", type: .operatorSymbol, style: .operator) { viewModel.insert("×", type: .operatorSymbol); playHaptic() }
+                    KeypadButton(text: "^", type: .operatorSymbol, style: .operator) { viewModel.insert("^", type: .operatorSymbol); playHaptic() }
                 }
                 GridRow {
-                    KeypadButton(text: "1", style: .number) { viewModel.insert("1", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "2", style: .number) { viewModel.insert("2", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "3", style: .number) { viewModel.insert("3", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "-", type: .operatorSymbol, style: .operator) { viewModel.insert("-", type: .operatorSymbol); triggerHaptic.toggle() }
-                    KeypadButton(text: "=", type: .operatorSymbol, style: .action) { viewModel.insert("=", type: .operatorSymbol); triggerHaptic.toggle() }
+                    KeypadButton(text: "1", style: .number) { viewModel.insert("1", type: .number); playHaptic() }
+                    KeypadButton(text: "2", style: .number) { viewModel.insert("2", type: .number); playHaptic() }
+                    KeypadButton(text: "3", style: .number) { viewModel.insert("3", type: .number); playHaptic() }
+                    KeypadButton(text: "-", type: .operatorSymbol, style: .operator) { viewModel.insert("-", type: .operatorSymbol); playHaptic() }
+                    KeypadButton(text: "=", type: .operatorSymbol, style: .action) { viewModel.insert("=", type: .operatorSymbol); playHaptic() }
                 }
                 GridRow {
-                    KeypadButton(text: ".", style: .number) { viewModel.insert(".", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "0", style: .number) { viewModel.insert("0", type: .number); triggerHaptic.toggle() }
-                    KeypadButton(text: "( )", type: .structural, style: .number) { viewModel.insert("(", type: .structural); triggerHaptic.toggle() }
-                    KeypadButton(text: "+", type: .operatorSymbol, style: .operator) { viewModel.insert("+", type: .operatorSymbol); triggerHaptic.toggle() }
-                    KeypadButton(icon: "return", style: .confirm) { viewModel.newLine(); triggerHaptic.toggle() }
+                    KeypadButton(text: ".", style: .number) { viewModel.insert(".", type: .number); playHaptic() }
+                    KeypadButton(text: "0", style: .number) { viewModel.insert("0", type: .number); playHaptic() }
+                    KeypadButton(text: "( )", type: .structural, style: .operator) {
+                        viewModel.insert("(", type: .structural)
+                        viewModel.insert(")", type: .structural)
+                        viewModel.moveCursorLeft() // Auto-pair and trap cursor
+                        playHaptic()
+                    }
+                    KeypadButton(text: "+", type: .operatorSymbol, style: .operator) { viewModel.insert("+", type: .operatorSymbol); playHaptic() }
+                    KeypadButton(icon: "return", style: .confirm) { viewModel.newLine(); playHaptic() }
                 }
             }
             .padding(.horizontal, 16)
@@ -643,7 +699,16 @@ struct MathKeypadView: View {
                 )
                 .shadow(color: .black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 24, y: -6)
         )
-        .sensoryFeedback(.selection, trigger: triggerHaptic)
+    }
+    
+    private func playHaptic() {
+        #if os(iOS)
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.prepare()
+        generator.impactOccurred()
+        #elseif os(macOS)
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
+        #endif
     }
 }
 
@@ -658,6 +723,7 @@ struct KeypadButton: View {
     var icon: String? = nil
     var type: TokenType = .number
     var style: KeypadButtonStyleType
+    var shortcut: KeyboardShortcut? = nil
     var action: () -> Void
     
     @Environment(\.colorScheme) var colorScheme
@@ -688,6 +754,7 @@ struct KeypadButton: View {
             .frame(height: 52)
         }
         .buttonStyle(KeypadPressStyle())
+        .keyboardShortcut(shortcut)
     }
     
     private var backgroundColor: AnyShapeStyle {
