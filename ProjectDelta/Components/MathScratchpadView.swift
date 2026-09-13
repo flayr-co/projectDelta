@@ -40,6 +40,40 @@ class MathScratchpadViewModel {
                 lines[activeLineIndex][cursorIndex - 1].value += value
                 return
             }
+        } else if type == .variable && cursorIndex > 0 {
+            let prevToken = lines[activeLineIndex][cursorIndex - 1]
+            if prevToken.type == .variable {
+                lines[activeLineIndex][cursorIndex - 1].value += value
+                
+                // Hardware Keyboard Macro Expansion (Auto-closing brackets)
+                let merged = lines[activeLineIndex][cursorIndex - 1].value
+                switch merged {
+                case "sin":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\sin(", type: .function)
+                    lines[activeLineIndex].insert(MathToken(value: ")", type: .structural), at: cursorIndex)
+                case "cos":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\cos(", type: .function)
+                    lines[activeLineIndex].insert(MathToken(value: ")", type: .structural), at: cursorIndex)
+                case "tan":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\tan(", type: .function)
+                    lines[activeLineIndex].insert(MathToken(value: ")", type: .structural), at: cursorIndex)
+                case "ln":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\ln(", type: .function)
+                    lines[activeLineIndex].insert(MathToken(value: ")", type: .structural), at: cursorIndex)
+                case "log":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\log_{10}(", type: .function)
+                    lines[activeLineIndex].insert(MathToken(value: ")", type: .structural), at: cursorIndex)
+                case "sqrt":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\sqrt{", type: .function)
+                    lines[activeLineIndex].insert(MathToken(value: "}", type: .structural), at: cursorIndex)
+                case "pi":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\pi", type: .function)
+                case "theta":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\theta", type: .function)
+                default: break
+                }
+                return
+            }
         }
         
         let token = MathToken(value: value, type: type)
@@ -52,6 +86,10 @@ class MathScratchpadViewModel {
             let prevToken = lines[activeLineIndex][cursorIndex - 1]
             
             if prevToken.type == .number && prevToken.value.count > 1 {
+                var modifiedToken = prevToken
+                modifiedToken.value.removeLast()
+                lines[activeLineIndex][cursorIndex - 1] = modifiedToken
+            } else if prevToken.type == .variable && prevToken.value.count > 1 {
                 var modifiedToken = prevToken
                 modifiedToken.value.removeLast()
                 lines[activeLineIndex][cursorIndex - 1] = modifiedToken
@@ -85,17 +123,25 @@ class MathScratchpadViewModel {
         cursorIndex = index
     }
     
-    // Parses and loads an initial equation into the scratchpad
+    func moveCursorRight() {
+        if cursorIndex < lines[activeLineIndex].count {
+            cursorIndex += 1
+        }
+    }
+    
+    func moveCursorLeft() {
+        if cursorIndex > 0 {
+            cursorIndex -= 1
+        }
+    }
+    
+    // Parses and loads an initial equation into the scratchpad without destroying LaTeX formatting
     func loadEquation(_ equation: String) {
         self.clearAll()
         
-        let cleanInput = equation
-            .replacingOccurrences(of: "\\", with: "")
-            .replacingOccurrences(of: "frac", with: "")
-            .replacingOccurrences(of: "{", with: "")
-            .replacingOccurrences(of: "}", with: "")
-            .replacingOccurrences(of: " ", with: "")
-            
+        // Removed aggressive LaTeX stripping to keep structure intact
+        let cleanInput = equation.replacingOccurrences(of: " ", with: "")
+        
         var parsedTokens: [MathToken] = []
         var currentNumber = ""
         var currentVariable = ""
@@ -138,7 +184,8 @@ class MathScratchpadViewModel {
         
         if !parsedTokens.isEmpty {
             self.lines[0] = parsedTokens
-            self.cursorIndex = parsedTokens.count
+            // Automatically push to a new line so the loaded equation renders
+            self.newLine()
         }
     }
 }
@@ -148,6 +195,7 @@ class MathScratchpadViewModel {
 struct MathScratchpadView: View {
     @Bindable var viewModel: MathScratchpadViewModel
     @Environment(\.colorScheme) var colorScheme
+    @FocusState private var isCanvasFocused: Bool
     
     var body: some View {
         VStack(spacing: 0) {
@@ -179,6 +227,19 @@ struct MathScratchpadView: View {
             .padding(.top, 20)
             .padding(.bottom, 12)
             
+            // Live Preview of the Active Equation
+            let activeLineString = viewModel.lines[viewModel.activeLineIndex].map { $0.value }.joined()
+            if !activeLineString.isEmpty {
+                LatexView(latex: "$$ \(activeLineString) $$")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03))
+                    )
+                    .padding(.horizontal, 20)
+            }
+            
             // Equation Canvas
             ScrollViewReader { proxy in
                 ScrollView {
@@ -202,6 +263,44 @@ struct MathScratchpadView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .background(DotGridBackground())
+                .focusable()
+                .focused($isCanvasFocused)
+                // Hardware Keyboard Intercepts mapping keystrokes to view model inputs
+                .onKeyPress(phases: .down) { press in
+                    if press.key == .delete || press.key == KeyEquivalent("\u{7F}") || press.key == KeyEquivalent("\u{08}") {
+                        viewModel.backspace()
+                        return .handled
+                    }
+                    if press.key == .return {
+                        viewModel.newLine()
+                        return .handled
+                    }
+                    if press.key == .rightArrow {
+                        viewModel.moveCursorRight()
+                        return .handled
+                    }
+                    if press.key == .leftArrow {
+                        viewModel.moveCursorLeft()
+                        return .handled
+                    }
+                    if press.key == .space {
+                        return .handled // Gracefully consume spacebar so it doesn't beep
+                    }
+                    if let char = press.characters.first {
+                        if char.isNumber {
+                            viewModel.insert(String(char), type: .number)
+                            return .handled
+                        } else if char.isLetter {
+                            viewModel.insert(String(char), type: .variable)
+                            return .handled
+                        } else if ["+", "-", "=", "(", ")", "/", "*", "^", ".", "<", ">"].contains(char) {
+                            let mappedChar = char == "/" ? "÷" : (char == "*" ? "×" : String(char))
+                            viewModel.insert(mappedChar, type: .operatorSymbol)
+                            return .handled
+                        }
+                    }
+                    return .ignored
+                }
                 .onChange(of: viewModel.activeLineIndex) { _, newIndex in
                     withAnimation(.snappy) {
                         proxy.scrollTo(newIndex, anchor: .bottom)
@@ -221,6 +320,9 @@ struct MathScratchpadView: View {
                 }
             }
         )
+        .onAppear {
+            isCanvasFocused = true
+        }
     }
 }
 
@@ -243,6 +345,68 @@ struct DotGridBackground: View {
     }
 }
 
+// MARK: - Layout Engine
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 0
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
+        return result.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
+        for row in result.rows {
+            var currentX = bounds.minX
+            let rowY = bounds.minY + row.yOffset
+            for element in row.elements {
+                element.subview.place(at: CGPoint(x: currentX, y: rowY), proposal: .unspecified)
+                currentX += element.size.width + spacing
+            }
+        }
+    }
+
+    struct FlowResult {
+        var size: CGSize = .zero
+        var rows: [Row] = []
+
+        struct Row {
+            var elements: [(size: CGSize, subview: LayoutSubview)] = []
+            var yOffset: CGFloat = 0
+            var width: CGFloat = 0
+            var height: CGFloat = 0
+        }
+
+        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat, lineSpacing: CGFloat) {
+            var currentRow = Row()
+            var currentY: CGFloat = 0
+
+            for subview in subviews {
+                let size = subview.sizeThatFits(.unspecified)
+                if currentRow.width + size.width > maxWidth && !currentRow.elements.isEmpty {
+                    currentRow.yOffset = currentY
+                    rows.append(currentRow)
+                    currentY += currentRow.height + lineSpacing
+                    currentRow = Row()
+                }
+
+                currentRow.elements.append((size, subview))
+                currentRow.width += size.width + (currentRow.elements.count > 1 ? spacing : 0)
+                currentRow.height = max(currentRow.height, size.height)
+            }
+
+            if !currentRow.elements.isEmpty {
+                currentRow.yOffset = currentY
+                rows.append(currentRow)
+                currentY += currentRow.height
+            }
+
+            size = CGSize(width: maxWidth, height: currentY)
+        }
+    }
+}
+
 // MARK: - Line & Token Rendering
 
 struct MathLineView: View {
@@ -256,17 +420,16 @@ struct MathLineView: View {
     
     var body: some View {
         HStack(spacing: 8) {
-            // Active Line Indicator Pill
             Capsule()
                 .fill(isActive ? emeraldAccent : Color.clear)
                 .frame(width: 3.5)
                 .shadow(color: isActive ? emeraldAccent.opacity(0.6) : Color.clear, radius: 4, y: 0)
                 .padding(.vertical, 6)
             
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
+            if isActive {
+                FlowLayout(spacing: 0, lineSpacing: 10) {
                     Color.clear
-                        .frame(width: 14)
+                        .frame(width: 10, height: 32)
                         .contentShape(Rectangle())
                         .onTapGesture { onCursorTap(0) }
                         .overlay(alignment: .trailing) {
@@ -281,11 +444,27 @@ struct MathLineView: View {
                             }
                     }
                 }
-                .padding(.vertical, 6)
-                .padding(.trailing, 28)
+                .padding(.vertical, 12)
+                .padding(.trailing, 12)
+            } else {
+                let latexString = tokens.map { $0.value }.joined()
+                
+                if latexString.isEmpty {
+                    Color.clear
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onCursorTap(tokens.count) }
+                } else {
+                    LatexView(latex: "$$ \(latexString) $$")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 6)
+                        .padding(.leading, 14)
+                        .contentShape(Rectangle())
+                        .onTapGesture { onCursorTap(tokens.count) }
+                }
             }
         }
-        .frame(height: 52)
+        .frame(minHeight: 52)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(isActive ? (colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03)) : Color.clear)
@@ -300,7 +479,7 @@ struct BlinkingCursor: View {
     var body: some View {
         Capsule()
             .fill(emeraldAccent)
-            .frame(width: 2.5, height: 32)
+            .frame(width: 2.5, height: 22)
             .offset(x: 1.25)
             .shadow(color: emeraldAccent.opacity(0.8), radius: 4, y: 0)
             .opacity(isBlinking ? 1.0 : 0.0)
@@ -318,7 +497,7 @@ struct TokenView: View {
     
     var body: some View {
         Text(token.value)
-            .font(.system(size: 28, weight: weightForType(token.type), design: .rounded))
+            .font(.system(size: 20, weight: weightForType(token.type), design: .rounded))
             .italic(token.type == .variable)
             .foregroundStyle(colorForType(token.type))
             .padding(.horizontal, paddingForType(token.type))
@@ -328,8 +507,8 @@ struct TokenView: View {
     
     private func paddingForType(_ type: TokenType) -> CGFloat {
         switch type {
-        case .operatorSymbol, .structural: return 5
-        case .function: return 3
+        case .operatorSymbol, .structural: return 3
+        case .function: return 2
         case .number, .variable: return 0.5
         }
     }
@@ -369,26 +548,45 @@ struct MathKeypadView: View {
     
     var body: some View {
         VStack(spacing: 10) {
-            // Context Variables Rail
+            // Context Variables & Functions Rail
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    ForEach(viewModel.activeVariables, id: \.self) { variable in
-                        KeypadButton(text: variable, type: .variable, style: .variable) {
-                            viewModel.insert(variable, type: .variable)
+                    ForEach(["x", "y", "θ", "π"], id: \.self) { variable in
+                        let isPi = variable == "π"
+                        KeypadButton(text: variable, type: isPi ? .function : .variable, style: .variable) {
+                            viewModel.insert(isPi ? "\\pi" : variable, type: isPi ? .function : .variable)
+                            triggerHaptic.toggle()
+                        }
+                        .frame(width: 50)
+                    }
+                    
+                    Divider().frame(height: 22)
+                    
+                    ForEach(["sin", "cos", "tan", "ln"], id: \.self) { fn in
+                        KeypadButton(text: fn, type: .function, style: .function) {
+                            viewModel.insert("\\\(fn)(", type: .function)
+                            viewModel.insert(")", type: .structural)
+                            viewModel.moveCursorLeft()
                             triggerHaptic.toggle()
                         }
                         .frame(width: 54)
                     }
                     
+                    KeypadButton(text: "√", type: .function, style: .function) {
+                        viewModel.insert("\\sqrt{", type: .function)
+                        viewModel.insert("}", type: .structural)
+                        viewModel.moveCursorLeft()
+                        triggerHaptic.toggle()
+                    }
+                    .frame(width: 50)
+                    
                     Divider().frame(height: 22)
                     
-                    ForEach(["sin", "cos", "tan"], id: \.self) { fn in
-                        KeypadButton(text: fn, type: .function, style: .function) {
-                            viewModel.insert("\(fn)(", type: .function)
-                            triggerHaptic.toggle()
-                        }
-                        .frame(width: 64)
+                    KeypadButton(icon: "arrow.right", style: .action) {
+                        viewModel.moveCursorRight()
+                        triggerHaptic.toggle()
                     }
+                    .frame(width: 54)
                 }
                 .padding(.horizontal, 16)
             }
