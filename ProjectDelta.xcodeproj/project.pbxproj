@@ -19,6 +19,8 @@
 		521887BB2FB5131300D97803 /* QuizSnapshotsHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */; };
 		5222C55D304E69A600C02521 /* QuestionPoolEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5222C55C304E69A600C02521 /* QuestionPoolEngine.swift */; };
 		5222C55F304EA08D00C02521 /* MathScratchpadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5222C55E304EA07F00C02521 /* MathScratchpadView.swift */; };
+		5222C5613058F9EA00C02521 /* OfflineStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5222C5603058F9EA00C02521 /* OfflineStorageManager.swift */; };
+		5222C5633058FA1700C02521 /* DownloadButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5222C5623058FA1700C02521 /* DownloadButtonView.swift */; };
 		5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */; };
 		5229BB0A2AD0CC8A0094395D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5229BB092AD0CC8A0094395D /* ContentView.swift */; };
 		5229BB0C2AD0CC8B0094395D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5229BB0B2AD0CC8B0094395D /* Assets.xcassets */; };
@@ -90,6 +92,8 @@
 		521887BA2FB5131300D97803 /* QuizSnapshotsHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizSnapshotsHistoryView.swift; sourceTree = "<group>"; };
 		5222C55C304E69A600C02521 /* QuestionPoolEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionPoolEngine.swift; sourceTree = "<group>"; };
 		5222C55E304EA07F00C02521 /* MathScratchpadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathScratchpadView.swift; sourceTree = "<group>"; };
+		5222C5603058F9EA00C02521 /* OfflineStorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineStorageManager.swift; sourceTree = "<group>"; };
+		5222C5623058FA1700C02521 /* DownloadButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadButtonView.swift; sourceTree = "<group>"; };
 		5229BB042AD0CC8A0094395D /* ProjectDelta.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProjectDelta.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5229BB072AD0CC8A0094395D /* ProjectDeltaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDeltaApp.swift; sourceTree = "<group>"; };
 		5229BB092AD0CC8A0094395D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -261,6 +265,7 @@
 				527F987D2AEC85030031F9E6 /* CloseButtonView.swift */,
 				5297E4392AD6434A00220FC6 /* CustomButtonView.swift */,
 				5254A5D02AF1C19300AAAA72 /* DisplayCards.swift */,
+				5222C5623058FA1700C02521 /* DownloadButtonView.swift */,
 				52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */,
 				5251682A302AE4040070EE8C /* ElectromagneticWaveAnalyzerView.swift */,
 				5258BD552AE3264400F21A50 /* InputView.swift */,
@@ -338,9 +343,10 @@
 		52D998F12ADB352D007F90A6 /* Managers */ = {
 			isa = PBXGroup;
 			children = (
-				5222C55C304E69A600C02521 /* QuestionPoolEngine.swift */,
-				52D998F22ADB353E007F90A6 /* FirestoreManager.swift */,
 				5256AD892B041B57008523F7 /* Constants.swift */,
+				52D998F22ADB353E007F90A6 /* FirestoreManager.swift */,
+				5222C5603058F9EA00C02521 /* OfflineStorageManager.swift */,
+				5222C55C304E69A600C02521 /* QuestionPoolEngine.swift */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -431,6 +437,7 @@
 				527F987C2AEC5D410031F9E6 /* SubjectGridView.swift in Sources */,
 				526CF3002FD75619001DA9D2 /* UniversalBlockEditorView.swift in Sources */,
 				5222C55F304EA08D00C02521 /* MathScratchpadView.swift in Sources */,
+				5222C5613058F9EA00C02521 /* OfflineStorageManager.swift in Sources */,
 				527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */,
 				5254A5CF2AF1ABAC00AAAA72 /* HomeView.swift in Sources */,
 				52643E012FCACAEB00859741 /* MetricsCarouselView.swift in Sources */,
@@ -446,6 +453,7 @@
 				5258BD582AE32F0100F21A50 /* RegistrationView.swift in Sources */,
 				52FA58232BBC993D0063091C /* TableOfContentsView.swift in Sources */,
 				520F68AC304D090B0092A83D /* EditorToolbarButton.swift in Sources */,
+				5222C5633058FA1700C02521 /* DownloadButtonView.swift in Sources */,
 				52CF267C2B1BCD6B00E7C99D /* AddTestView.swift in Sources */,
 				52D998F52ADB359D007F90A6 /* Views+Extensions.swift in Sources */,
 				529376592B3F6ADC001CC66A /* UserProgressDonut.swift in Sources */,

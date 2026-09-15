@@ -363,7 +363,7 @@ struct SubjectGridView: View {
     }
 }
 
-// MARK: - Lesson Selection View (For Practice Mode)
+// MARK: - Lesson Selection View (For Practice/Learn Mode)
 
 struct LessonSelectionView: View {
     var subjectName: String
@@ -377,6 +377,7 @@ struct LessonSelectionView: View {
     
     @State private var lessons: [(id: String, name: String)] = []
     @State private var isLoading = true
+    @State private var showOfflineOnly = false
     
     let warmTan = Color(red: 0.97, green: 0.96, blue: 0.94)
     
@@ -391,6 +392,14 @@ struct LessonSelectionView: View {
         if lower.contains("linear") || lower.contains("matrix") { return .teal }
         if lower.contains("advanced") { return .cyan }
         return .green
+    }
+    
+    private var filteredLessons: [(id: String, name: String)] {
+        if showOfflineOnly {
+            let offlineIds = navigationSource == .learn ? OfflineStorageManager.shared.downloadedLessonIDs : OfflineStorageManager.shared.downloadedTestIDs
+            return lessons.filter { offlineIds.contains($0.id) }
+        }
+        return lessons
     }
     
     var body: some View {
@@ -424,12 +433,12 @@ struct LessonSelectionView: View {
                     ProgressView("Loading curriculum material...")
                         .tint(themeColor)
                     Spacer()
-                } else if lessons.isEmpty {
+                } else if filteredLessons.isEmpty {
                     Spacer()
                     ContentUnavailableView(
-                        "No Content Available",
-                        systemImage: "book.closed.fill",
-                        description: Text("There are currently no lessons sequenced for this subject.")
+                        showOfflineOnly ? "No Downloaded Content" : "No Content Available",
+                        systemImage: showOfflineOnly ? "icloud.slash" : "book.closed.fill",
+                        description: Text(showOfflineOnly ? "You haven't downloaded any content for offline access yet." : "There are currently no lessons sequenced for this subject.")
                     )
                     Spacer()
                 } else {
@@ -439,9 +448,9 @@ struct LessonSelectionView: View {
                         ]
                         
                         LazyVGrid(columns: desktopColumns, spacing: 24) {
-                            ForEach(Array(lessons.enumerated()), id: \.element.id) { index, lesson in
+                            ForEach(Array(filteredLessons.enumerated()), id: \.element.id) { index, lesson in
                                 NavigationLink(destination: destinationForLesson(lesson)) {
-                                    lessonCard(for: lesson.name, index: index + 1)
+                                    lessonCard(for: lesson.name, id: lesson.id, index: index + 1)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -479,9 +488,13 @@ struct LessonSelectionView: View {
                 .foregroundColor(.primary)
 
             Spacer()
+            
+            Toggle("Offline Only", isOn: $showOfflineOnly)
+                .toggleStyle(.switch)
+                .tint(themeColor)
         }
         .padding(.horizontal, 40)
-        .padding(.top, 40) // Explicitly buffers against macOS system controls
+        .padding(.top, 40)
         .padding(.bottom, 20)
         .background(Color.platformSystemBackground)
         .overlay(
@@ -522,6 +535,14 @@ struct LessonSelectionView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
+                .padding(.bottom, 16)
+                
+                Picker("Filter", selection: $showOfflineOnly) {
+                    Text("All Modules").tag(false)
+                    Text("Downloaded").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 24)
                 .padding(.bottom, 24)
                 
                 if isLoading {
@@ -529,22 +550,22 @@ struct LessonSelectionView: View {
                     ProgressView("Loading curriculum material...")
                         .tint(themeColor)
                     Spacer()
-                } else if lessons.isEmpty {
+                } else if filteredLessons.isEmpty {
                     Spacer()
                     ContentUnavailableView(
-                        "No Content Available",
-                        systemImage: "book.closed.fill",
-                        description: Text("There are currently no lessons sequenced for this subject.")
+                        showOfflineOnly ? "No Downloaded Content" : "No Content Available",
+                        systemImage: showOfflineOnly ? "icloud.slash" : "book.closed.fill",
+                        description: Text(showOfflineOnly ? "You haven't downloaded any content for offline access yet." : "There are currently no lessons sequenced for this subject.")
                     )
                     Spacer()
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(Array(lessons.enumerated()), id: \.element.id) { index, lesson in
+                            ForEach(Array(filteredLessons.enumerated()), id: \.element.id) { index, lesson in
                                 NavigationLink {
                                     destinationForLesson(lesson)
                                 } label: {
-                                    lessonCard(for: lesson.name, index: index + 1)
+                                    lessonCard(for: lesson.name, id: lesson.id, index: index + 1)
                                 }
                                 .buttonStyle(SubjectCardButtonStyle())
                             }
@@ -607,45 +628,47 @@ struct LessonSelectionView: View {
     }
     
     @ViewBuilder
-    private func lessonCard(for lessonName: String, index: Int) -> some View {
-        HStack(spacing: 20) {
+    private func lessonCard(for lessonName: String, id: String, index: Int) -> some View {
+        HStack(spacing: 14) {
             // Sequence Number Identifier
             Text(String(format: "%02d", index))
-                .font(.system(size: 28, weight: .heavy, design: .rounded))
-                .foregroundColor(themeColor.opacity(colorScheme == .dark ? 0.3 : 0.25))
-                .frame(width: 40, alignment: .leading)
-            
-            // Styled Icon Context
-            ZStack {
-                Circle()
-                    .fill(themeColor.opacity(colorScheme == .dark ? 0.15 : 0.1))
-                    .frame(width: 52, height: 52)
-                
-                Image(systemName: "bookmark.fill")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(themeColor)
-            }
+                .font(.system(size: 24, weight: .heavy, design: .rounded))
+                .foregroundColor(themeColor.opacity(colorScheme == .dark ? 0.35 : 0.3))
+                .frame(width: 36, alignment: .leading)
             
             // Title Text
             Text(lessonName)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 16, weight: .bold, design: .rounded))
                 .foregroundColor(.primary)
                 .multilineTextAlignment(.leading)
-                .lineLimit(3) // Increased to allow natural wrapping
-                .minimumScaleFactor(0.75) // Prevents microscopic shrinking
-                .truncationMode(.tail)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
             
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            
+            // Inline Offline Download Control
+            DownloadButtonView(itemID: id, itemType: navigationSource == .learn ? .lesson : .test, themeColor: themeColor) {
+                if navigationSource == .learn {
+                    // Fetch full lesson object via the view model here before persisting
+                    // e.g. let fullLesson = await lessonVM.fetchFullLesson(id)
+                    // try await OfflineStorageManager.shared.downloadLesson(fullLesson)
+                } else {
+                    // Fetch full test object via the view model here before persisting
+                    // e.g. let fullTest = await testViewModel.fetchFullTest(id)
+                    // try await OfflineStorageManager.shared.downloadTest(fullTest)
+                }
+            }
             
             // Nav Indicator
             Image(systemName: "chevron.right")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.secondary.opacity(0.3))
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
             #if os(macOS)
                 .fill(Color.platformSystemBackground)
             #else
@@ -653,13 +676,13 @@ struct LessonSelectionView: View {
             #endif
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(themeColor.opacity(0.2), lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(themeColor.opacity(0.15), lineWidth: 1)
         )
 #if os(macOS)
-        .shadow(color: themeColor.opacity(0.05), radius: 10, x: 0, y: 5)
+        .shadow(color: themeColor.opacity(0.05), radius: 8, x: 0, y: 4)
 #else
-        .shadow(color: themeColor.opacity(colorScheme == .dark ? 0.1 : 0.05), radius: 10, x: 0, y: 5)
+        .shadow(color: themeColor.opacity(colorScheme == .dark ? 0.08 : 0.04), radius: 8, x: 0, y: 4)
 #endif
     }
 }

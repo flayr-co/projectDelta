@@ -112,18 +112,22 @@ struct LatexWebView: PlatformViewRepresentable {
         let redColor = colorScheme == .dark ? "#FF6B6B" : "red"
         let greenColor = colorScheme == .dark ? "#4ADE80" : "green"
         
+        // Custom theme color for inline math highlights
+        // Rich deep pine-emerald for maximum light-mode contrast; neon cyan for dark mode
+        let inlineMathColor = colorScheme == .dark ? "#33E0C8" : "#0F5B54"
+        
         var processedLatex = latex
-            // Safely parse robust asterisks color tags
+        // Safely parse robust asterisks color tags
             .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "\\*red (.*?) red\\*", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "\\*green (.*?) green\\*", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
-            // Parse fallback plaintext color tags
+        // Parse fallback plaintext color tags
             .replacingOccurrences(of: "blue (.*?) blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "red (.*?) red", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
             .replacingOccurrences(of: "green (.*?) green", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
-            // Parse squished tags if present
+        // Parse squished tags if present
             .replacingOccurrences(of: "blue(.*?)blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
-            // Format math functions safely
+        // Format math functions safely
             .replacingOccurrences(of: "\\\\bm", with: "\\\\boldsymbol ")
             .replacingOccurrences(of: "\n", with: isTextMode ? "<br>" : " \\\\ ")
             .replacingOccurrences(of: "\\n", with: isTextMode ? "<br>" : " \\\\ ")
@@ -140,68 +144,84 @@ struct LatexWebView: PlatformViewRepresentable {
         let opacity = isTextMode ? "0.85" : "1.0"
         
         let htmlString = """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                        font-size: \(fontSize);
-                        font-weight: \(fontWeight);
-                        line-height: 1.6;
-                        color: \(textColor);
-                        opacity: \(opacity);
-                        background-color: transparent;
-                        margin: 0;
-                        -webkit-tap-highlight-color: transparent;
-                        \(paddingStyle)
-                        \(displayStyle)
-                        overflow: visible;
-                    }
-                    b, strong { font-weight: 800 !important; color: inherit; }
-                    i, em { font-style: italic; color: inherit; }
-                    #math-container {
-                        display: inline-block;
-                        width: 100%;
-                        word-wrap: break-word;
-                    }
-                </style>
-                <script>
-                    window.MathJax = {
-                        tex: {
-                            inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
-                            displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
-                            processEscapes: true,
-                            tags: 'none'
-                        },
-                        options: {
-                            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
-                            ignoreHtmlClass: 'tex2jax_ignore',
-                            processHtmlClass: 'tex2jax_process'
-                        },
-                        svg: {
-                            fontCache: 'global'
-                        },
-                        startup: {
-                            pageReady: () => {
-                                return MathJax.startup.defaultPageReady().then(() => {
-                                    let container = document.getElementById('math-container');
-                                    window.webkit.messageHandlers.heightHandler.postMessage(container.scrollHeight);
-                                });
-                            }
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                    <style>
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                            font-size: \(fontSize);
+                            font-weight: \(fontWeight);
+                            line-height: 1.6;
+                            color: \(textColor);
+                            opacity: \(opacity);
+                            background-color: transparent;
+                            margin: 0;
+                            -webkit-tap-highlight-color: transparent;
+                            \(paddingStyle)
+                            \(displayStyle)
+                            overflow: visible;
                         }
-                    };
-                </script>
-                <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-            </head>
-            <body>
-                <div id="math-container">
-                    \(processedLatex)
-                </div>
-            </body>
-            </html>
-            """
+                        b, strong { font-weight: 800 !important; color: inherit; }
+                        i, em { font-style: italic; color: inherit; }
+                        
+                        /* Inline Math UI Overrides */
+                        mjx-container:not([display="true"]) {
+                            color: \(inlineMathColor) !important;
+                            font-size: 0.98em !important;
+                            background: \(colorScheme == .dark ? "rgba(51, 224, 200, 0.08)" : "rgba(15, 91, 84, 0.09)") !important;
+                            padding: 1px 5px !important;
+                            border-radius: 6px !important;
+                        }
+                        mjx-container:not([display="true"]) * {
+                            font-style: normal !important;
+                            font-weight: 800 !important;
+                            -webkit-text-stroke: \(colorScheme == .dark ? "0.35px" : "0.6px") \(inlineMathColor) !important;
+                            paint-order: stroke fill;
+                        }
+                
+                        #math-container {
+                            display: inline-block;
+                            width: 100%;
+                            word-wrap: break-word;
+                        }
+                    </style>
+                    <script>
+                        window.MathJax = {
+                            tex: {
+                                inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                                displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
+                                processEscapes: true,
+                                tags: 'none'
+                            },
+                            options: {
+                                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+                                ignoreHtmlClass: 'tex2jax_ignore',
+                                processHtmlClass: 'tex2jax_process'
+                            },
+                            svg: {
+                                fontCache: 'global'
+                            },
+                            startup: {
+                                pageReady: () => {
+                                    return MathJax.startup.defaultPageReady().then(() => {
+                                        let container = document.getElementById('math-container');
+                                        window.webkit.messageHandlers.heightHandler.postMessage(container.scrollHeight);
+                                    });
+                                }
+                            }
+                        };
+                    </script>
+                    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+                </head>
+                <body>
+                    <div id="math-container">
+                        \(processedLatex)
+                    </div>
+                </body>
+                </html>
+                """
         
         if context.coordinator.lastLoadedHTML != htmlString {
             context.coordinator.lastLoadedHTML = htmlString
