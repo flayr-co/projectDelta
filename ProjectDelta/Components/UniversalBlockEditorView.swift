@@ -310,6 +310,10 @@ fileprivate struct BlockEditCell: View {
     @FocusState private var isFocused: Bool
     @State private var selectedRange = NSRange(location: 0, length: 0)
     
+    // MARK: Debounced Preview States
+    @State private var previewContent: String
+    @State private var debounceTask: Task<Void, Never>? = nil
+    
     // Custom Math Prompt States
     enum MathPromptType { case fraction, exponent, root, highlight }
     @State private var showMathPrompt = false
@@ -321,6 +325,7 @@ fileprivate struct BlockEditCell: View {
         self._block = block
         self.onDelete = onDelete
         self._isEditing = State(initialValue: block.wrappedValue.content.isEmpty)
+        self._previewContent = State(initialValue: block.wrappedValue.content)
     }
     
     private func applyFormatting(prefix: String, suffix: String) {
@@ -495,6 +500,25 @@ fileprivate struct BlockEditCell: View {
                 .textCase(.uppercase)
                 .foregroundColor(.secondary)
             
+            // MARK: - Debounced Live Preview
+            if !previewContent.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Live Render")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.teal)
+                        .textCase(.uppercase)
+                    
+                    LatexView(latex: "$$ \(previewContent) $$")
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.primary.opacity(0.04))
+                        .cornerRadius(12)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+                }
+                .transition(.opacity)
+            }
+            
             SelectableTextEditor(text: $block.content, selectedRange: $selectedRange, isMonospaced: true)
                 .frame(minHeight: 80)
                 .padding(12)
@@ -517,6 +541,19 @@ fileprivate struct BlockEditCell: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(isFocused ? Color.teal : Color.clear, lineWidth: 2)
                 )
+                .onChange(of: block.content) { _, newValue in
+                    // Debounce the preview update so typing remains incredibly fast
+                    debounceTask?.cancel()
+                    debounceTask = Task {
+                        try? await Task.sleep(for: .milliseconds(500))
+                        guard !Task.isCancelled else { return }
+                        await MainActor.run {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                previewContent = newValue
+                            }
+                        }
+                    }
+                }
                 .toolbar {
                     #if os(iOS)
                     ToolbarItemGroup(placement: .keyboard) {
@@ -538,11 +575,9 @@ fileprivate struct BlockEditCell: View {
             
             #if os(macOS)
             if isFocused {
-                // Initialize a temporary view model just for the block editor's keypad
                 @State var tempViewModel = MathScratchpadViewModel()
                 MathKeypadView(viewModel: tempViewModel, isExpanded: .constant(true))
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                    // When the keypad updates the view model, push changes to the block content
                     .onChange(of: tempViewModel.lines) { _, _ in
                         let stringVal = tempViewModel.lines.flatMap { $0 }.map { $0.value }.joined()
                         block.content = stringVal
@@ -637,6 +672,9 @@ fileprivate struct BlockEditCell: View {
             Button("Blue") { block.content.append("*blue \(mathArg1) blue*") }
             Button("Red") { block.content.append("*red \(mathArg1) red*") }
             Button("Green") { block.content.append("*green \(mathArg1) green*") }
+            Button("Orange") { block.content.append("*orange \(mathArg1) orange*") }
+            Button("Purple") { block.content.append("*purple \(mathArg1) purple*") }
+            Button("Pink") { block.content.append("*pink \(mathArg1) pink*") }
         } else {
             Button("Insert") {
                 switch mathPromptType {

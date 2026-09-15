@@ -108,26 +108,53 @@ struct LatexWebView: PlatformViewRepresentable {
     
     private func updateWebView(_ webView: WKWebView, context: Context) {
         let textColor = colorScheme == .dark ? "white" : "black"
-        let cyanColor = colorScheme == .dark ? "cyan" : "blue"
-        let redColor = colorScheme == .dark ? "#FF6B6B" : "red"
-        let greenColor = colorScheme == .dark ? "#4ADE80" : "green"
         
-        // Custom theme color for inline math highlights
+        // Distinct, high-contrast HEX codes. True Blue vs True Green.
+        let blueColor = colorScheme == .dark ? "#5AC8FA" : "#0056D2" // Vibrant Sky Blue / Deep Royal Blue
+        let redColor = colorScheme == .dark ? "#FF453A" : "#C91010"   // Neon Red / Deep Crimson
+        let greenColor = colorScheme == .dark ? "#32D74B" : "#0A7D33" // Neon Green / Deep Forest Green
+        let orangeColor = colorScheme == .dark ? "#FF9F0A" : "#994500"
+        let purpleColor = colorScheme == .dark ? "#BF5AF2" : "#5E17EB"
+        let pinkColor = colorScheme == .dark ? "#FF375F" : "#D8005A"
+        
         // Rich deep pine-emerald for maximum light-mode contrast; neon cyan for dark mode
         let inlineMathColor = colorScheme == .dark ? "#33E0C8" : "#0F5B54"
         
         var processedLatex = latex
-        // Safely parse robust asterisks color tags
-            .replacingOccurrences(of: "\\*blue (.*?) blue\\*", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
-            .replacingOccurrences(of: "\\*red (.*?) red\\*", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
-            .replacingOccurrences(of: "\\*green (.*?) green\\*", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
-        // Parse fallback plaintext color tags
-            .replacingOccurrences(of: "blue (.*?) blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
-            .replacingOccurrences(of: "red (.*?) red", with: "\\\\textcolor{\(redColor)}{$1}", options: .regularExpression)
-            .replacingOccurrences(of: "green (.*?) green", with: "\\\\textcolor{\(greenColor)}{$1}", options: .regularExpression)
-        // Parse squished tags if present
-            .replacingOccurrences(of: "blue(.*?)blue", with: "\\\\textcolor{\(cyanColor)}{$1}", options: .regularExpression)
+        
+        let colorMap = [
+            ("blue", blueColor),
+            ("red", redColor),
+            ("green", greenColor),
+            ("orange", orangeColor),
+            ("purple", purpleColor),
+            ("pink", pinkColor)
+        ]
+        
+        for (name, hex) in colorMap {
+            // 1. Upgrade pre-parsed LaTeX commands to high-contrast HEX codes
+            processedLatex = processedLatex.replacingOccurrences(of: "\\\\textcolor\\{\(name)\\}", with: "\\\\textcolor{\(hex)}")
+            processedLatex = processedLatex.replacingOccurrences(of: "\\\\color\\{\(name)\\}", with: "\\\\color{\(hex)}")
+            
+            // 2. Parse tags WITH asterisks, handling optional leading backslashes (e.g. *pink X pink*, *\pink X \pink*)
+            let patternWithStars = "\\*\\s*\\\\?(?i)\(name)\\b\\s*(.*?)\\s*\\\\?\\b\(name)\\s*\\*"
+            processedLatex = processedLatex.replacingOccurrences(
+                of: patternWithStars,
+                with: "\\\\textcolor{\(hex)}{\\\\boldsymbol{$1}}",
+                options: .regularExpression
+            )
+            
+            // 3. Parse tags WITHOUT asterisks, handling optional leading backslashes (e.g. pink X pink, \pink X \pink)
+            let patternNoStars = "\\\\?\\b(?i)\(name)\\b\\s+(.*?)\\s+\\\\?\\b\(name)\\b"
+            processedLatex = processedLatex.replacingOccurrences(
+                of: patternNoStars,
+                with: "\\\\textcolor{\(hex)}{\\\\boldsymbol{$1}}",
+                options: .regularExpression
+            )
+        }
+        
         // Format math functions safely
+        processedLatex = processedLatex
             .replacingOccurrences(of: "\\\\bm", with: "\\\\boldsymbol ")
             .replacingOccurrences(of: "\n", with: isTextMode ? "<br>" : " \\\\ ")
             .replacingOccurrences(of: "\\n", with: isTextMode ? "<br>" : " \\\\ ")
