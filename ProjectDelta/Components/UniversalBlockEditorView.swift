@@ -733,11 +733,24 @@ fileprivate struct BlockEditCell: View {
             .pickerStyle(.segmented)
             
             if isEditing {
-                InteractiveGraphBuilderView(
-                    content: $block.content,
-                    graphType: selectedGraphType
-                )
-                .frame(height: 360)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "eye.circle.fill")
+                        Text("Live Student Preview")
+                    }
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundColor(.purple)
+                    .textCase(.uppercase)
+                    
+                    DynamicGraphView(
+                        data: GraphContentParser.graphData(from: block.content, graphType: selectedGraphType),
+                        isScrollLocked: true
+                    )
+                    .frame(height: 380)
+                }
+                .padding(.vertical, 8)
+                .transition(.opacity)
             }
             
             VStack(alignment: .leading, spacing: 12) {
@@ -748,49 +761,104 @@ fileprivate struct BlockEditCell: View {
                     .textCase(.uppercase)
                 
                 ForEach(0..<max(1, expressions.count), id: \.self) { index in
-                    HStack {
-                        TextField(selectedGraphType == QuestionGraphType.equation.rawValue ? "y = x^2 + 3" : "(0, 0), (2, 3)", text: Binding(
-                            get: {
-                                guard index < expressions.count else { return "" }
-                                return expressions[index]
-                            },
-                            set: { newValue in
-                                var newExpressions = expressions
-                                if index < newExpressions.count {
-                                    newExpressions[index] = newValue
-                                } else {
-                                    newExpressions.append(newValue)
+                    let currentExpr = index < expressions.count ? expressions[index] : ""
+                    let isDashed = currentExpr.contains("[DASHED]")
+                    let isExplicitPoint = currentExpr.contains("[POINT]")
+                    let rawText = currentExpr.replacingOccurrences(of: "[DASHED]", with: "").replacingOccurrences(of: "[POINT]", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let isAutoPoint = rawText.hasPrefix("(") && rawText.contains(",") && rawText.contains(")")
+                    let isPoint = isExplicitPoint || isAutoPoint
+                    
+                    VStack(spacing: 12) {
+                        HStack(spacing: 12) {
+                            Text("\(index + 1)")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(.white)
+                                .frame(width: 24, height: 24)
+                                .background(Color.purple.opacity(0.8))
+                                .clipShape(Circle())
+                            
+                            TextField(selectedGraphType == QuestionGraphType.equation.rawValue ? "y = x^2 + 3  or  (2, 4) Label" : "(2, 4) Label", text: Binding(
+                                get: { rawText },
+                                set: { newValue in
+                                    var updated = newValue
+                                    if isDashed { updated += " [DASHED]" }
+                                    if isExplicitPoint { updated += " [POINT]" }
+                                    var newExpressions = expressions
+                                    if index < newExpressions.count { newExpressions[index] = updated } else { newExpressions.append(updated) }
+                                    block.content = newExpressions.joined(separator: "\n")
                                 }
-                                block.content = newExpressions.joined(separator: "\n")
+                            ))
+                            .font(.system(.body, design: .monospaced, weight: .semibold))
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 14)
+                            .background(Color.primary.opacity(0.04))
+                            .cornerRadius(8)
+                            .focused($isFocused)
+                            .autocorrectionDisabled()
+                            .submitLabel(.done)
+                            .onSubmit { isFocused = false }
+#if os(iOS)
+                            .textInputAutocapitalization(.never)
+#endif
+                            
+                            if expressions.count > 1 {
+                                Button(action: {
+                                    var newExpressions = expressions
+                                    newExpressions.remove(at: index)
+                                    block.content = newExpressions.joined(separator: "\n")
+                                }) {
+                                    Image(systemName: "trash.fill")
+                                        .foregroundColor(.red.opacity(0.8))
+                                        .padding(10)
+                                        .background(Color.red.opacity(0.1))
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
                             }
-                        ))
-                        .font(.system(.body, design: .monospaced, weight: .semibold))
-                        .padding(14)
-                        .background(Color.purple.opacity(0.06))
-                        .cornerRadius(12)
-                        .focused($isFocused)
-                        .autocorrectionDisabled()
-                        .submitLabel(.done)
-                        .onSubmit {
-                            isFocused = false
                         }
-                        #if os(iOS)
-                        .textInputAutocapitalization(.never)
-                        #endif
                         
-                        if expressions.count > 1 {
+                        HStack(spacing: 24) {
+                            Spacer().frame(width: 24) // Align with text field
+                            
                             Button(action: {
                                 var newExpressions = expressions
-                                newExpressions.remove(at: index)
+                                let base = currentExpr.replacingOccurrences(of: " [DASHED]", with: "").replacingOccurrences(of: "[DASHED]", with: "")
+                                let updated = isDashed ? base : base + " [DASHED]"
+                                if index < newExpressions.count { newExpressions[index] = updated } else { newExpressions.append(updated) }
                                 block.content = newExpressions.joined(separator: "\n")
                             }) {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundColor(.red)
-                                    .font(.title2)
+                                HStack(spacing: 6) {
+                                    Image(systemName: isDashed ? "checkmark.square.fill" : "square")
+                                    Text("Dashed Line")
+                                }
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(isDashed ? .purple : .secondary)
                             }
                             .buttonStyle(.plain)
+                            
+                            Button(action: {
+                                var newExpressions = expressions
+                                let base = currentExpr.replacingOccurrences(of: " [POINT]", with: "").replacingOccurrences(of: "[POINT]", with: "")
+                                let updated = isExplicitPoint ? base : base + " [POINT]"
+                                if index < newExpressions.count { newExpressions[index] = updated } else { newExpressions.append(updated) }
+                                block.content = newExpressions.joined(separator: "\n")
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: isExplicitPoint ? "checkmark.circle.fill" : "circle")
+                                    Text("Force Point")
+                                }
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(isExplicitPoint ? .purple : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Spacer()
                         }
                     }
+                    .padding(12)
+                    .background(Color.purple.opacity(0.03))
+                    .cornerRadius(12)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.purple.opacity(0.1), lineWidth: 1))
                 }
                 
                 Button(action: {

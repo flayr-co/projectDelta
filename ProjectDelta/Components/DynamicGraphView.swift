@@ -13,11 +13,15 @@ public struct GraphData: Codable, Equatable {
         public var label: String
         public var xValues: [Double]
         public var yValues: [Double]
+        public var isDashed: Bool?
+        public var isPoint: Bool?
         
-        public init(label: String, xValues: [Double], yValues: [Double]) {
+        public init(label: String, xValues: [Double], yValues: [Double], isDashed: Bool? = nil, isPoint: Bool? = nil) {
             self.label = label
             self.xValues = xValues
             self.yValues = yValues
+            self.isDashed = isDashed
+            self.isPoint = isPoint
         }
     }
     
@@ -78,7 +82,6 @@ struct DynamicGraphView: View {
     @State private var probeLocation: CGPoint? = nil
     @State private var activeProbePoint: CGPoint? = nil
     @State private var isProbing: Bool = false
-    @State private var intersectionPoints: [CGPoint] = []
 
     var primaryColor: Color { colorScheme == .dark ? Color(red: 0.15, green: 0.85, blue: 0.75) : .blue }
     private var seriesColors: [Color] {
@@ -193,15 +196,16 @@ struct DynamicGraphView: View {
                             let cleanLabel = series.label.lowercased().replacingOccurrences(of: " ", with: "")
                             let isEquation = cleanLabel.hasPrefix("y=") || cleanLabel.contains("x") || Double(cleanLabel) != nil
                             
-                            if isEquation, let evaluator = MathEngine.compile(series.label) {
-                                drawEquationCurve(context: context, evaluator: evaluator, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
+                            if series.isPoint == true {
+                                drawAnnotatedPoint(context: context, series: series, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
+                            } else if cleanLabel.starts(with: "x=") {
+                                drawEquationCurve(context: context, evaluator: { _ in .nan }, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color, isDashed: series.isDashed ?? false, isVertical: true, series: series)
+                            } else if isEquation, let evaluator = MathEngine.compile(series.label) {
+                                drawEquationCurve(context: context, evaluator: evaluator, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color, isDashed: series.isDashed ?? false)
                             } else {
-                                drawDiscreteSeries(context: context, series: series, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color)
+                                drawDiscreteSeries(context: context, series: series, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color, isDashed: series.isDashed ?? false)
                             }
                         }
-                        
-                        // Draw Intersections perfectly, passing the probe to prevent text clashing
-                        drawIntersections(context: context, origin: origin, scale: currentScale, canvasSize: canvasSize, activeProbePoint: isProbing ? activeProbePoint : nil)
                     }
                     
                     // MARK: Invisible Interaction Layer
@@ -417,144 +421,70 @@ struct DynamicGraphView: View {
         guard size.width > 0 && size.height > 0 else { return }
         
         Task.detached(priority: .userInitiated) {
-            var corePOIs: [CGPoint] = []
+            // Establish a balanced default window centered on the origin
+            var minX = -10.0
+            var maxX = 10.0
+            var minY = -10.0
+            var maxY = 10.0
             
-            func addPOI(_ pt: CGPoint) {
-                if !corePOIs.contains(where: { hypot($0.x - pt.x, $0.y - pt.y) < 0.1 }) {
-                    corePOIs.append(pt)
-                }
-            }
+            var importantPoints: [CGPoint] = []
             
-            let seriesList = activeSeries
-            var intersections: [CGPoint] = []
-            
-            for i in 0..<seriesList.count {
-                let s1 = seriesList[i]
-                guard let e1 = MathEngine.compile(s1.label) else {
-                    for j in 0..<s1.xValues.count { addPOI(CGPoint(x: s1.xValues[j], y: s1.yValues[j])) }
-                    continue
-                }
-                
-                // 1. Precise Intersection Tracking via Continuous Math Engine
-                for k in (i+1)..<seriesList.count {
-                    let s2 = seriesList[k]
-                    guard let e2 = MathEngine.compile(s2.label) else { continue }
-                    
-                    let diff = { (x: Double) -> Double in e1(x) - e2(x) }
-                    var pX = -50.0
-                    var pDiff = diff(pX)
-                    
-                    for x in stride(from: -49.5, through: 50.0, by: 0.5) {
-                        let cDiff = diff(x)
-                        
-                        // Standard Crossing
-                        if pDiff * cDiff <= 0 {
-                            var low = pX, high = x
-                            for _ in 0..<20 {
-                                let mid = (low + high) / 2
-                                if (diff(mid) > 0) == (cDiff > 0) { high = mid } else { low = mid }
-                            }
-                            let rootX = (low + high) / 2
-                            let rootY = e1(rootX)
-                            if rootY.isFinite {
-                                let pt = CGPoint(x: rootX, y: rootY)
-                                addPOI(pt)
-                                intersections.append(pt)
-                            }
-                        }
-                        // Grazing Tangent (Local Minimum near zero)
-                        else if abs(cDiff) < 0.5 {
-                            let prevAbs = abs(diff(x - 0.1))
-                            let nextAbs = abs(diff(x + 0.1))
-                            if abs(cDiff) < prevAbs && abs(cDiff) < nextAbs {
-                                var bestX = x
-                                var minVal = abs(cDiff)
-                                for fx in stride(from: x - 0.2, through: x + 0.2, by: 0.01) {
-                                    let val = abs(diff(fx))
-                                    if val < minVal { minVal = val; bestX = fx }
-                                }
-                                if minVal < 0.05 {
-                                    let exactY = e1(bestX)
-                                    if exactY.isFinite {
-                                        let pt = CGPoint(x: bestX, y: exactY)
-                                        addPOI(pt)
-                                        intersections.append(pt)
-                                    }
-                                }
-                            }
-                        }
-                        pX = x; pDiff = cDiff
+            for series in activeSeries {
+                if series.isPoint == true {
+                    if let x = series.xValues.first, let y = series.yValues.first {
+                        importantPoints.append(CGPoint(x: x, y: y))
                     }
-                }
-                
-                // 2. Extrema (Vertices) and Intercepts
-                let yInt = e1(0)
-                if yInt.isFinite { addPOI(CGPoint(x: 0, y: yInt)) }
-                
-                var pX = -50.0
-                var pY = e1(pX)
-                var pSlope = (e1(-49.9) - pY) / 0.1
-                
-                for x in stride(from: -49.5, through: 50.0, by: 0.5) {
-                    let cY = e1(x)
+                } else if let e = MathEngine.compile(series.label) {
+                    // Sample standard anchors to ensure the equation trajectory is visible
+                    let yOrigin = e(0)
+                    if yOrigin.isFinite && abs(yOrigin) < 100 { importantPoints.append(CGPoint(x: 0, y: yOrigin)) }
                     
-                    // X intercept
-                    if pY * cY <= 0 {
-                        var low = pX, high = x
-                        for _ in 0..<15 {
-                            let mid = (low + high) / 2
-                            if (e1(mid) > 0) == (cY > 0) { high = mid } else { low = mid }
-                        }
-                        addPOI(CGPoint(x: (low + high) / 2, y: 0))
-                    }
+                    let yNeg = e(-10)
+                    if yNeg.isFinite && abs(yNeg) < 100 { importantPoints.append(CGPoint(x: -10, y: yNeg)) }
                     
-                    // Local vertex
-                    let cSlope = (e1(x + 0.1) - cY) / 0.1
-                    if pSlope * cSlope <= 0 && abs(cSlope) < 100 {
-                        var bestX = x
-                        var extY = cY
-                        let isMin = pSlope < 0
-                        for fx in stride(from: x - 0.5, through: x + 0.5, by: 0.05) {
-                            let fy = e1(fx)
-                            if isMin ? (fy < extY) : (fy > extY) { extY = fy; bestX = fx }
-                        }
-                        if extY.isFinite { addPOI(CGPoint(x: bestX, y: extY)) }
-                    }
-                    pX = x; pY = cY; pSlope = cSlope
+                    let yPos = e(10)
+                    if yPos.isFinite && abs(yPos) < 100 { importantPoints.append(CGPoint(x: 10, y: yPos)) }
                 }
             }
             
-            let validPOIs = corePOIs.filter { abs($0.x) <= 250 && abs($0.y) <= 250 }
-            var minX = validPOIs.map(\.x).min() ?? -10.0
-            var maxX = validPOIs.map(\.x).max() ?? 10.0
-            var minY = validPOIs.map(\.y).min() ?? -10.0
-            var maxY = validPOIs.map(\.y).max() ?? 10.0
-            
-            // Expand to Origin for context if nearby
-            if maxX < 0 && maxX > -20 { maxX = 0 }
-            if minX > 0 && minX < 20 { minX = 0 }
-            if maxY < 0 && maxY > -20 { maxY = 0 }
-            if minY > 0 && minY < 20 { minY = 0 }
-
-            let minWindow: Double = 10.0
-            if maxX - minX < minWindow {
-                let cx = (maxX + minX) / 2
-                minX = cx - (minWindow / 2)
-                maxX = cx + (minWindow / 2)
-            }
-            if maxY - minY < minWindow {
-                let cy = (maxY + minY) / 2
-                minY = cy - (minWindow / 2)
-                maxY = cy + (minWindow / 2)
+            // Expand the default bounding box if our explicit points exceed it
+            if !importantPoints.isEmpty {
+                let xs = importantPoints.map { $0.x }
+                let ys = importantPoints.map { $0.y }
+                
+                let pMinX = xs.min()!
+                let pMaxX = xs.max()!
+                let pMinY = ys.min()!
+                let pMaxY = ys.max()!
+                
+                if pMinX < minX { minX = pMinX }
+                if pMaxX > maxX { maxX = pMaxX }
+                if pMinY < minY { minY = pMinY }
+                if pMaxY > maxY { maxY = pMaxY }
             }
             
-            // Apply 25% boundary padding
-            let pX = (maxX - minX) * 0.25
-            let pY = (maxY - minY) * 0.25
-            minX -= pX; maxX += pX
-            minY -= pY; maxY += pY
+            // Enforce a minimum window span of 20 units to prevent excessive zooming on localized data
+            let minWindow: Double = 20.0
+            if (maxX - minX) < minWindow {
+                let mid = (maxX + minX) / 2.0
+                minX = mid - minWindow / 2.0
+                maxX = mid + minWindow / 2.0
+            }
+            if (maxY - minY) < minWindow {
+                let mid = (maxY + minY) / 2.0
+                minY = mid - minWindow / 2.0
+                maxY = mid + minWindow / 2.0
+            }
             
-            // 1:1 Aspect Ratio Normalization: Symmetrically expand the tighter axis to fill the screen flawlessly
+            // Apply generous 20% margin to prevent drawing edge-to-edge
+            let xPad = (maxX - minX) * 0.20
+            let yPad = (maxY - minY) * 0.20
+            minX -= xPad
+            maxX += xPad
+            minY -= yPad
+            maxY += yPad
+            
+            // 1:1 Aspect Ratio Normalization: Symmetrically expand the tighter axis to fill the viewport flawlessly
             let viewAspect = Double(size.width / size.height)
             let mathWidth = maxX - minX
             let mathHeight = maxY - minY
@@ -581,7 +511,6 @@ struct DynamicGraphView: View {
             let newPan = CGSize(width: CGFloat(-centerX) * clampedScale, height: CGFloat(centerY) * clampedScale)
             
             await MainActor.run {
-                self.intersectionPoints = intersections
                 self.targetScale = clampedScale
                 self.targetPan = newPan
                 
@@ -704,50 +633,58 @@ struct DynamicGraphView: View {
         context.draw(zeroText, at: CGPoint(x: origin.x - 6, y: origin.y + 6), anchor: .topTrailing)
     }
     
-    private func drawEquationCurve(context: GraphicsContext, evaluator: @escaping (Double) -> Double, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
+    private func drawEquationCurve(context: GraphicsContext, evaluator: @escaping (Double) -> Double, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color, isDashed: Bool = false, isVertical: Bool = false, series: GraphData.Series? = nil) {
         var path = Path()
-        var isFirst = true
-        var previousScreenY: CGFloat? = nil
         
-        for screenX in stride(from: 0, through: canvasSize.width, by: 1.5) {
-            let mathX = Double((screenX - origin.x) / scale)
-            let mathY = evaluator(mathX)
+        if isVertical, let s = series, let xVal = s.xValues.first {
+            let screenX = origin.x + CGFloat(xVal) * scale
+            path.move(to: CGPoint(x: screenX, y: 0))
+            path.addLine(to: CGPoint(x: screenX, y: canvasSize.height))
+        } else {
+            var isFirst = true
+            var previousScreenY: CGFloat? = nil
             
-            if mathY.isNaN || mathY.isInfinite {
-                isFirst = true
-                previousScreenY = nil
-                continue
-            }
-            
-            let screenY = origin.y - CGFloat(mathY) * scale
-            
-            if let prevY = previousScreenY, abs(screenY - prevY) > canvasSize.height {
-                isFirst = true
-            }
-            
-            let pt = CGPoint(x: screenX, y: screenY)
-            
-            if screenY >= -1000 && screenY <= canvasSize.height + 1000 {
-                if isFirst {
-                    path.move(to: pt)
-                    isFirst = false
-                } else {
-                    path.addLine(to: pt)
+            for screenX in stride(from: 0, through: canvasSize.width, by: 1.5) {
+                let mathX = Double((screenX - origin.x) / scale)
+                let mathY = evaluator(mathX)
+                
+                if mathY.isNaN || mathY.isInfinite {
+                    isFirst = true
+                    previousScreenY = nil
+                    continue
                 }
-                previousScreenY = screenY
-            } else {
-                isFirst = true
-                previousScreenY = nil
+                
+                let screenY = origin.y - CGFloat(mathY) * scale
+                
+                if let prevY = previousScreenY, abs(screenY - prevY) > canvasSize.height {
+                    isFirst = true
+                }
+                
+                let pt = CGPoint(x: screenX, y: screenY)
+                
+                if screenY >= -1000 && screenY <= canvasSize.height + 1000 {
+                    if isFirst {
+                        path.move(to: pt)
+                        isFirst = false
+                    } else {
+                        path.addLine(to: pt)
+                    }
+                    previousScreenY = screenY
+                } else {
+                    isFirst = true
+                    previousScreenY = nil
+                }
             }
         }
         
-        if colorScheme == .dark {
+        let strokeStyle = StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round, dash: isDashed ? [8, 10] : [])
+        if colorScheme == .dark && !isDashed {
             context.stroke(path, with: .color(color.opacity(0.2)), style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round))
         }
-        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
+        context.stroke(path, with: .color(color), style: strokeStyle)
     }
     
-    private func drawDiscreteSeries(context: GraphicsContext, series: GraphData.Series, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
+    private func drawDiscreteSeries(context: GraphicsContext, series: GraphData.Series, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color, isDashed: Bool = false) {
         let validCount = min(series.xValues.count, series.yValues.count)
         guard validCount > 0 else { return }
         
@@ -784,84 +721,42 @@ struct DynamicGraphView: View {
             }
         }
         
-        if colorScheme == .dark {
+        let strokeStyle = StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round, dash: isDashed ? [8, 10] : [])
+        if colorScheme == .dark && !isDashed {
             context.stroke(path, with: .color(color.opacity(0.25)), style: StrokeStyle(lineWidth: 10, lineCap: .round, lineJoin: .round))
         }
-        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
+        context.stroke(path, with: .color(color), style: strokeStyle)
     }
     
-    // MARK: - Algorithmic Label Repulsion
-    private func drawIntersections(context: GraphicsContext, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, activeProbePoint: CGPoint?) {
-        var drawnRects: [CGRect] = []
+    private func drawAnnotatedPoint(context: GraphicsContext, series: GraphData.Series, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color) {
+        guard let x = series.xValues.first, let y = series.yValues.first else { return }
+        let screenX = origin.x + CGFloat(x) * scale
+        let screenY = origin.y - CGFloat(y) * scale
         
-        for pt in intersectionPoints {
-            let screenX = origin.x + CGFloat(pt.x) * scale
-            let screenY = origin.y - CGFloat(pt.y) * scale
+        // Inner Dot and Stroke
+        let rect = CGRect(x: screenX - 6, y: screenY - 6, width: 12, height: 12)
+        let pointPath = Path(ellipseIn: rect)
+        context.fill(pointPath, with: .color(colorScheme == .dark ? Color(red: 0.12, green: 0.13, blue: 0.15) : .white))
+        context.stroke(pointPath, with: .color(color), lineWidth: 3.5)
+        
+        let labelRaw = series.label
+        if !labelRaw.isEmpty {
+            let font = Font.system(size: 13, weight: .bold, design: .monospaced)
+            let resolvedText = context.resolve(Text(labelRaw).font(font).foregroundColor(colorScheme == .dark ? .white : color))
             
-            if screenX >= -50 && screenX <= canvasSize.width + 50 && screenY >= -50 && screenY <= canvasSize.height + 50 {
-                
-                // Hide the static intersection label entirely if the user is scrubbing directly over it
-                if let probe = activeProbePoint, hypot(probe.x - screenX, probe.y - screenY) < 15 {
-                    continue
-                }
-                
-                // Precision Inner Dot
-                let dotRect = CGRect(x: screenX - 3.5, y: screenY - 3.5, width: 7, height: 7)
-                let dotPath = Path(ellipseIn: dotRect)
-                context.fill(dotPath, with: .color(colorScheme == .dark ? .white : Color(white: 0.15)))
-                
-                // Outer Safety Ring
-                let ringRect = CGRect(x: screenX - 8, y: screenY - 8, width: 16, height: 16)
-                let ringPath = Path(ellipseIn: ringRect)
-                context.stroke(ringPath, with: .color(colorScheme == .dark ? .white : Color(white: 0.15)), lineWidth: 2.5)
-                
-                let labelStr = "(\(Double(pt.x).cleanGraphString), \(Double(pt.y).cleanGraphString))"
-                let font = Font.system(size: 13, weight: .bold, design: .monospaced)
-                
-                // Resolve text to calculate exact framing
-                let resolvedText = context.resolve(Text(labelStr).font(font).foregroundColor(.primary))
-                let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
-                
-                let paddingX: CGFloat = 10
-                let paddingY: CGFloat = 6
-                let boxWidth = textSize.width + paddingX * 2
-                let boxHeight = textSize.height + paddingY * 2
-                
-                // Default placement on the right
-                var boxX = screenX + 16
-                var boxY = screenY - boxHeight / 2
-                
-                // Flip to left if it bleeds off the right edge of the canvas
-                var flipped = false
-                if boxX + boxWidth > canvasSize.width - 10 {
-                    boxX = screenX - 16 - boxWidth
-                    flipped = true
-                }
-                
-                var pillRect = CGRect(x: boxX, y: boxY, width: boxWidth, height: boxHeight)
-                
-                // Active Collision Resolution: Push down if colliding with existing label
-                while drawnRects.contains(where: { $0.intersects(pillRect.insetBy(dx: -4, dy: -4)) }) {
-                    boxY += (boxHeight + 4)
-                    pillRect = CGRect(x: boxX, y: boxY, width: boxWidth, height: boxHeight)
-                }
-                drawnRects.append(pillRect)
-                
-                // Draw Bezier Connector to moving label
-                var connector = Path()
-                connector.move(to: CGPoint(x: flipped ? screenX - 8 : screenX + 8, y: screenY))
-                let ctrlX = flipped ? screenX - 12 : screenX + 12
-                connector.addQuadCurve(to: CGPoint(x: flipped ? boxX + boxWidth : boxX, y: pillRect.midY), control: CGPoint(x: ctrlX, y: pillRect.midY))
-                context.stroke(connector, with: .color(Color.primary.opacity(0.3)), lineWidth: 1.5)
-                
-                // Draw Geometric Pill Background
-                let pillPath = Path(roundedRect: pillRect, cornerRadius: 8)
-                context.fill(pillPath, with: .color(colorScheme == .dark ? Color(white: 0.12) : Color.white))
-                context.stroke(pillPath, with: .color(Color.primary.opacity(0.15)), lineWidth: 1)
-                
-                // Draw Text perfectly centered in the pill
-                context.draw(resolvedText, at: CGPoint(x: pillRect.midX, y: pillRect.midY), anchor: .center)
-            }
+            let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
+            let pillRect = CGRect(x: screenX - (textSize.width/2) - 6, y: screenY - 32, width: textSize.width + 12, height: textSize.height + 6)
+            
+            // Shadow under the label
+            context.fill(Path(roundedRect: pillRect, cornerRadius: 6), with: .color(.black.opacity(0.15)))
+            
+            // Label Background
+            let pillPath = Path(roundedRect: pillRect, cornerRadius: 6)
+            context.fill(pillPath, with: .color(colorScheme == .dark ? Color(white: 0.12).opacity(0.9) : Color.white.opacity(0.9)))
+            context.stroke(pillPath, with: .color(color.opacity(0.3)), lineWidth: 1)
+            
+            // Render Text
+            context.draw(resolvedText, at: CGPoint(x: screenX, y: screenY - 29), anchor: .bottom)
         }
     }
     
@@ -1211,7 +1106,6 @@ enum GraphContentParser {
 
     private static func equationGraphData(from content: String) -> GraphData {
         let cleanedContent = graphContent(from: content)
-            .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "type=equation", with: "")
             .replacingOccurrences(of: "&", with: "")
             .replacingOccurrences(of: "\n", with: "|")
@@ -1224,12 +1118,45 @@ enum GraphContentParser {
             var secondaryY: [Double]? = nil
             
             for (index, component) in components.enumerated() {
-                let trimmed = component.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty { continue }
+                let rawTrimmed = component.trimmingCharacters(in: .whitespacesAndNewlines)
+                if rawTrimmed.isEmpty { continue }
                 
-                let eqString = trimmed.replacingOccurrences(of: "y=", with: "")
-                if let sampled = MathEngine.samplePoints(for: eqString) {
-                    allSeries.append(sampled)
+                let isDashed = rawTrimmed.contains("[DASHED]")
+                let isExplicitPoint = rawTrimmed.contains("[POINT]")
+                let trimmed = rawTrimmed.replacingOccurrences(of: "[DASHED]", with: "").replacingOccurrences(of: "[POINT]", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let isAutoPoint = trimmed.hasPrefix("(") && trimmed.contains(",") && trimmed.contains(")")
+                let isPoint = isExplicitPoint || isAutoPoint
+                let eqString = trimmed.replacingOccurrences(of: "y=", with: "").replacingOccurrences(of: "y =", with: "").trimmingCharacters(in: .whitespaces)
+                
+                if isPoint {
+                    if let start = eqString.firstIndex(of: "("), let end = eqString.firstIndex(of: ")"), start < end {
+                        let coordsStr = String(eqString[eqString.index(after: start)..<end])
+                        let coords = coordsStr.components(separatedBy: ",")
+                        if coords.count == 2, let x = Double(coords[0].trimmingCharacters(in: .whitespaces)), let y = Double(coords[1].trimmingCharacters(in: .whitespaces)) {
+                            
+                            var pointLabel = eqString.replacingOccurrences(of: "(\(coordsStr))", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                            if pointLabel.isEmpty {
+                                pointLabel = "(\(x.cleanGraphString), \(y.cleanGraphString))"
+                            }
+                            
+                            allSeries.append(GraphData.Series(label: pointLabel, xValues: [x], yValues: [y], isDashed: isDashed, isPoint: true))
+                            continue
+                        }
+                    }
+                }
+                
+                if trimmed.replacingOccurrences(of: " ", with: "").starts(with: "x=") {
+                    let xVal = Double(eqString.replacingOccurrences(of: "x=", with: "").replacingOccurrences(of: "x =", with: "")) ?? 0.0
+                    allSeries.append(GraphData.Series(label: trimmed, xValues: [xVal, xVal], yValues: [-1000.0, 1000.0], isDashed: isDashed, isPoint: false))
+                    if index == 0 { primaryX = [xVal, xVal]; primaryY = [-10.0, 10.0] }
+                    continue
+                }
+                
+                if let sampled = MathEngine.samplePoints(for: eqString.replacingOccurrences(of: " ", with: "")) {
+                    var modifiedSeries = sampled
+                    modifiedSeries.label = trimmed.hasPrefix("y") ? trimmed : "y = \(trimmed)"
+                    modifiedSeries.isDashed = isDashed
+                    allSeries.append(modifiedSeries)
                     if index == 0 {
                         primaryX = sampled.xValues
                         primaryY = sampled.yValues
@@ -1237,11 +1164,11 @@ enum GraphContentParser {
                         secondaryY = sampled.yValues
                     }
                 } else {
-                    let line = lineValues(from: eqString)
-                    let xValues = [-10.0, 10.0]
+                    let line = lineValues(from: eqString.replacingOccurrences(of: " ", with: ""))
+                    let xValues = [-1000.0, 1000.0]
                     let yValues = xValues.map { line.slope * $0 + line.intercept }
-                    let label = trimmed.hasPrefix("y=") ? trimmed : "y = \(trimmed)"
-                    allSeries.append(GraphData.Series(label: label, xValues: xValues, yValues: yValues))
+                    let label = trimmed.hasPrefix("y") ? trimmed : "y = \(trimmed)"
+                    allSeries.append(GraphData.Series(label: label, xValues: xValues, yValues: yValues, isDashed: isDashed, isPoint: false))
                     
                     if index == 0 {
                         primaryX = xValues
@@ -1260,20 +1187,45 @@ enum GraphContentParser {
             )
         }
         
-        let singleEq = cleanedContent.replacingOccurrences(of: "y=", with: "")
-        if let sampled = MathEngine.samplePoints(for: singleEq) {
-            return GraphData(xValues: sampled.xValues, yValues: sampled.yValues, series: [sampled])
+        let isDashed = cleanedContent.contains("[DASHED]")
+        let isExplicitPoint = cleanedContent.contains("[POINT]")
+        let trimmed = cleanedContent.replacingOccurrences(of: "[DASHED]", with: "").replacingOccurrences(of: "[POINT]", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let isAutoPoint = trimmed.hasPrefix("(") && trimmed.contains(",") && trimmed.contains(")")
+        let isPoint = isExplicitPoint || isAutoPoint
+        let eqString = trimmed.replacingOccurrences(of: "y=", with: "").replacingOccurrences(of: "y =", with: "").trimmingCharacters(in: .whitespaces)
+        
+        if isPoint {
+            if let start = eqString.firstIndex(of: "("), let end = eqString.firstIndex(of: ")"), start < end {
+                let coordsStr = String(eqString[eqString.index(after: start)..<end])
+                let coords = coordsStr.components(separatedBy: ",")
+                if coords.count == 2, let x = Double(coords[0].trimmingCharacters(in: .whitespaces)), let y = Double(coords[1].trimmingCharacters(in: .whitespaces)) {
+                    
+                    var pointLabel = eqString.replacingOccurrences(of: "(\(coordsStr))", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    if pointLabel.isEmpty {
+                        pointLabel = "(\(x.cleanGraphString), \(y.cleanGraphString))"
+                    }
+                    
+                    return GraphData(xValues: [x], yValues: [y], series: [GraphData.Series(label: pointLabel, xValues: [x], yValues: [y], isDashed: isDashed, isPoint: true)])
+                }
+            }
+        }
+
+        if let sampled = MathEngine.samplePoints(for: eqString.replacingOccurrences(of: " ", with: "")) {
+            var mod = sampled
+            mod.isDashed = isDashed
+            return GraphData(xValues: sampled.xValues, yValues: sampled.yValues, series: [mod])
         }
         
-        if cleanedContent.starts(with: "x=") {
-            let xValue = Double(cleanedContent.replacingOccurrences(of: "x=", with: "")) ?? 0.0
-            return GraphData(xValues: [xValue, xValue], yValues: [-10.0, 10.0])
+        let noSpaces = cleanedContent.replacingOccurrences(of: " ", with: "")
+        if noSpaces.starts(with: "x=") {
+            let xValue = Double(noSpaces.replacingOccurrences(of: "[DASHED]", with: "").replacingOccurrences(of: "x=", with: "")) ?? 0.0
+            return GraphData(xValues: [xValue, xValue], yValues: [-1000.0, 1000.0], series: [GraphData.Series(label: "x = \(xValue)", xValues: [xValue, xValue], yValues: [-1000.0, 1000.0], isDashed: isDashed, isPoint: false)])
         }
         
         for inequalityOperator in [">=", "<=", ">", "<"] {
             let prefix = "y\(inequalityOperator)"
-            if cleanedContent.starts(with: prefix) {
-                let equation = String(cleanedContent.dropFirst(prefix.count))
+            if noSpaces.starts(with: prefix) {
+                let equation = String(noSpaces.dropFirst(prefix.count))
                 let line = lineValues(from: equation)
                 let xValues = [-10.0, 10.0]
                 let yValues = xValues.map { line.slope * $0 + line.intercept }
@@ -1289,9 +1241,8 @@ enum GraphContentParser {
             }
         }
         
-        let equation = cleanedContent.replacingOccurrences(of: "y=", with: "")
+        let equation = noSpaces.replacingOccurrences(of: "y=", with: "")
         let line = lineValues(from: equation)
-        
         let xValues = [-10.0, 10.0]
         let yValues = xValues.map { line.slope * $0 + line.intercept }
         return GraphData(xValues: xValues, yValues: yValues)
