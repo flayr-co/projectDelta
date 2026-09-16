@@ -228,6 +228,53 @@ class MathScratchpadViewModel {
             self.newLine()
         }
     }
+    
+    func pasteEquation(_ equation: String, at lineIndex: Int) {
+        let cleanInput = equation.replacingOccurrences(of: " ", with: "")
+        var parsedTokens: [MathToken] = []
+        var currentNumber = ""
+        var currentVariable = ""
+        
+        let flushNumber = {
+            if !currentNumber.isEmpty {
+                parsedTokens.append(MathToken(value: currentNumber, type: .number))
+                currentNumber = ""
+            }
+        }
+        
+        let flushVariable = {
+            if !currentVariable.isEmpty {
+                parsedTokens.append(MathToken(value: currentVariable, type: .variable))
+                currentVariable = ""
+            }
+        }
+        
+        let chars = Array(cleanInput)
+        var i = 0
+        
+        while i < chars.count {
+            let char = chars[i]
+            if char.isNumber || char == "." {
+                flushVariable()
+                currentNumber.append(char)
+            } else if char.isLetter || char == "θ" {
+                flushNumber()
+                currentVariable.append(char)
+            } else {
+                flushNumber()
+                flushVariable()
+                parsedTokens.append(MathToken(value: String(char), type: .operatorSymbol))
+            }
+            i += 1
+        }
+        
+        flushNumber()
+        flushVariable()
+        
+        if lineIndex < lines.count {
+            lines[lineIndex] = parsedTokens
+        }
+    }
 }
 
 // MARK: - Main Canvas View
@@ -291,6 +338,7 @@ struct MathScratchpadView: View {
                                 tokens: viewModel.lines[lineIndex],
                                 isActive: lineIndex == viewModel.activeLineIndex,
                                 cursorIndex: lineIndex == viewModel.activeLineIndex ? viewModel.cursorIndex : nil,
+                                lineIndex: lineIndex,
                                 onCursorTap: { newIndex in
                                     withAnimation(.snappy) {
                                         viewModel.moveCursor(to: newIndex, on: lineIndex)
@@ -467,6 +515,7 @@ struct MathLineView: View {
     let tokens: [MathToken]
     let isActive: Bool
     let cursorIndex: Int?
+    let lineIndex: Int
     let onCursorTap: (Int) -> Void
     
     let emeraldAccent = Color(red: 0.15, green: 0.85, blue: 0.65)
@@ -476,26 +525,26 @@ struct MathLineView: View {
         HStack(spacing: 8) {
             Capsule()
                 .fill(isActive ? emeraldAccent : Color.clear)
-                .frame(width: 3.5)
-                .shadow(color: isActive ? emeraldAccent.opacity(0.6) : Color.clear, radius: 4, y: 0)
+                .frame(width: 4)
+                .shadow(color: isActive ? emeraldAccent.opacity(0.5) : Color.clear, radius: 4, y: 0)
                 .padding(.vertical, 6)
             
             if isActive {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 12) {
                     let latexString = tokens.map { $0.value }.joined()
                     
                     // Focal Point: Pre-warmed Inline Preview
                     LatexView(latex: "$$ \(latexString.isEmpty ? "\\phantom{A}" : latexString) $$")
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 6)
+                        .padding(.top, 8)
                         .padding(.leading, 8)
                         .opacity(latexString.isEmpty ? 0 : 1)
                     
                     HStack(alignment: .top) {
-                        // Deemphasized Raw Input
-                        FlowLayout(spacing: 0, lineSpacing: 4) {
+                        // Premium Input Pill
+                        FlowLayout(spacing: 0, lineSpacing: 8) {
                             Color.clear
-                                .frame(width: 6, height: 18)
+                                .frame(width: 6, height: 20)
                                 .contentShape(Rectangle())
                                 .onTapGesture { onCursorTap(0) }
                                 .overlay(alignment: .trailing) {
@@ -510,48 +559,91 @@ struct MathLineView: View {
                                     }
                             }
                         }
-                        .opacity(0.6)
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(emeraldAccent.opacity(0.4), lineWidth: 1.5)
+                        )
                         
                         Spacer(minLength: 8)
                         
-                        // Inline Calculator Result Injection
+                        // Inline Calculator Result
                         if let result = viewModel.calculateCurrentLine() {
                             Text("= \(result)")
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.green)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.green.opacity(0.12), in: .capsule)
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 14)
+                                .background(emeraldAccent.gradient, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .shadow(color: emeraldAccent.opacity(0.3), radius: 8, y: 4)
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 16)
                     .padding(.trailing, 12)
-                    .padding(.leading, 8)
                 }
             } else {
                 let latexString = tokens.map { $0.value }.joined()
                 
                 if latexString.isEmpty {
-                    Color.clear
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture { onCursorTap(tokens.count) }
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.app.dashed")
+                            .font(.system(size: 16))
+                        Text("Tap to write equation...")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(.secondary.opacity(0.4))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 16)
+                    .padding(.leading, 14)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onCursorTap(tokens.count) }
                 } else {
                     LatexView(latex: "$$ \(latexString) $$")
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 6)
+                        .padding(.vertical, 10)
                         .padding(.leading, 14)
                         .contentShape(Rectangle())
                         .onTapGesture { onCursorTap(tokens.count) }
                 }
             }
         }
-        .frame(minHeight: 44)
+        .frame(minHeight: 50)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(isActive ? (colorScheme == .dark ? Color.white.opacity(0.02) : Color.black.opacity(0.015)) : Color.clear)
         )
+        .contextMenu {
+            Button {
+                let latexString = tokens.map { $0.value }.joined()
+                #if os(iOS)
+                UIPasteboard.general.string = latexString
+                #elseif os(macOS)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(latexString, forType: .string)
+                #endif
+            } label: {
+                Label("Copy Equation", systemImage: "doc.on.doc")
+            }
+            
+            Button {
+                #if os(iOS)
+                let text = UIPasteboard.general.string ?? ""
+                #elseif os(macOS)
+                let text = NSPasteboard.general.string(forType: .string) ?? ""
+                #endif
+                
+                if !text.isEmpty {
+                    withAnimation(.snappy) { viewModel.pasteEquation(text, at: lineIndex) }
+                }
+            } label: {
+                Label("Paste Equation", systemImage: "doc.on.clipboard")
+            }
+        }
     }
 }
 
@@ -578,9 +670,53 @@ struct TokenView: View {
     let token: MathToken
     @Environment(\.colorScheme) var colorScheme
     
+    var displayValue: String {
+        let val = token.value
+        switch val {
+        // Complex Macros
+        case "\\lim_{x \\to ": return "lim x→"
+        case "\\frac{d}{dx}[": return "d/dx ["
+        case "\\sum_{": return "∑_"
+        case "\\log_{10}(": return "log₁₀("
+        case "\\sqrt{": return "√("
+        case "\\frac{": return "frac("
+        case "^{\\circ}": return "°"
+        case "^{": return "^("
+        case "_{": return "_("
+        
+        // Standard Math Symbols
+        case "\\pi": return "π"
+        case "\\theta": return "θ"
+        case "\\infty": return "∞"
+        case "\\int": return "∫"
+        case "\\to": return "→"
+        
+        // Functions
+        case "\\lim": return "lim"
+        case "\\sin": return "sin"
+        case "\\cos": return "cos"
+        case "\\tan": return "tan"
+        case "\\ln": return "ln"
+        case "\\log": return "log"
+        case "\\sum": return "∑"
+        case "\\sqrt": return "√"
+        case "\\frac": return "frac"
+        
+        // Structural abstraction (Hiding LaTeX braces)
+        case "{": return "("
+        case "}": return ")"
+        case "\\{": return "{"
+        case "\\}": return "}"
+        
+        default:
+            // Universal Fallback: Aggressively remove ALL slashes to prevent code leaks
+            return val.replacingOccurrences(of: "\\", with: "")
+        }
+    }
+    
     var body: some View {
-        Text(token.value)
-            .font(.system(size: 15, weight: weightForType(token.type), design: .monospaced))
+        Text(displayValue)
+            .font(.system(size: 17, weight: weightForType(token.type), design: .rounded))
             .italic(token.type == .variable)
             .foregroundStyle(colorForType(token.type))
             .padding(.horizontal, paddingForType(token.type))
@@ -590,16 +726,16 @@ struct TokenView: View {
     private func paddingForType(_ type: TokenType) -> CGFloat {
         switch type {
         case .operatorSymbol, .structural: return 2
-        case .function: return 1
+        case .function: return 2
         case .number, .variable: return 0.5
         }
     }
     
     private func weightForType(_ type: TokenType) -> Font.Weight {
         switch type {
-        case .operatorSymbol: return .bold
-        case .number, .variable: return .medium
-        default: return .medium
+        case .operatorSymbol: return .heavy
+        case .number, .variable: return .semibold
+        default: return .bold
         }
     }
     
@@ -609,7 +745,7 @@ struct TokenView: View {
         case .variable: return colorScheme == .dark ? Color(red: 0.45, green: 0.82, blue: 1.0) : Color.blue
         case .operatorSymbol: return Color(red: 1.0, green: 0.60, blue: 0.15)
         case .function: return colorScheme == .dark ? Color(red: 0.85, green: 0.55, blue: 1.0) : Color.purple
-        case .structural: return .secondary
+        case .structural: return .secondary.opacity(0.6) // Softer appearance for structural brackets
         }
     }
 }
@@ -642,34 +778,84 @@ struct MathKeypadView: View {
                 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
-                        ForEach(["x", "y", "θ", "π"], id: \.self) { variable in
-                            let isPi = variable == "π"
-                            KeypadButton(text: variable, type: isPi ? .function : .variable, style: .variable) {
-                                viewModel.insert(isPi ? "\\pi" : variable, type: isPi ? .function : .variable)
+                        // Variables & Constants
+                        ForEach(["x", "y", "θ", "π", "e"], id: \.self) { variable in
+                            let isFunc = variable == "π" || variable == "e"
+                            let val = variable == "π" ? "\\pi" : variable
+                            KeypadButton(text: variable, type: isFunc ? .function : .variable, style: .variable) {
+                                viewModel.insert(val, type: isFunc ? .function : .variable)
                                 playHaptic()
                             }
-                            .frame(width: 50)
+                            .frame(width: 48)
                         }
                         
                         Divider().frame(height: 22)
                         
-                        ForEach(["sin", "cos", "tan", "ln"], id: \.self) { fn in
+                        // Trig & Logs
+                        ForEach(["sin", "cos", "tan", "ln", "log"], id: \.self) { fn in
                             KeypadButton(text: fn, type: .function, style: .function) {
-                                viewModel.insert("\\\(fn)(", type: .function)
+                                if fn == "log" {
+                                    viewModel.insert("\\log_{10}(", type: .function)
+                                } else {
+                                    viewModel.insert("\\\(fn)(", type: .function)
+                                }
                                 viewModel.insert(")", type: .structural)
-                                viewModel.moveCursorLeft() // Trap cursor inside parenthesis
+                                viewModel.moveCursorLeft()
                                 playHaptic()
                             }
-                            .frame(width: 54)
+                            .frame(width: 52)
                         }
+                        
+                        Divider().frame(height: 22)
+                        
+                        // Calculus & Algebra Support
+                        KeypadButton(text: "lim", type: .function, style: .function) {
+                            viewModel.insert("\\lim_{x \\to ", type: .function)
+                            viewModel.insert("}", type: .structural)
+                            viewModel.insert("(", type: .structural)
+                            viewModel.insert(")", type: .structural)
+                            viewModel.moveCursorLeft()
+                            viewModel.moveCursorLeft()
+                            viewModel.moveCursorLeft()
+                            playHaptic()
+                        }
+                        .frame(width: 54)
+                        
+                        KeypadButton(text: "d/dx", type: .function, style: .function) {
+                            viewModel.insert("\\frac{d}{dx}[", type: .function)
+                            viewModel.insert("]", type: .structural)
+                            viewModel.moveCursorLeft()
+                            playHaptic()
+                        }
+                        .frame(width: 56)
+                        
+                        KeypadButton(text: "∑", type: .function, style: .function) {
+                            viewModel.insert("\\sum_{", type: .function)
+                            viewModel.insert("}", type: .structural)
+                            viewModel.insert("^{", type: .structural)
+                            viewModel.insert("}", type: .structural)
+                            viewModel.moveCursorLeft()
+                            viewModel.moveCursorLeft()
+                            viewModel.moveCursorLeft()
+                            playHaptic()
+                        }
+                        .frame(width: 48)
+                        
+                        KeypadButton(text: "|x|", type: .function, style: .function) {
+                            viewModel.insert("|", type: .structural)
+                            viewModel.insert("|", type: .structural)
+                            viewModel.moveCursorLeft()
+                            playHaptic()
+                        }
+                        .frame(width: 48)
                         
                         KeypadButton(text: "√", type: .function, style: .function) {
                             viewModel.insert("\\sqrt{", type: .function)
                             viewModel.insert("}", type: .structural)
-                            viewModel.moveCursorLeft() // Trap cursor inside brace
+                            viewModel.moveCursorLeft()
                             playHaptic()
                         }
-                        .frame(width: 50)
+                        .frame(width: 48)
                         
                         Divider().frame(height: 22)
                         
@@ -799,27 +985,23 @@ struct KeypadButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(backgroundColor)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(borderColor, lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.25 : 0.04), radius: 2, y: 1)
+                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.08), radius: style == .confirm ? 6 : 2, y: style == .confirm ? 4 : 1)
                 
                 if let icon = icon {
                     Image(systemName: icon)
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(foregroundColor)
                 } else if let text = text {
                     Text(text)
-                        .font(.system(size: 22, weight: type == .operatorSymbol ? .bold : .medium, design: .rounded))
+                        .font(.system(size: 24, weight: type == .operatorSymbol ? .bold : .medium, design: .rounded))
                         .italic(type == .variable)
                         .foregroundStyle(foregroundColor)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 52)
+            .frame(height: 56)
         }
         .buttonStyle(KeypadPressStyle())
         .keyboardShortcut(shortcut)
@@ -828,36 +1010,19 @@ struct KeypadButton: View {
     private var backgroundColor: AnyShapeStyle {
         switch style {
         case .number:
-            return AnyShapeStyle(colorScheme == .dark ? Color(white: 0.18) : Color.white)
+            return AnyShapeStyle(colorScheme == .dark ? Color(white: 0.20) : Color.white)
         case .operator:
-            return AnyShapeStyle(colorScheme == .dark ? Color.orange.opacity(0.18) : Color.orange.opacity(0.12))
+            return AnyShapeStyle(colorScheme == .dark ? Color(red: 1.0, green: 0.6, blue: 0.15).opacity(0.2) : Color(red: 1.0, green: 0.6, blue: 0.15).opacity(0.12))
         case .action:
             return AnyShapeStyle(colorScheme == .dark ? Color.blue.opacity(0.2) : Color.blue.opacity(0.12))
         case .confirm:
             return AnyShapeStyle(LinearGradient(colors: [Color(red: 0.15, green: 0.85, blue: 0.65), Color(red: 0.10, green: 0.70, blue: 0.50)], startPoint: .topLeading, endPoint: .bottomTrailing))
         case .destructive:
-            return AnyShapeStyle(colorScheme == .dark ? Color.red.opacity(0.2) : Color.red.opacity(0.12))
+            return AnyShapeStyle(colorScheme == .dark ? Color.red.opacity(0.25) : Color.red.opacity(0.12))
         case .variable:
-            return AnyShapeStyle(colorScheme == .dark ? Color(white: 0.16) : Color.blue.opacity(0.08))
+            return AnyShapeStyle(colorScheme == .dark ? Color(white: 0.16) : Color(white: 0.96))
         case .function:
-            return AnyShapeStyle(colorScheme == .dark ? Color(white: 0.16) : Color.purple.opacity(0.08))
-        }
-    }
-    
-    private var borderColor: Color {
-        if colorScheme == .dark {
-            switch style {
-            case .operator: return Color.orange.opacity(0.35)
-            case .action: return Color.blue.opacity(0.35)
-            case .destructive: return Color.red.opacity(0.35)
-            case .confirm: return Color.clear
-            default: return Color.white.opacity(0.08)
-            }
-        } else {
-            switch style {
-            case .confirm: return Color.clear
-            default: return Color.black.opacity(0.04)
-            }
+            return AnyShapeStyle(colorScheme == .dark ? Color.purple.opacity(0.15) : Color.purple.opacity(0.08))
         }
     }
     

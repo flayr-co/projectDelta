@@ -4,7 +4,6 @@
 //
 //  Created by Jake Meissner on 9/14/26.
 //
-//
 //  DownloadButtonView.swift
 //  ProjectDelta
 //
@@ -18,14 +17,7 @@ struct DownloadButtonView: View {
     let onDownload: () async throws -> Void
     
     @State private var isDownloading = false
-    var isDownloaded: Bool {
-        switch itemType {
-        case .lesson:
-            return OfflineStorageManager.shared.downloadedLessonIDs.contains(itemID)
-        case .test:
-            return OfflineStorageManager.shared.downloadedTestIDs.contains(itemID)
-        }
-    }
+    @State private var isDownloadedLocally = false // Forces SwiftUI to track and redraw this state
     
     enum ItemType {
         case lesson, test
@@ -33,7 +25,7 @@ struct DownloadButtonView: View {
     
     var body: some View {
         Button(action: {
-            if isDownloaded {
+            if isDownloadedLocally {
                 removeOfflineData()
             } else {
                 performDownload()
@@ -45,17 +37,29 @@ struct DownloadButtonView: View {
                         .tint(themeColor)
                         .scaleEffect(0.8)
                 } else {
-                    Image(systemName: isDownloaded ? "checkmark.circle.fill" : "icloud.and.arrow.down")
+                    Image(systemName: isDownloadedLocally ? "checkmark.circle.fill" : "icloud.and.arrow.down")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(isDownloaded ? Color.green : themeColor.opacity(0.6))
+                        .foregroundStyle(isDownloadedLocally ? Color.green : themeColor.opacity(0.6))
                         .contentTransition(.symbolEffect(.replace))
                 }
             }
             .frame(width: 32, height: 32)
-            .background(isDownloaded ? Color.green.opacity(0.1) : themeColor.opacity(0.08), in: .circle)
+            .background(isDownloadedLocally ? Color.green.opacity(0.1) : themeColor.opacity(0.08), in: .circle)
         }
         .disabled(isDownloading)
         .buttonStyle(.plain)
+        .onAppear {
+            syncStateWithManager()
+        }
+    }
+    
+    private func syncStateWithManager() {
+        switch itemType {
+        case .lesson:
+            isDownloadedLocally = OfflineStorageManager.shared.downloadedLessonIDs.contains(itemID)
+        case .test:
+            isDownloadedLocally = OfflineStorageManager.shared.downloadedTestIDs.contains(itemID)
+        }
     }
     
     private func performDownload() {
@@ -63,12 +67,20 @@ struct DownloadButtonView: View {
         Task {
             do {
                 try await onDownload()
+                
+                await MainActor.run {
+                    isDownloadedLocally = true
+                }
             } catch {
                 print("Download failed: \(error.localizedDescription)")
             }
+            
             // Add an artificial delay to prevent UI flashing if the payload writes too fast
             try? await Task.sleep(for: .seconds(0.5))
-            isDownloading = false
+            
+            await MainActor.run {
+                isDownloading = false
+            }
         }
     }
     
@@ -80,6 +92,7 @@ struct DownloadButtonView: View {
             case .test:
                 try OfflineStorageManager.shared.removeTest(id: itemID)
             }
+            isDownloadedLocally = false
         } catch {
             print("Deletion failed: \(error.localizedDescription)")
         }

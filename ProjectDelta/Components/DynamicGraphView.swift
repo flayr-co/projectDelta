@@ -692,7 +692,9 @@ struct DynamicGraphView: View {
         if isDashed, let seriesLabel = series?.label {
             let cleanLabel = seriesLabel.replacingOccurrences(of: " [DASHED]", with: "").formatAsMathPower
             let font = Font.system(size: 13, weight: .bold, design: .monospaced)
-            let resolvedText = context.resolve(Text(cleanLabel).font(font).foregroundColor(colorScheme == .dark ? .white : renderColor))
+            
+            // Replaced the line-colored text with standard .primary text
+            let resolvedText = context.resolve(Text(cleanLabel).font(font).foregroundColor(.primary))
             
             let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
             

@@ -375,7 +375,33 @@ fileprivate struct BlockEditCell: View {
                     if isEditing { isFocused = true }
                 }
             }
-
+            .contextMenu {
+                Button {
+#if os(iOS)
+                    UIPasteboard.general.string = block.content
+#elseif os(macOS)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(block.content, forType: .string)
+#endif
+                } label: {
+                    Label("Copy Block Content", systemImage: "doc.on.doc")
+                }
+                
+                Button {
+#if os(iOS)
+                    let text = UIPasteboard.general.string ?? ""
+#elseif os(macOS)
+                    let text = NSPasteboard.general.string(forType: .string) ?? ""
+#endif
+                    
+                    if !text.isEmpty {
+                        block.content = text
+                    }
+                } label: {
+                    Label("Paste into Block", systemImage: "doc.on.clipboard")
+                }
+            }
+            
             if isEditing {
                 Divider()
                 
@@ -393,9 +419,9 @@ fileprivate struct BlockEditCell: View {
                         .buttonStyle(.plain)
                         
                         Button(action: {
-                            #if os(iOS)
+#if os(iOS)
                             hideKeyboard()
-                            #endif
+#endif
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 isEditing = false
                                 isFocused = false
