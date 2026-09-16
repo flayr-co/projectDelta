@@ -201,7 +201,7 @@ struct DynamicGraphView: View {
                             } else if cleanLabel.starts(with: "x=") {
                                 drawEquationCurve(context: context, evaluator: { _ in .nan }, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color, isDashed: series.isDashed ?? false, isVertical: true, series: series)
                             } else if isEquation, let evaluator = MathEngine.compile(series.label) {
-                                drawEquationCurve(context: context, evaluator: evaluator, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color, isDashed: series.isDashed ?? false)
+                                drawEquationCurve(context: context, evaluator: evaluator, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color, isDashed: series.isDashed ?? false, series: series)
                             } else {
                                 drawDiscreteSeries(context: context, series: series, origin: origin, scale: currentScale, canvasSize: canvasSize, color: color, isDashed: series.isDashed ?? false)
                             }
@@ -368,7 +368,7 @@ struct DynamicGraphView: View {
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.05), radius: 15, y: 8)
         .frame(maxWidth: .infinity)
         // Fluid boundaries allow perfect geometry adaptation on Mac and iOS
-        .frame(minHeight: isFullScreenMode ? 300 : 350, maxHeight: isFullScreenMode ? .infinity : 600)
+        .frame(minHeight: isFullScreenMode ? 400 : 550, maxHeight: isFullScreenMode ? .infinity : 850)
         .padding(.horizontal, isFullScreenMode ? 0 : nil)
         .padding(.vertical, isFullScreenMode ? 0 : 8)
 #if os(iOS)
@@ -395,21 +395,24 @@ struct DynamicGraphView: View {
 #elseif os(macOS)
         .sheet(isPresented: $showFullScreen) {
             NavigationStack {
-                ZStack {
+                ZStack(alignment: .topTrailing) {
                     Color.platformSystemGroupedBackground.ignoresSafeArea()
+                    
                     DynamicGraphView(data: data, isFullScreenMode: true)
                         .padding()
+                        .padding(.top, 20) // Clearance for the new exit button
+                    
+                    // Explicit overlay button to guarantee visibility on macOS
+                    Button(action: { showFullScreen = false }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.secondary)
+                            .background(Circle().fill(Color.platformSystemGroupedBackground))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(20)
                 }
                 .navigationTitle("Graph Analysis")
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button(action: { showFullScreen = false }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(.gray)
-                        }
-                    }
-                }
                 .frame(minWidth: 800, minHeight: 600)
             }
         }
@@ -677,11 +680,42 @@ struct DynamicGraphView: View {
             }
         }
         
-        let strokeStyle = StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round, dash: isDashed ? [8, 10] : [])
+        let strokeStyle = StrokeStyle(lineWidth: isDashed ? 2.5 : 3.5, lineCap: .round, lineJoin: .round, dash: isDashed ? [6, 12] : [])
+        let renderColor = isDashed ? color.opacity(0.4) : color
+        
         if colorScheme == .dark && !isDashed {
             context.stroke(path, with: .color(color.opacity(0.2)), style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round))
         }
-        context.stroke(path, with: .color(color), style: strokeStyle)
+        context.stroke(path, with: .color(renderColor), style: strokeStyle)
+        
+        // Render Asymptote Labels
+        if isDashed, let seriesLabel = series?.label {
+            let cleanLabel = seriesLabel.replacingOccurrences(of: " [DASHED]", with: "").formatAsMathPower
+            let font = Font.system(size: 13, weight: .bold, design: .monospaced)
+            let resolvedText = context.resolve(Text(cleanLabel).font(font).foregroundColor(colorScheme == .dark ? .white : renderColor))
+            
+            let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
+            
+            if isVertical, let xVal = series?.xValues.first {
+                let screenX = origin.x + CGFloat(xVal) * scale
+                let rect = CGRect(x: screenX + 12, y: 24, width: textSize.width + 16, height: textSize.height + 8)
+                let pill = Path(roundedRect: rect, cornerRadius: 6)
+                context.fill(pill, with: .color(colorScheme == .dark ? Color(white: 0.15).opacity(0.85) : Color.white.opacity(0.85)))
+                context.stroke(pill, with: .color(renderColor.opacity(0.5)), lineWidth: 1)
+                context.draw(resolvedText, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
+            } else {
+                let mathX = Double((canvasSize.width - 60 - origin.x) / scale)
+                let mathY = evaluator(mathX)
+                if !mathY.isNaN && !mathY.isInfinite {
+                    let screenY = origin.y - CGFloat(mathY) * scale
+                    let rect = CGRect(x: canvasSize.width - textSize.width - 32, y: screenY - textSize.height - 24, width: textSize.width + 16, height: textSize.height + 8)
+                    let pill = Path(roundedRect: rect, cornerRadius: 6)
+                    context.fill(pill, with: .color(colorScheme == .dark ? Color(white: 0.15).opacity(0.85) : Color.white.opacity(0.85)))
+                    context.stroke(pill, with: .color(renderColor.opacity(0.5)), lineWidth: 1)
+                    context.draw(resolvedText, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
+                }
+            }
+        }
     }
     
     private func drawDiscreteSeries(context: GraphicsContext, series: GraphData.Series, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color, isDashed: Bool = false) {
@@ -736,7 +770,7 @@ struct DynamicGraphView: View {
         // Inner Dot and Stroke
         let rect = CGRect(x: screenX - 6, y: screenY - 6, width: 12, height: 12)
         let pointPath = Path(ellipseIn: rect)
-        context.fill(pointPath, with: .color(colorScheme == .dark ? Color(red: 0.12, green: 0.13, blue: 0.15) : .white))
+        context.fill(pointPath, with: .color(colorScheme == .dark ? Color(white: 0.15) : .white))
         context.stroke(pointPath, with: .color(color), lineWidth: 3.5)
         
         let labelRaw = series.label
@@ -745,18 +779,15 @@ struct DynamicGraphView: View {
             let resolvedText = context.resolve(Text(labelRaw).font(font).foregroundColor(colorScheme == .dark ? .white : color))
             
             let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
-            let pillRect = CGRect(x: screenX - (textSize.width/2) - 6, y: screenY - 32, width: textSize.width + 12, height: textSize.height + 6)
+            let pillRect = CGRect(x: screenX - (textSize.width/2) - 10, y: screenY - 40, width: textSize.width + 20, height: textSize.height + 10)
             
-            // Shadow under the label
-            context.fill(Path(roundedRect: pillRect, cornerRadius: 6), with: .color(.black.opacity(0.15)))
-            
-            // Label Background
+            // Clean Label Background (Shadow explicitly removed, matching asymptotes)
             let pillPath = Path(roundedRect: pillRect, cornerRadius: 6)
-            context.fill(pillPath, with: .color(colorScheme == .dark ? Color(white: 0.12).opacity(0.9) : Color.white.opacity(0.9)))
-            context.stroke(pillPath, with: .color(color.opacity(0.3)), lineWidth: 1)
+            context.fill(pillPath, with: .color(colorScheme == .dark ? Color(white: 0.15).opacity(0.85) : Color.white.opacity(0.85)))
+            context.stroke(pillPath, with: .color(color.opacity(0.5)), lineWidth: 1)
             
-            // Render Text
-            context.draw(resolvedText, at: CGPoint(x: screenX, y: screenY - 29), anchor: .bottom)
+            // Render Text centered
+            context.draw(resolvedText, at: CGPoint(x: pillRect.midX, y: pillRect.midY), anchor: .center)
         }
     }
     
