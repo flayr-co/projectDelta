@@ -67,6 +67,19 @@ class MathScratchpadViewModel {
                 case "sqrt":
                     lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\sqrt{", type: .function)
                     lines[activeLineIndex].insert(MathToken(value: "}", type: .structural), at: cursorIndex)
+                case "lim":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\lim_{x \\to ", type: .function)
+                    lines[activeLineIndex].insert(MathToken(value: "}", type: .structural), at: cursorIndex)
+                    lines[activeLineIndex].insert(MathToken(value: "(", type: .structural), at: cursorIndex + 1)
+                    lines[activeLineIndex].insert(MathToken(value: ")", type: .structural), at: cursorIndex + 2)
+                case "sum":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\sum_{", type: .function)
+                    lines[activeLineIndex].insert(MathToken(value: "}", type: .structural), at: cursorIndex)
+                    lines[activeLineIndex].insert(MathToken(value: "^{", type: .structural), at: cursorIndex + 1)
+                    lines[activeLineIndex].insert(MathToken(value: "}", type: .structural), at: cursorIndex + 2)
+                case "abs":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "|", type: .structural)
+                    lines[activeLineIndex].insert(MathToken(value: "|", type: .structural), at: cursorIndex)
                 case "pi":
                     lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\pi", type: .function)
                 case "theta":
@@ -356,7 +369,7 @@ struct MathScratchpadView: View {
                 .focusable()
                 .focused($isCanvasFocused)
                 // Hardware Keyboard Intercepts mapped cleanly to suppress OS beeps
-                .onKeyPress(phases: .down) { press in
+                .onKeyPress(phases: [.down, .repeat]) { press in
                     if press.key == .delete || press.key == KeyEquivalent("\u{7F}") || press.key == KeyEquivalent("\u{08}") {
                         viewModel.backspace()
                         return .handled
@@ -376,6 +389,7 @@ struct MathScratchpadView: View {
                     if press.key == .space {
                         return .handled // Gracefully consume spacebar
                     }
+                    
                     if let char = press.characters.first {
                         if char.isNumber {
                             viewModel.insert(String(char), type: .number)
@@ -383,7 +397,7 @@ struct MathScratchpadView: View {
                         } else if char.isLetter {
                             viewModel.insert(String(char), type: .variable)
                             return .handled
-                        } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">"].contains(char) {
+                        } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">", "|"].contains(char) {
                             let mappedChar = char == "/" ? "÷" : (char == "*" ? "×" : String(char))
                             viewModel.insert(mappedChar, type: .operatorSymbol)
                             return .handled
