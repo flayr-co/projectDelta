@@ -23,6 +23,18 @@ struct UniversalTestView: View {
     // Scratchpad State Integration
     @State private var isScratchpadVisible: Bool = false
     @State private var scratchpadViewModel = MathScratchpadViewModel()
+    @State private var isScratchpadLoading = false
+    @State private var hasExistingNote = false
+    
+    // Resizable Panel State
+    @State private var isDraggingDivider: Bool = false
+    #if os(iOS)
+    @State private var scratchpadRatio: CGFloat = 0.55
+    @State private var initialDragRatio: CGFloat = 0.55
+    #else
+    @State private var scratchpadRatio: CGFloat = 0.45
+    @State private var initialDragRatio: CGFloat = 0.45
+    #endif
     
     @State private var timeRemaining: Int = 300
     
@@ -82,14 +94,6 @@ struct UniversalTestView: View {
                 existingTestId: testViewModel.questions.first?.testId
             )
         }
-        .sheet(isPresented: $isScratchpadVisible) {
-            MathScratchpadView(viewModel: scratchpadViewModel)
-                .presentationDetents([.fraction(0.55), .fraction(0.85), .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.85)))
-                .presentationCornerRadius(36)
-                .presentationBackground(.ultraThinMaterial)
-        }
 #endif
         .task {
             if !mode.isTimed {
@@ -108,14 +112,22 @@ struct UniversalTestView: View {
         .onDisappear {
             isTestActive = false
             hideCustomTabBar = false
+            // Guarantee save if the user hits the back button while actively editing
+            if currentQuestionIndex < testViewModel.questions.count {
+                saveScratchpadState(for: testViewModel.questions[currentQuestionIndex])
+            }
         }
         .onChange(of: hideCustomTabBar) { _, isHidden in
             if isTestActive && !isHidden {
                 hideCustomTabBar = true
             }
         }
-        .onChange(of: currentQuestionIndex) { _, _ in
-            scratchpadViewModel.clearAll()
+        .onChange(of: currentQuestionIndex) { _, newIndex in
+            Task {
+                if newIndex < testViewModel.questions.count {
+                    await checkExistingNoteStatus(for: testViewModel.questions[newIndex])
+                }
+            }
         }
     }
     
@@ -142,70 +154,173 @@ struct UniversalTestView: View {
     
     private func extractMath(from question: Question) -> String {
         if !question.parsedBlocks.isEmpty {
-            for block in question.parsedBlocks {
-                if block.type == QuestionBlockType.math.rawValue {
-                    return block.content
-                }
-            }
-            for block in question.parsedBlocks {
-                if block.type == QuestionBlockType.text.rawValue, block.content.contains("$") {
-                    let parts = block.content.split(separator: "$")
-                    if parts.count > 1 { return String(parts[1]) }
-                }
+            if let mathBlock = question.parsedBlocks.first(where: { $0.type == QuestionBlockType.math.rawValue }) {
+                return mathBlock.content
             }
         }
-        return question.questionText.replacingOccurrences(of: "$", with: "")
+        let text = question.questionText
+        if text.contains("[MATH]") {
+            let components = text.components(separatedBy: "[MATH]")
+            if components.count > 1, let first = components[1].components(separatedBy: "[/MATH]").first {
+                return String(first).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        if text.contains("$$") {
+            let components = text.components(separatedBy: "$$")
+            if components.count > 2 { return String(components[1]).trimmingCharacters(in: .whitespacesAndNewlines) }
+        }
+        if text.contains("$") {
+            let components = text.components(separatedBy: "$")
+            if components.count > 2 { return String(components[1]).trimmingCharacters(in: .whitespacesAndNewlines) }
+        }
+        return text.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: - Scratchpad Auto-Save Logic
+    
+    private func checkExistingNoteStatus(for question: Question) async {
+        guard let userId = authViewModel.currentUser?.id, let questionId = question.id else { return }
+        do {
+            let note = try await FirestoreManager.shared.fetchQuestionNote(userId: userId, questionId: questionId)
+            hasExistingNote = (note != nil)
+        } catch {
+            hasExistingNote = false
+        }
+    }
+
+    private func loadScratchpadState(for question: Question) async {
+        isScratchpadLoading = true
+        guard let userId = authViewModel.currentUser?.id, let questionId = question.id else {
+            isScratchpadLoading = false
+            return
+        }
+        
+        do {
+            if let note = try await FirestoreManager.shared.fetchQuestionNote(userId: userId, questionId: questionId) {
+                scratchpadViewModel.importStateFromJSON(note.content)
+                hasExistingNote = true
+            } else {
+                let extractedEquation = extractMath(from: question)
+                if !extractedEquation.isEmpty {
+                    scratchpadViewModel.loadEquation(extractedEquation)
+                } else {
+                    scratchpadViewModel.clearAll()
+                }
+                hasExistingNote = false
+            }
+        } catch {
+            print("Failed to load note: \(error.localizedDescription)")
+            scratchpadViewModel.clearAll()
+        }
+        
+        isScratchpadLoading = false
+    }
+    
+    private func saveScratchpadState(for question: Question) {
+        guard let jsonString = scratchpadViewModel.exportStateAsJSON(),
+              let userId = authViewModel.currentUser?.id,
+              let questionId = question.id else { return }
+        
+        // Prevent saving if the user hasn't made any edits, avoiding polluting the DB with auto-loaded problems
+        guard scratchpadViewModel.hasBeenEdited else { return }
+        
+        let isCurrentlyEmpty = scratchpadViewModel.isEmpty
+        
+        // Safely fallback if question.subtopic is an empty string ("") instead of strictly nil
+        let qSub = (question.subtopic ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let subtopic = qSub.isEmpty ? (mode.subtopicName ?? "General").trimmingCharacters(in: .whitespacesAndNewlines) : qSub
+        let subject = question.subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        Task.detached(priority: .background) {
+            do {
+                if isCurrentlyEmpty {
+                    try await FirestoreManager.shared.deleteQuestionNote(userId: userId, questionId: questionId)
+                } else {
+                    let note = QuestionNote(
+                        id: questionId,
+                        content: jsonString,
+                        subject: subject,
+                        subtopic: subtopic,
+                        lastEdited: Date()
+                    )
+                    try await FirestoreManager.shared.saveQuestionNote(userId: userId, questionId: questionId, note: note)
+                }
+            } catch {
+                print("Silent auto-save failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     // MARK: - macOS Layout
     #if os(macOS)
     private var macOSLayout: some View {
-        HStack(spacing: 0) {
-            ZStack(alignment: .top) {
-                Color.clear.ignoresSafeArea()
-                
-                if mode.isTimed && !buttonTapped {
-                    macOSIntroView
-                        .frame(maxHeight: .infinity)
-                } else if testViewModel.isGeneratingQuiz {
-                    VStack(spacing: 24) {
-                        ProgressView()
-                            .controlSize(.large)
-                            .tint(themeColor)
-                        Text("Loading assessment pool...")
-                            .font(.system(.title3, design: .rounded, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxHeight: .infinity)
-                } else if testViewModel.isQuizComplete {
-                    quizEndView
-                        .frame(maxHeight: .infinity)
-                } else if !testViewModel.questions.isEmpty {
-                    VStack(spacing: 0) {
-                        macOSHeader
-                            .zIndex(1)
-                        
-                        QuestionContentPage(index: currentQuestionIndex, mode: mode, themeColor: themeColor)
-                    }
+        GeometryReader { fullGeo in
+            HStack(spacing: 0) {
+                // Main Test Panel
+                ZStack(alignment: .top) {
+                    Color.clear.ignoresSafeArea()
                     
-                    VStack {
-                        Spacer()
-                        macOSBottomNavigationBar
-                    }
-                    .zIndex(2)
-                } else {
-                    ContentUnavailableView("No Questions Found", systemImage: "doc.questionmark", description: Text("No questions are currently mapped to this module."))
+                    if mode.isTimed && !buttonTapped {
+                        macOSIntroView.frame(maxHeight: .infinity)
+                    } else if testViewModel.isGeneratingQuiz {
+                        VStack(spacing: 24) {
+                            ProgressView().controlSize(.large).tint(themeColor)
+                            Text("Loading assessment pool...").font(.system(.title3, design: .rounded, weight: .semibold)).foregroundStyle(.secondary)
+                        }
                         .frame(maxHeight: .infinity)
+                    } else if testViewModel.isQuizComplete {
+                        quizEndView.frame(maxHeight: .infinity)
+                    } else if !testViewModel.questions.isEmpty {
+                        VStack(spacing: 0) {
+                            macOSHeader.zIndex(1)
+                            QuestionContentPage(index: currentQuestionIndex, mode: mode, themeColor: themeColor)
+                        }
+                        VStack {
+                            Spacer()
+                            macOSBottomNavigationBar
+                        }
+                        .zIndex(2)
+                    } else {
+                        ContentUnavailableView("No Questions Found", systemImage: "doc.questionmark", description: Text("No questions are currently mapped to this module.")).frame(maxHeight: .infinity)
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity)
-            
-            if isScratchpadVisible && !testViewModel.isGeneratingQuiz && !testViewModel.isQuizComplete && !testViewModel.questions.isEmpty && (!mode.isTimed || buttonTapped) {
-                Divider().ignoresSafeArea()
-                MathScratchpadView(viewModel: scratchpadViewModel)
-                    .frame(width: 460)
+                .frame(width: isScratchpadVisible ? fullGeo.size.width * (1.0 - scratchpadRatio) : fullGeo.size.width)
+                
+                // Resizable Scratchpad Panel
+                if isScratchpadVisible && !testViewModel.isGeneratingQuiz && !testViewModel.isQuizComplete && !testViewModel.questions.isEmpty && (!mode.isTimed || buttonTapped) {
+                    HStack(spacing: 0) {
+                        // Drag Handle
+                        ZStack {
+                            Color.clear.frame(width: 16)
+                            Capsule()
+                                .fill(isDraggingDivider ? themeColor : Color.secondary.opacity(0.2))
+                                .frame(width: 4, height: 40)
+                        }
+                        .contentShape(Rectangle())
+                        .onHover { hovering in
+                            if hovering { NSCursor.resizeLeftRight.set() }
+                            else { NSCursor.arrow.set() }
+                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { val in
+                                    if !isDraggingDivider {
+                                        isDraggingDivider = true
+                                        initialDragRatio = scratchpadRatio
+                                    }
+                                    let delta = -val.translation.width / fullGeo.size.width
+                                    scratchpadRatio = max(0.2, min(0.8, initialDragRatio + delta))
+                                }
+                                .onEnded { _ in isDraggingDivider = false }
+                        )
+                        .background(colorScheme == .dark ? Color(red: 0.08, green: 0.09, blue: 0.11) : Color(red: 0.98, green: 0.98, blue: 0.99))
+                        .zIndex(10)
+                        
+                        MathScratchpadView(viewModel: scratchpadViewModel)
+                    }
+                    .frame(width: fullGeo.size.width * scratchpadRatio)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
-                    .background(.ultraThinMaterial)
+                }
             }
         }
     }
@@ -248,23 +363,38 @@ struct UniversalTestView: View {
 
                 HStack(spacing: 8) {
                     Button(action: {
-                        if scratchpadViewModel.isEmpty {
+                        if !isScratchpadVisible {
+                            Task {
+                                if currentQuestionIndex < testViewModel.questions.count {
+                                    await loadScratchpadState(for: testViewModel.questions[currentQuestionIndex])
+                                }
+                            }
+                        } else {
                             if currentQuestionIndex < testViewModel.questions.count {
-                                let activeQuestion = testViewModel.questions[currentQuestionIndex]
-                                scratchpadViewModel.loadEquation(extractMath(from: activeQuestion))
+                                saveScratchpadState(for: testViewModel.questions[currentQuestionIndex])
                             }
                         }
-                        withAnimation(.snappy) { isScratchpadVisible.toggle() }
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isScratchpadVisible.toggle() }
                     }) {
-                        Image(systemName: "pencil.and.scribble")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(isScratchpadVisible ? .white : themeColor)
-                            .frame(width: 36, height: 36)
-                            .background(isScratchpadVisible ? themeColor : themeColor.opacity(0.12), in: .circle)
-                            .overlay(Circle().stroke(isScratchpadVisible ? Color.clear : themeColor.opacity(0.3), lineWidth: 1))
-                            .shadow(color: isScratchpadVisible ? themeColor.opacity(0.4) : .clear, radius: 8, y: 3)
+                        HStack(spacing: 6) {
+                            if isScratchpadLoading {
+                                ProgressView().controlSize(.small).tint(colorScheme == .dark ? .white : themeColor)
+                            } else {
+                                Image(systemName: hasExistingNote ? "pencil.and.scribble" : "pencil")
+                            }
+                            if hasExistingNote {
+                                Text("View Notes").font(.system(size: 14, weight: .bold))
+                            }
+                        }
+                        .foregroundStyle(isScratchpadVisible || hasExistingNote ? .white : themeColor)
+                        .frame(height: 36)
+                        .padding(.horizontal, hasExistingNote ? 12 : 10)
+                        .background(isScratchpadVisible || hasExistingNote ? themeColor : themeColor.opacity(0.12), in: .capsule)
+                        .overlay(Capsule().stroke(isScratchpadVisible || hasExistingNote ? Color.clear : themeColor.opacity(0.3), lineWidth: 1))
+                        .shadow(color: isScratchpadVisible || hasExistingNote ? themeColor.opacity(0.4) : .clear, radius: 8, y: 3)
                     }
                     .buttonStyle(.plain)
+                    .disabled(isScratchpadLoading)
                     .help("Toggle Interactive Scratchpad")
 
                     if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
@@ -301,7 +431,11 @@ struct UniversalTestView: View {
     
     private var macOSBottomNavigationBar: some View {
         HStack(spacing: 12) {
-            Button(action: { withAnimation(.snappy) { currentQuestionIndex -= 1 } }) {
+            Button(action: {
+                if isScratchpadVisible { saveScratchpadState(for: testViewModel.questions[currentQuestionIndex]) }
+                withAnimation(.snappy) { currentQuestionIndex -= 1 }
+                if isScratchpadVisible { Task { await loadScratchpadState(for: testViewModel.questions[currentQuestionIndex]) } }
+            }) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(currentQuestionIndex == 0 ? Color.secondary.opacity(0.3) : Color.primary)
@@ -325,7 +459,11 @@ struct UniversalTestView: View {
             Spacer()
 
             if currentQuestionIndex < testViewModel.questions.count - 1 {
-                Button(action: { withAnimation(.snappy) { currentQuestionIndex += 1 } }) {
+                Button(action: {
+                    if isScratchpadVisible { saveScratchpadState(for: testViewModel.questions[currentQuestionIndex]) }
+                    withAnimation(.snappy) { currentQuestionIndex += 1 }
+                    if isScratchpadVisible { Task { await loadScratchpadState(for: testViewModel.questions[currentQuestionIndex]) } }
+                }) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
@@ -336,6 +474,7 @@ struct UniversalTestView: View {
                 .buttonStyle(.plain)
             } else {
                 Button(action: {
+                    if isScratchpadVisible { saveScratchpadState(for: testViewModel.questions[currentQuestionIndex]) }
                     isSubmitting = true
                     Task {
                         await testViewModel.finishTest(mode: mode)
@@ -410,58 +549,98 @@ struct UniversalTestView: View {
     // MARK: - iOS Layout
     #if os(iOS)
     private var iOSLayout: some View {
-        VStack(spacing: 0) {
-            iOSHeader
-                .zIndex(2)
-                
-            if mode.isTimed && !buttonTapped {
-                introView
-            } else if testViewModel.isGeneratingQuiz {
-                Spacer()
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .controlSize(.large)
-                        .tint(themeColor)
-                    Text("Configuring assessment...")
-                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            } else if testViewModel.isQuizComplete {
-                quizEndView
-            } else if !testViewModel.questions.isEmpty {
-                ZStack(alignment: .bottom) {
-                    TabView(selection: $currentQuestionIndex) {
-                        ForEach(0..<testViewModel.questions.count, id: \.self) { index in
-                            QuestionContentPage(index: index, mode: mode, themeColor: themeColor)
-                                .tag(index)
+        GeometryReader { fullGeo in
+            VStack(spacing: 0) {
+                iOSHeader
+                    .zIndex(2)
+                    
+                if mode.isTimed && !buttonTapped {
+                    introView
+                } else if testViewModel.isGeneratingQuiz {
+                    Spacer()
+                    VStack(spacing: 16) {
+                        ProgressView().controlSize(.large).tint(themeColor)
+                        Text("Configuring assessment...").font(.system(.subheadline, design: .rounded, weight: .semibold)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                } else if testViewModel.isQuizComplete {
+                    quizEndView
+                } else if !testViewModel.questions.isEmpty {
+                    
+                    // Main Split View Architecture
+                    VStack(spacing: 0) {
+                        // Top Panel: Test Content
+                        ZStack(alignment: .bottom) {
+                            TabView(selection: $currentQuestionIndex) {
+                                ForEach(0..<testViewModel.questions.count, id: \.self) { index in
+                                    QuestionContentPage(index: index, mode: mode, themeColor: themeColor)
+                                        .tag(index)
+                                }
+                            }
+                            .tabViewStyle(.page(indexDisplayMode: .never))
+                            .onChange(of: currentQuestionIndex) { _, newValue in
+                                if selectedQuestionIndex != newValue { selectedQuestionIndex = newValue }
+                            }
+                            
+                            LinearGradient(
+                                colors: [
+                                    Color.clear,
+                                    (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99)).opacity(0.85),
+                                    (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99))
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: 120)
+                            .allowsHitTesting(false)
+                            
+                            bottomNavigationBar
+                        }
+                        .frame(height: isScratchpadVisible ? fullGeo.size.height * (1.0 - scratchpadRatio) : nil)
+                        
+                        // Bottom Panel: Resizable Scratchpad
+                        if isScratchpadVisible {
+                            VStack(spacing: 0) {
+                                // Drag Handle Bar
+                                ZStack {
+                                    Color(colorScheme == .dark ? UIColor.secondarySystemBackground : UIColor.systemBackground)
+                                        .shadow(color: .black.opacity(0.05), radius: 4, y: -2)
+                                    Capsule()
+                                        .fill(Color.secondary.opacity(0.3))
+                                        .frame(width: 40, height: 5)
+                                }
+                                .frame(height: 24)
+                                .contentShape(Rectangle())
+                                .gesture(
+                                    DragGesture()
+                                        .onChanged { val in
+                                            if !isDraggingDivider {
+                                                isDraggingDivider = true
+                                                initialDragRatio = scratchpadRatio
+                                            }
+                                            // Pulling UP makes scratchpad larger
+                                            let delta = -val.translation.height / fullGeo.size.height
+                                            scratchpadRatio = max(0.2, min(0.85, initialDragRatio + delta))
+                                        }
+                                        .onEnded { _ in isDraggingDivider = false }
+                                )
+                                .zIndex(10)
+                                
+                                MathScratchpadView(viewModel: scratchpadViewModel)
+                            }
+                            .frame(height: fullGeo.size.height * scratchpadRatio)
+                            .background(colorScheme == .dark ? Color(red: 0.08, green: 0.09, blue: 0.11) : Color(red: 0.98, green: 0.98, blue: 0.99))
+                            .clipShape(.rect(topLeadingRadius: 28, topTrailingRadius: 28))
+                            .shadow(color: .black.opacity(0.15), radius: 20, y: -5)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(100)
                         }
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
-                    .onChange(of: currentQuestionIndex) { _, newValue in
-                        if selectedQuestionIndex != newValue { selectedQuestionIndex = newValue }
-                    }
-                    
-                    // Scrim gradient behind navigation bar for zero collision
-                    LinearGradient(
-                        colors: [
-                            Color.clear,
-                            (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99)).opacity(0.85),
-                            (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99))
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 120)
-                    .allowsHitTesting(false)
-                    
-                    bottomNavigationBar
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    Spacer()
+                    ContentUnavailableView("No Questions Found", systemImage: "doc.questionmark", description: Text("No questions mapped to this module."))
+                    Spacer()
                 }
-            } else {
-                Spacer()
-                ContentUnavailableView("No Questions Found", systemImage: "doc.questionmark", description: Text("No questions mapped to this module."))
-                Spacer()
             }
         }
     }
@@ -490,23 +669,35 @@ struct UniversalTestView: View {
                 
                 HStack(spacing: 8) {
                     Button(action: {
-                        if scratchpadViewModel.isEmpty {
+                        if !isScratchpadVisible {
+                            Task {
+                                if currentQuestionIndex < testViewModel.questions.count {
+                                    await loadScratchpadState(for: testViewModel.questions[currentQuestionIndex])
+                                }
+                            }
+                        } else {
                             if currentQuestionIndex < testViewModel.questions.count {
-                                let activeQuestion = testViewModel.questions[currentQuestionIndex]
-                                scratchpadViewModel.loadEquation(extractMath(from: activeQuestion))
+                                saveScratchpadState(for: testViewModel.questions[currentQuestionIndex])
                             }
                         }
-                        withAnimation(.snappy) { isScratchpadVisible.toggle() }
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isScratchpadVisible.toggle() }
                     }) {
-                        Image(systemName: "pencil.and.scribble")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(isScratchpadVisible ? .white : themeColor)
-                            .frame(width: 38, height: 38)
-                            .background(isScratchpadVisible ? themeColor : themeColor.opacity(0.12), in: .circle)
-                            .overlay(Circle().stroke(isScratchpadVisible ? Color.clear : themeColor.opacity(0.3), lineWidth: 1))
-                            .shadow(color: isScratchpadVisible ? themeColor.opacity(0.4) : .clear, radius: 8, y: 3)
+                        HStack(spacing: 6) {
+                            if isScratchpadLoading {
+                                ProgressView().controlSize(.small).tint(colorScheme == .dark ? .white : themeColor)
+                            } else {
+                                Image(systemName: hasExistingNote ? "pencil.and.scribble" : "pencil")
+                                    .font(.system(size: 15, weight: .bold))
+                            }
+                        }
+                        .foregroundStyle(isScratchpadVisible || hasExistingNote ? .white : themeColor)
+                        .frame(width: 38, height: 38)
+                        .background(isScratchpadVisible || hasExistingNote ? themeColor : themeColor.opacity(0.12), in: .circle)
+                        .overlay(Circle().stroke(isScratchpadVisible || hasExistingNote ? Color.clear : themeColor.opacity(0.3), lineWidth: 1))
+                        .shadow(color: isScratchpadVisible || hasExistingNote ? themeColor.opacity(0.4) : .clear, radius: 8, y: 3)
                     }
                     .buttonStyle(.plain)
+                    .disabled(isScratchpadLoading)
 
                     if let role = authViewModel.currentUser?.role, (role == .teacher || role == .parent) {
                         Button(action: { showAdminEditor = true }) {
@@ -606,9 +797,11 @@ struct UniversalTestView: View {
     private var bottomNavigationBar: some View {
         HStack(spacing: 16) {
             Button(action: {
+                if isScratchpadVisible { saveScratchpadState(for: testViewModel.questions[currentQuestionIndex]) }
                 if currentQuestionIndex > 0 {
                     withAnimation(.snappy) { currentQuestionIndex -= 1 }
                 }
+                if isScratchpadVisible { Task { await loadScratchpadState(for: testViewModel.questions[currentQuestionIndex]) } }
             }) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 17, weight: .bold))
@@ -632,7 +825,9 @@ struct UniversalTestView: View {
             let isLastQuestion = currentQuestionIndex == testViewModel.questions.count - 1
             if !isLastQuestion {
                 Button(action: {
+                    if isScratchpadVisible { saveScratchpadState(for: testViewModel.questions[currentQuestionIndex]) }
                     withAnimation(.snappy) { currentQuestionIndex += 1 }
+                    if isScratchpadVisible { Task { await loadScratchpadState(for: testViewModel.questions[currentQuestionIndex]) } }
                 }) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 17, weight: .bold))
@@ -644,6 +839,7 @@ struct UniversalTestView: View {
                 .buttonStyle(.plain)
             } else {
                 Button(action: {
+                    if isScratchpadVisible { saveScratchpadState(for: testViewModel.questions[currentQuestionIndex]) }
                     isSubmitting = true
                     Task {
                         await testViewModel.finishTest(mode: mode)
@@ -704,7 +900,6 @@ struct UniversalTestView: View {
                         endAngle: .degrees(270)
                     )
                     
-                    // Top Radial Dashboard
                     VStack(spacing: 20) {
                         ZStack {
                             Circle()
@@ -740,7 +935,6 @@ struct UniversalTestView: View {
                                 .multilineTextAlignment(.center)
                         }
                         
-                        // Performance KPI Row
                         HStack(spacing: 12) {
                             kpiPill(title: "Score", value: "\(correctCount)/\(snapshot.totalQuestions)", icon: "target", color: themeColor)
                             kpiPill(title: "Correct", value: "\(correctCount)", icon: "checkmark.circle.fill", color: .green)
@@ -749,11 +943,9 @@ struct UniversalTestView: View {
                         .padding(.horizontal, 20)
                     }
                     
-                    // Question Diagnostic Review
                     VStack(spacing: 20) {
                         ForEach(Array(snapshot.questionResults.enumerated()), id: \.element.id) { index, result in
                             VStack(alignment: .leading, spacing: 0) {
-                                // Question Card Header
                                 HStack {
                                     Text("Question \(index + 1)")
                                         .font(.system(size: 13, weight: .heavy, design: .rounded))
@@ -777,7 +969,6 @@ struct UniversalTestView: View {
                                 
                                 Divider()
                                 
-                                // Question Content Canvas
                                 VStack(alignment: .leading, spacing: 16) {
                                     if let matched = testViewModel.questions.first(where: { $0.id == result.questionId || $0.questionText == result.questionText }), !matched.parsedBlocks.isEmpty {
                                         VStack(alignment: .leading, spacing: 12) {
@@ -823,28 +1014,16 @@ struct UniversalTestView: View {
                                         }
                                     }
                                     
-                                    // User Choice vs Correct Solution
                                     VStack(spacing: 8) {
                                         let userChoice = (result.userSelectedOptionIndex != nil && result.userSelectedOptionIndex! >= 0 && result.userSelectedOptionIndex! < result.options.count) ? result.options[result.userSelectedOptionIndex!] : "No Answer Submitted"
                                         
-                                        answerMetricRow(
-                                            label: "Your Answer",
-                                            text: userChoice,
-                                            isCorrect: result.isCorrect,
-                                            isUserChoice: true
-                                        )
+                                        answerMetricRow(label: "Your Answer", text: userChoice, isCorrect: result.isCorrect, isUserChoice: true)
                                         
                                         if !result.isCorrect && result.correctOptionIndex >= 0 && result.correctOptionIndex < result.options.count {
-                                            answerMetricRow(
-                                                label: "Correct Solution",
-                                                text: result.options[result.correctOptionIndex],
-                                                isCorrect: true,
-                                                isUserChoice: false
-                                            )
+                                            answerMetricRow(label: "Correct Solution", text: result.options[result.correctOptionIndex], isCorrect: true, isUserChoice: false)
                                         }
                                     }
                                     
-                                    // Step-by-Step Diagnostic Breakdown
                                     if !result.feedback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                         VStack(alignment: .leading, spacing: 12) {
                                             HStack(spacing: 8) {
@@ -1025,7 +1204,6 @@ struct QuestionContentPage: View {
         #if os(macOS)
         .safeAreaPadding(.bottom, 60)
         #else
-        // Generous padding ensures hints and options never collide with the floating bottom bar
         .safeAreaPadding(.bottom, 140)
         #endif
     }
@@ -1048,7 +1226,6 @@ struct IsolatedQuestionCard: View {
     
     let optionLetters = ["A", "B", "C", "D", "E", "F"]
     
-    // OLED obsidian surface with subtle ambient depth
     var cardSurfaceColor: Color {
         colorScheme == .dark ? Color(red: 0.10, green: 0.11, blue: 0.13) : Color.white
     }
@@ -1080,8 +1257,6 @@ struct IsolatedQuestionCard: View {
         #endif
         
         VStack(alignment: .leading, spacing: mainSpacing) {
-            
-            // 1. Primary Problem Canvas
             if !question.parsedBlocks.isEmpty {
                 VStack(alignment: .leading, spacing: 20) {
                     ForEach(question.parsedBlocks) { block in
@@ -1101,7 +1276,6 @@ struct IsolatedQuestionCard: View {
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 22)
                                 .frame(maxWidth: .infinity, alignment: .center)
-                                // High-contrast, glowing recessed viewport
                                 .background(
                                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                                         .fill(colorScheme == .dark ? Color(red: 0.05, green: 0.06, blue: 0.07) : Color(white: 0.96))
@@ -1165,7 +1339,6 @@ struct IsolatedQuestionCard: View {
                 )
             }
             
-            // 2. Multiple Choice Options
             VStack(spacing: optionSpacing) {
                 ForEach(0..<question.options.count, id: \.self) { optIndex in
                     let optionText = question.options[optIndex]
@@ -1179,7 +1352,6 @@ struct IsolatedQuestionCard: View {
                         }
                     }) {
                         HStack(spacing: 16) {
-                            // High-contrast Letter Badge
                             Text(letter)
                                 .font(.system(size: 15, weight: .heavy, design: .rounded))
                                 .foregroundStyle(isSelected ? Color.black : Color.primary)
@@ -1260,7 +1432,6 @@ struct IsolatedQuestionCard: View {
                 }
             }
             
-            // 3. Compact Accordions
             VStack(spacing: 14) {
                 if let hint = question.hint, !hint.isEmpty {
                     collapsibleDiagnosticPill(

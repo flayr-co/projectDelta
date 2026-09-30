@@ -8,14 +8,16 @@ import Observation
 
 // MARK: - Core Data Models
 
-enum TokenType: String, Hashable {
+enum TokenType: String, Hashable, Codable {
     case number, variable, operatorSymbol, function, structural
 }
 
-struct MathToken: Identifiable, Hashable {
-    let id = UUID()
+struct MathToken: Identifiable, Hashable, Codable {
+    var id = UUID()
     var value: String
     var type: TokenType
+    var isScratchedOff: Bool = false
+    var highlightColor: String? = nil
 }
 
 // MARK: - View Model
@@ -29,12 +31,63 @@ class MathScratchpadViewModel {
     
     var activeVariables: [String] = ["x", "y", "θ"]
     var isCalculatorEnabled: Bool = false
+    var hasBeenEdited: Bool = false
+    
+    // Internal clipboard perfectly preserves highlights and scratch-offs without parsing raw text
+    static var internalClipboard: [MathToken]? = nil
+    static var internalClipboardString: String? = nil
+    
+    // MARK: - Undo State Management
+    private struct ScratchpadState {
+        let lines: [[MathToken]]
+        let activeLineIndex: Int
+        let cursorIndex: Int
+    }
+    
+    private var undoStack: [ScratchpadState] = []
+    
+    private func saveState() {
+        undoStack.append(ScratchpadState(lines: lines, activeLineIndex: activeLineIndex, cursorIndex: cursorIndex))
+        if undoStack.count > 100 { undoStack.removeFirst() }
+    }
+    
+    func undo() {
+        guard let previousState = undoStack.popLast() else { return }
+        self.lines = previousState.lines
+        self.activeLineIndex = previousState.activeLineIndex
+        self.cursorIndex = previousState.cursorIndex
+        self.hasBeenEdited = true
+    }
+    
+    func applyHighlight(to range: ClosedRange<Int>, on lineIndex: Int, color: String?) {
+        saveState()
+        var updatedLine = lines[lineIndex]
+        for i in range {
+            updatedLine[i].highlightColor = color
+        }
+        lines[lineIndex] = updatedLine
+        hasBeenEdited = true
+    }
+        
+    func applyScratchOff(to range: ClosedRange<Int>, on lineIndex: Int) {
+        saveState()
+        var updatedLine = lines[lineIndex]
+        let allScratched = range.allSatisfy { updatedLine[$0].isScratchedOff }
+        for i in range {
+            updatedLine[i].isScratchedOff = !allScratched
+        }
+        lines[lineIndex] = updatedLine
+        hasBeenEdited = true
+    }
     
     var isEmpty: Bool {
-        lines.count == 1 && lines[0].isEmpty
+        lines.allSatisfy { $0.isEmpty }
     }
     
     func insert(_ value: String, type: TokenType) {
+        saveState()
+        hasBeenEdited = true
+        
         if type == .number && cursorIndex > 0 {
             let prevToken = lines[activeLineIndex][cursorIndex - 1]
             if prevToken.type == .number {
@@ -46,8 +99,7 @@ class MathScratchpadViewModel {
             if prevToken.type == .variable {
                 lines[activeLineIndex][cursorIndex - 1].value += value
                 
-                // Hardware Keyboard Macro Expansion (Auto-closing brackets)
-                let merged = lines[activeLineIndex][cursorIndex - 1].value
+                let merged = lines[activeLineIndex][cursorIndex - 1].value.lowercased()
                 switch merged {
                 case "sin":
                     lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\sin(", type: .function)
@@ -84,6 +136,16 @@ class MathScratchpadViewModel {
                     lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\pi", type: .function)
                 case "theta":
                     lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\theta", type: .function)
+                case "infinity", "inf":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\infty", type: .number)
+                case "alpha":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\alpha", type: .function)
+                case "beta":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\beta", type: .function)
+                case "int":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "\\int", type: .function)
+                case "deg":
+                    lines[activeLineIndex][cursorIndex - 1] = MathToken(value: "^{\\circ}", type: .operatorSymbol)
                 default: break
                 }
                 return
@@ -96,9 +158,11 @@ class MathScratchpadViewModel {
     }
     
     func backspace() {
+        saveState()
+        hasBeenEdited = true
+        
         if cursorIndex > 0 {
             let prevToken = lines[activeLineIndex][cursorIndex - 1]
-            
             if prevToken.type == .number && prevToken.value.count > 1 {
                 var modifiedToken = prevToken
                 modifiedToken.value.removeLast()
@@ -121,12 +185,24 @@ class MathScratchpadViewModel {
     }
     
     func newLine() {
+        saveState()
+        hasBeenEdited = true
         activeLineIndex += 1
         lines.insert([], at: activeLineIndex)
         cursorIndex = 0
     }
     
+    func insertLine(at index: Int) {
+        saveState()
+        hasBeenEdited = true
+        lines.insert([], at: index)
+        activeLineIndex = index
+        cursorIndex = 0
+    }
+    
     func clearAll() {
+        saveState()
+        hasBeenEdited = true
         lines = [[]]
         activeLineIndex = 0
         cursorIndex = 0
@@ -149,7 +225,6 @@ class MathScratchpadViewModel {
         }
     }
     
-    // Crash-proof mathematical evaluation for simple numeric lines
     func calculateCurrentLine() -> String? {
         guard isCalculatorEnabled else { return nil }
         let tokens = lines[activeLineIndex]
@@ -169,7 +244,6 @@ class MathScratchpadViewModel {
         let allowed = CharacterSet(charactersIn: "0123456789+-*/(). ")
         guard mathString.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
         
-        // Strict layout validation to prevent NSExpression crashes
         let pattern = "([\\+\\-\\*\\/]{2,}|[\\+\\-\\*\\/]$|^[\\*\\/])|\\(\\)"
         if mathString.range(of: pattern, options: .regularExpression) != nil { return nil }
         
@@ -193,100 +267,129 @@ class MathScratchpadViewModel {
     }
     
     func loadEquation(_ equation: String) {
-        self.clearAll()
-        let cleanInput = equation.replacingOccurrences(of: " ", with: "")
+        self.lines = [[]]
+        let cleanInput = equation.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanInput.isEmpty else { return }
+        
+        let monolithToken = MathToken(value: cleanInput, type: .structural)
+        self.lines[0] = [monolithToken]
+        self.activeLineIndex = 0
+        self.cursorIndex = 1
+        
+        // Auto-loads do not flag as user edits, preventing DB pollution
+        self.hasBeenEdited = false
+    }
+    
+    // MARK: - Rich Copy & Paste
+    
+    func copyLine(at index: Int) {
+        let tokens = lines[index]
+        Self.internalClipboard = tokens
+        let cleanLatex = tokens.map { $0.value }.joined()
+        Self.internalClipboardString = cleanLatex
+        
+        #if os(iOS)
+        UIPasteboard.general.string = cleanLatex
+        #elseif os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(cleanLatex, forType: .string)
+        #endif
+    }
+    
+    func copyActiveLine() {
+        copyLine(at: activeLineIndex)
+    }
+    
+    func pasteToLine(at index: Int) {
+        saveState()
+        hasBeenEdited = true
+        
+        #if os(iOS)
+        let text = UIPasteboard.general.string ?? ""
+        #elseif os(macOS)
+        let text = NSPasteboard.general.string(forType: .string) ?? ""
+        #endif
+        
+        if text == Self.internalClipboardString, let tokens = Self.internalClipboard {
+            let uniqueTokens = tokens.map { MathToken(value: $0.value, type: $0.type, isScratchedOff: $0.isScratchedOff, highlightColor: $0.highlightColor) }
             
-        var parsedTokens: [MathToken] = []
-        var currentNumber = ""
-        var currentVariable = ""
-        
-        let flushNumber = {
-            if !currentNumber.isEmpty {
-                parsedTokens.append(MathToken(value: currentNumber, type: .number))
-                currentNumber = ""
-            }
-        }
-        
-        let flushVariable = {
-            if !currentVariable.isEmpty {
-                parsedTokens.append(MathToken(value: currentVariable, type: .variable))
-                currentVariable = ""
-            }
-        }
-        
-        let chars = Array(cleanInput)
-        var i = 0
-        
-        while i < chars.count {
-            let char = chars[i]
-            if char.isNumber || char == "." {
-                flushVariable()
-                currentNumber.append(char)
-            } else if char.isLetter || char == "θ" {
-                flushNumber()
-                currentVariable.append(char)
+            if lines[index].isEmpty {
+                lines[index] = uniqueTokens
             } else {
-                flushNumber()
-                flushVariable()
-                parsedTokens.append(MathToken(value: String(char), type: .operatorSymbol))
+                lines[index].insert(contentsOf: uniqueTokens, at: index == activeLineIndex ? cursorIndex : lines[index].count)
+                if index == activeLineIndex { cursorIndex += uniqueTokens.count }
             }
-            i += 1
-        }
-        
-        flushNumber()
-        flushVariable()
-        
-        if !parsedTokens.isEmpty {
-            self.lines[0] = parsedTokens
-            self.newLine()
+        } else if !text.isEmpty {
+            self.pasteEquation(text, at: index)
         }
     }
     
-    func pasteEquation(_ equation: String, at lineIndex: Int) {
-        let cleanInput = equation.replacingOccurrences(of: " ", with: "")
-        var parsedTokens: [MathToken] = []
-        var currentNumber = ""
-        var currentVariable = ""
+    func pasteToActiveLine() {
+        pasteToLine(at: activeLineIndex)
+    }
+    
+    private func pasteEquation(_ equation: String, at lineIndex: Int) {
+        let cleanInput = equation.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanInput.isEmpty else { return }
         
-        let flushNumber = {
-            if !currentNumber.isEmpty {
-                parsedTokens.append(MathToken(value: currentNumber, type: .number))
-                currentNumber = ""
-            }
-        }
-        
-        let flushVariable = {
-            if !currentVariable.isEmpty {
-                parsedTokens.append(MathToken(value: currentVariable, type: .variable))
-                currentVariable = ""
-            }
-        }
-        
-        let chars = Array(cleanInput)
-        var i = 0
-        
-        while i < chars.count {
-            let char = chars[i]
-            if char.isNumber || char == "." {
-                flushVariable()
-                currentNumber.append(char)
-            } else if char.isLetter || char == "θ" {
-                flushNumber()
-                currentVariable.append(char)
-            } else {
-                flushNumber()
-                flushVariable()
-                parsedTokens.append(MathToken(value: String(char), type: .operatorSymbol))
-            }
-            i += 1
-        }
-        
-        flushNumber()
-        flushVariable()
-        
+        let monolithToken = MathToken(value: cleanInput, type: .structural)
         if lineIndex < lines.count {
-            lines[lineIndex] = parsedTokens
+            if lines[lineIndex].isEmpty {
+                lines[lineIndex] = [monolithToken]
+            } else {
+                lines[lineIndex].insert(monolithToken, at: cursorIndex)
+                cursorIndex += 1
+            }
         }
+    }
+    
+    // MARK: - Database Serialization
+    func exportStateAsJSON() -> String? {
+        guard let data = try? JSONEncoder().encode(lines) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+        
+    func importStateFromJSON(_ jsonString: String) {
+        guard let data = jsonString.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([[MathToken]].self, from: data) else { return }
+        
+        self.lines = decoded
+        self.activeLineIndex = max(0, decoded.count - 1)
+        self.cursorIndex = self.lines[activeLineIndex].count
+        self.undoStack.removeAll()
+        self.hasBeenEdited = false
+    }
+}
+
+// MARK: - Drag Delegate
+
+struct LineDropDelegate: DropDelegate {
+    let item: Int
+    let viewModel: MathScratchpadViewModel
+    @Binding var draggedItem: Int?
+    
+    func dropEntered(info: DropInfo) {
+        guard let draggedItem, draggedItem != item else { return }
+        withAnimation(.snappy) {
+            let from = draggedItem
+            let to = item
+            
+            let movedLine = viewModel.lines.remove(at: from)
+            viewModel.lines.insert(movedLine, at: to)
+            
+            if viewModel.activeLineIndex == from {
+                viewModel.activeLineIndex = to
+            } else if viewModel.activeLineIndex == to {
+                viewModel.activeLineIndex = from
+            }
+            
+            self.draggedItem = to
+        }
+    }
+    
+    func performDrop(info: DropInfo) -> Bool {
+        draggedItem = nil
+        return true
     }
 }
 
@@ -297,6 +400,7 @@ struct MathScratchpadView: View {
     @Environment(\.colorScheme) var colorScheme
     @FocusState private var isCanvasFocused: Bool
     @State private var isKeypadExpanded: Bool = false
+    @State private var draggedLineIndex: Int? = nil
     
     var body: some View {
         VStack(spacing: 0) {
@@ -344,7 +448,14 @@ struct MathScratchpadView: View {
             // Equation Canvas
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        
+                        #if os(macOS)
+                        HoverInsertLineButton { viewModel.insertLine(at: 0) }
+                        #else
+                        Color.clear.frame(height: 16)
+                        #endif
+                        
                         ForEach(0..<viewModel.lines.count, id: \.self) { lineIndex in
                             MathLineView(
                                 viewModel: viewModel,
@@ -359,6 +470,17 @@ struct MathScratchpadView: View {
                                 }
                             )
                             .id(lineIndex)
+                            .onDrag {
+                                self.draggedLineIndex = lineIndex
+                                return NSItemProvider(object: String(lineIndex) as NSString)
+                            }
+                            .onDrop(of: [.plainText], delegate: LineDropDelegate(item: lineIndex, viewModel: viewModel, draggedItem: $draggedLineIndex))
+                            
+                            #if os(macOS)
+                            HoverInsertLineButton { viewModel.insertLine(at: lineIndex + 1) }
+                            #else
+                            Color.clear.frame(height: 16)
+                            #endif
                         }
                     }
                     .padding(.horizontal, 20)
@@ -368,8 +490,23 @@ struct MathScratchpadView: View {
                 .background(DotGridBackground())
                 .focusable()
                 .focused($isCanvasFocused)
-                // Hardware Keyboard Intercepts mapped cleanly to suppress OS beeps
+                // Hardware Keyboard Intercepts
                 .onKeyPress(phases: [.down, .repeat]) { press in
+                    if press.modifiers.contains(.command) {
+                        if press.key == KeyEquivalent("c") {
+                            viewModel.copyActiveLine()
+                            return .handled
+                        }
+                        if press.key == KeyEquivalent("v") {
+                            viewModel.pasteToActiveLine()
+                            return .handled
+                        }
+                        if press.key == KeyEquivalent("z") {
+                            viewModel.undo()
+                            return .handled
+                        }
+                    }
+                    
                     if press.key == .delete || press.key == KeyEquivalent("\u{7F}") || press.key == KeyEquivalent("\u{08}") {
                         viewModel.backspace()
                         return .handled
@@ -387,7 +524,7 @@ struct MathScratchpadView: View {
                         return .handled
                     }
                     if press.key == .space {
-                        return .handled // Gracefully consume spacebar
+                        return .handled
                     }
                     
                     if let char = press.characters.first {
@@ -440,7 +577,37 @@ struct MathScratchpadView: View {
     }
 }
 
-// MARK: - Background Enhancements
+// MARK: - Components
+
+#if os(macOS)
+struct HoverInsertLineButton: View {
+    var action: () -> Void
+    @State private var isHovered = false
+    
+    var body: some View {
+        ZStack {
+            Color.clear.frame(height: 18)
+            
+            HStack(spacing: 8) {
+                Divider().background(Color.teal).opacity(isHovered ? 1 : 0)
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.teal)
+                    .opacity(isHovered ? 1 : 0.08)
+                Divider().background(Color.teal).opacity(isHovered ? 1 : 0)
+            }
+            .padding(.horizontal, 20)
+        }
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
+        }
+        .onTapGesture {
+            withAnimation(.snappy) { action() }
+        }
+    }
+}
+#endif
 
 struct DotGridBackground: View {
     @Environment(\.colorScheme) var colorScheme
@@ -458,8 +625,6 @@ struct DotGridBackground: View {
         }
     }
 }
-
-// MARK: - Layout Engine
 
 struct FlowLayout: Layout {
     var spacing: CGFloat = 0
@@ -522,7 +687,7 @@ struct FlowLayout: Layout {
     }
 }
 
-// MARK: - Line & Token Rendering
+// MARK: - Line Rendering
 
 struct MathLineView: View {
     let viewModel: MathScratchpadViewModel
@@ -535,6 +700,38 @@ struct MathLineView: View {
     let emeraldAccent = Color(red: 0.15, green: 0.85, blue: 0.65)
     @Environment(\.colorScheme) var colorScheme
     
+    @State private var tokenFrames: [Int: CGRect] = [:]
+    @State private var selectedRange: ClosedRange<Int>? = nil
+    @State private var dragStartIndex: Int? = nil
+    @State private var showSelectionMenu: Bool = false
+    
+    private var renderedLatexString: String {
+        tokens.map { token in
+            var val = token.value
+            let isSafe = token.type == .number || token.type == .variable || token.type == .operatorSymbol
+            
+            if isSafe {
+                if token.isScratchedOff {
+                    val = "\\cancel{\(val)}"
+                }
+                if let color = token.highlightColor {
+                    let hex: String
+                    switch color {
+                    case "blue": hex = colorScheme == .dark ? "#73D1FF" : "#007AFF"
+                    case "red": hex = colorScheme == .dark ? "#FF7373" : "#FF3B30"
+                    case "green": hex = colorScheme == .dark ? "#73FFBA" : "#34C759"
+                    case "orange": hex = "#FF9500"
+                    case "purple": hex = colorScheme == .dark ? "#D98CFF" : "#AF52DE"
+                    case "pink": hex = "#FF2D55"
+                    default: hex = color
+                    }
+                    val = "\\textcolor{\(hex)}{\(val)}"
+                }
+            }
+            return val
+        }.joined()
+    }
+    
     var body: some View {
         HStack(spacing: 8) {
             Capsule()
@@ -545,9 +742,8 @@ struct MathLineView: View {
             
             if isActive {
                 VStack(alignment: .leading, spacing: 12) {
-                    let latexString = tokens.map { $0.value }.joined()
+                    let latexString = renderedLatexString
                     
-                    // Focal Point: Pre-warmed Inline Preview
                     LatexView(latex: "$$ \(latexString.isEmpty ? "\\phantom{A}" : latexString) $$")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 8)
@@ -555,22 +751,70 @@ struct MathLineView: View {
                         .opacity(latexString.isEmpty ? 0 : 1)
                     
                     HStack(alignment: .top) {
-                        // Premium Input Pill
                         FlowLayout(spacing: 0, lineSpacing: 8) {
                             Color.clear
                                 .frame(width: 6, height: 20)
                                 .contentShape(Rectangle())
-                                .onTapGesture { onCursorTap(0) }
                                 .overlay(alignment: .trailing) {
                                     if cursorIndex == 0 { BlinkingCursor() }
                                 }
                             
                             ForEach(0..<tokens.count, id: \.self) { i in
-                                TokenView(token: tokens[i])
-                                    .onTapGesture { onCursorTap(i + 1) }
+                                TokenView(token: tokens[i], isSelected: selectedRange?.contains(i) == true)
+                                    .background(
+                                        GeometryReader { geo in
+                                            Color.clear.preference(key: TokenFramePreferenceKey.self, value: [i: geo.frame(in: .named("LineSpace\(lineIndex)"))])
+                                        }
+                                    )
                                     .overlay(alignment: .trailing) {
                                         if cursorIndex == i + 1 { BlinkingCursor() }
                                     }
+                                    #if os(macOS)
+                                    .onTapGesture(count: 2) {
+                                        selectedRange = i...i
+                                        showSelectionMenu = true
+                                    }
+                                    .onTapGesture(count: 1) {
+                                        onCursorTap(i + 1)
+                                    }
+                                    #else
+                                    .onTapGesture {
+                                        onCursorTap(i + 1)
+                                    }
+                                    .onLongPressGesture(minimumDuration: 0.4) {
+                                        selectedRange = i...i
+                                        showSelectionMenu = true
+                                    }
+                                    #endif
+                            }
+                        }
+                        .coordinateSpace(name: "LineSpace\(lineIndex)")
+                        .onPreferenceChange(TokenFramePreferenceKey.self) { frames in
+                            self.tokenFrames = frames
+                        }
+                        .gesture(
+                            DragGesture(minimumDistance: 4)
+                                .onChanged { value in
+                                    if let idx = tokenIndex(at: value.location) {
+                                        if dragStartIndex == nil { dragStartIndex = idx }
+                                        let start = min(dragStartIndex!, idx)
+                                        let end = max(dragStartIndex!, idx)
+                                        selectedRange = start...end
+                                    }
+                                }
+                                .onEnded { _ in
+                                    dragStartIndex = nil
+                                    if selectedRange != nil {
+                                        showSelectionMenu = true // Triggers popover immediately
+                                    }
+                                }
+                        )
+                        .onTapGesture(coordinateSpace: .named("LineSpace\(lineIndex)")) { location in
+                            selectedRange = nil
+                            if let idx = tokenIndex(at: location) {
+                                onCursorTap(idx + 1)
+                            } else {
+                                onCursorTap(tokens.count)
                             }
                         }
                         .padding(14)
@@ -582,10 +826,12 @@ struct MathLineView: View {
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(emeraldAccent.opacity(0.4), lineWidth: 1.5)
                         )
+                        .popover(isPresented: $showSelectionMenu, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
+                            formattingPopoverContent
+                        }
                         
                         Spacer(minLength: 8)
                         
-                        // Inline Calculator Result
                         if let result = viewModel.calculateCurrentLine() {
                             Text("= \(result)")
                                 .font(.system(size: 16, weight: .bold, design: .rounded))
@@ -601,7 +847,7 @@ struct MathLineView: View {
                     .padding(.trailing, 12)
                 }
             } else {
-                let latexString = tokens.map { $0.value }.joined()
+                let latexString = renderedLatexString
                 
                 if latexString.isEmpty {
                     HStack(spacing: 8) {
@@ -632,32 +878,105 @@ struct MathLineView: View {
                 .fill(isActive ? (colorScheme == .dark ? Color.white.opacity(0.02) : Color.black.opacity(0.015)) : Color.clear)
         )
         .contextMenu {
-            Button {
-                let latexString = tokens.map { $0.value }.joined()
-                #if os(iOS)
-                UIPasteboard.general.string = latexString
-                #elseif os(macOS)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(latexString, forType: .string)
-                #endif
-            } label: {
-                Label("Copy Equation", systemImage: "doc.on.doc")
+            Button(action: { viewModel.copyLine(at: lineIndex) }) { Label("Copy Equation", systemImage: "doc.on.doc") }
+            Button(action: { viewModel.pasteToLine(at: lineIndex) }) { Label("Paste Equation", systemImage: "doc.on.clipboard") }
+        }
+    }
+    
+    // MARK: - Popover
+    private var formattingPopoverContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if selectedRange != nil {
+                HStack(spacing: 16) {
+                    Button {
+                        viewModel.applyScratchOff(to: selectedRange!, on: lineIndex)
+                        closeMenu()
+                    } label: {
+                        Image(systemName: "strikethrough")
+                            .font(.title3.weight(.bold))
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Divider().frame(height: 20)
+                    
+                    ForEach(["blue", "red", "green", "orange", "purple", "pink"], id: \.self) { c in
+                        Button { applyColor(c) } label: {
+                            Circle()
+                                .fill(colorForString(c))
+                                .frame(width: 24, height: 24)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    Button { applyColor(nil) } label: {
+                        Image(systemName: "slash.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Divider()
             }
             
-            Button {
-                #if os(iOS)
-                let text = UIPasteboard.general.string ?? ""
-                #elseif os(macOS)
-                let text = NSPasteboard.general.string(forType: .string) ?? ""
-                #endif
-                
-                if !text.isEmpty {
-                    withAnimation(.snappy) { viewModel.pasteEquation(text, at: lineIndex) }
-                }
-            } label: {
+            Button(action: { viewModel.copyLine(at: lineIndex); closeMenu() }) {
+                Label("Copy Equation", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(.plain)
+            
+            Button(action: { viewModel.pasteToLine(at: lineIndex); closeMenu() }) {
                 Label("Paste Equation", systemImage: "doc.on.clipboard")
             }
+            .buttonStyle(.plain)
         }
+        .padding(16)
+        .presentationCompactAdaptation(.popover)
+    }
+    
+    // MARK: - Helpers
+    private func closeMenu() {
+        showSelectionMenu = false
+        selectedRange = nil
+    }
+    
+    private func applyColor(_ color: String?) {
+        if let range = selectedRange {
+            viewModel.applyHighlight(to: range, on: lineIndex, color: color)
+            closeMenu()
+        }
+    }
+    
+    private func colorForString(_ colorString: String) -> Color {
+        switch colorString {
+        case "blue": return colorScheme == .dark ? Color(red: 0.45, green: 0.82, blue: 1.0) : .blue
+        case "red": return colorScheme == .dark ? Color(red: 1.0, green: 0.45, blue: 0.45) : .red
+        case "green": return colorScheme == .dark ? Color(red: 0.45, green: 1.0, blue: 0.65) : .green
+        case "orange": return .orange
+        case "purple": return colorScheme == .dark ? Color(red: 0.85, green: 0.55, blue: 1.0) : .purple
+        case "pink": return .pink
+        default: return .clear
+        }
+    }
+    
+    private func tokenIndex(at point: CGPoint) -> Int? {
+        for (index, frame) in tokenFrames {
+            if frame.contains(point) { return index }
+        }
+        
+        var closestIndex: Int? = nil
+        var minDistance: CGFloat = .infinity
+        
+        for (index, frame) in tokenFrames {
+            let verticalBounds = frame.insetBy(dx: 0, dy: -20)
+            if verticalBounds.contains(CGPoint(x: frame.midX, y: point.y)) {
+                let distance = abs(frame.midX - point.x)
+                if distance < minDistance && distance < 40 {
+                    minDistance = distance
+                    closestIndex = index
+                }
+            }
+        }
+        return closestIndex
     }
 }
 
@@ -682,12 +1001,12 @@ struct BlinkingCursor: View {
 
 struct TokenView: View {
     let token: MathToken
+    let isSelected: Bool
     @Environment(\.colorScheme) var colorScheme
     
     var displayValue: String {
         let val = token.value
         switch val {
-        // Complex Macros
         case "\\lim_{x \\to ": return "lim x→"
         case "\\frac{d}{dx}[": return "d/dx ["
         case "\\sum_{": return "∑_"
@@ -697,15 +1016,13 @@ struct TokenView: View {
         case "^{\\circ}": return "°"
         case "^{": return "^("
         case "_{": return "_("
-        
-        // Standard Math Symbols
         case "\\pi": return "π"
         case "\\theta": return "θ"
+        case "\\alpha": return "α"
+        case "\\beta": return "β"
         case "\\infty": return "∞"
         case "\\int": return "∫"
         case "\\to": return "→"
-        
-        // Functions
         case "\\lim": return "lim"
         case "\\sin": return "sin"
         case "\\cos": return "cos"
@@ -715,15 +1032,11 @@ struct TokenView: View {
         case "\\sum": return "∑"
         case "\\sqrt": return "√"
         case "\\frac": return "frac"
-        
-        // Structural abstraction (Hiding LaTeX braces)
         case "{": return "("
         case "}": return ")"
         case "\\{": return "{"
         case "\\}": return "}"
-        
         default:
-            // Universal Fallback: Aggressively remove ALL slashes to prevent code leaks
             return val.replacingOccurrences(of: "\\", with: "")
         }
     }
@@ -732,9 +1045,46 @@ struct TokenView: View {
         Text(displayValue)
             .font(.system(size: 17, weight: weightForType(token.type), design: .rounded))
             .italic(token.type == .variable)
-            .foregroundStyle(colorForType(token.type))
+            .foregroundStyle(resolvedColor)
             .padding(.horizontal, paddingForType(token.type))
+            .background(
+                Group {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.blue.opacity(colorScheme == .dark ? 0.4 : 0.2))
+                    } else if token.highlightColor != nil {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(resolvedColor.opacity(0.15))
+                    }
+                }
+            )
+            .overlay {
+                if token.isScratchedOff {
+                    GeometryReader { geo in
+                        Path { p in
+                            p.move(to: CGPoint(x: 0, y: geo.size.height))
+                            p.addLine(to: CGPoint(x: geo.size.width, y: 0))
+                        }
+                        .stroke(colorScheme == .dark ? Color(red: 1.0, green: 0.35, blue: 0.35) : Color.red, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    }
+                }
+            }
             .contentShape(Rectangle())
+    }
+    
+    private var resolvedColor: Color {
+        if let hc = token.highlightColor {
+            switch hc {
+            case "blue": return colorScheme == .dark ? Color(red: 0.45, green: 0.82, blue: 1.0) : .blue
+            case "red": return colorScheme == .dark ? Color(red: 1.0, green: 0.45, blue: 0.45) : .red
+            case "green": return colorScheme == .dark ? Color(red: 0.45, green: 1.0, blue: 0.65) : .green
+            case "orange": return .orange
+            case "purple": return colorScheme == .dark ? Color(red: 0.85, green: 0.55, blue: 1.0) : .purple
+            case "pink": return .pink
+            default: break
+            }
+        }
+        return colorForType(token.type)
     }
     
     private func paddingForType(_ type: TokenType) -> CGFloat {
@@ -759,12 +1109,12 @@ struct TokenView: View {
         case .variable: return colorScheme == .dark ? Color(red: 0.45, green: 0.82, blue: 1.0) : Color.blue
         case .operatorSymbol: return Color(red: 1.0, green: 0.60, blue: 0.15)
         case .function: return colorScheme == .dark ? Color(red: 0.85, green: 0.55, blue: 1.0) : Color.purple
-        case .structural: return .secondary.opacity(0.6) // Softer appearance for structural brackets
+        case .structural: return .secondary.opacity(0.6)
         }
     }
 }
 
-// MARK: - Custom Context-Aware Keypad
+// MARK: - Keypad
 
 struct MathKeypadView: View {
     @Bindable var viewModel: MathScratchpadViewModel
@@ -773,7 +1123,6 @@ struct MathKeypadView: View {
     
     var body: some View {
         VStack(spacing: 10) {
-            // Context Variables & Functions Rail
             HStack(spacing: 8) {
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -792,7 +1141,6 @@ struct MathKeypadView: View {
                 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
-                        // Variables & Constants
                         ForEach(["x", "y", "θ", "π", "e"], id: \.self) { variable in
                             let isFunc = variable == "π" || variable == "e"
                             let val = variable == "π" ? "\\pi" : variable
@@ -805,14 +1153,10 @@ struct MathKeypadView: View {
                         
                         Divider().frame(height: 22)
                         
-                        // Trig & Logs
                         ForEach(["sin", "cos", "tan", "ln", "log"], id: \.self) { fn in
                             KeypadButton(text: fn, type: .function, style: .function) {
-                                if fn == "log" {
-                                    viewModel.insert("\\log_{10}(", type: .function)
-                                } else {
-                                    viewModel.insert("\\\(fn)(", type: .function)
-                                }
+                                if fn == "log" { viewModel.insert("\\log_{10}(", type: .function) }
+                                else { viewModel.insert("\\\(fn)(", type: .function) }
                                 viewModel.insert(")", type: .structural)
                                 viewModel.moveCursorLeft()
                                 playHaptic()
@@ -822,7 +1166,6 @@ struct MathKeypadView: View {
                         
                         Divider().frame(height: 22)
                         
-                        // Calculus & Algebra Support
                         KeypadButton(text: "lim", type: .function, style: .function) {
                             viewModel.insert("\\lim_{x \\to ", type: .function)
                             viewModel.insert("}", type: .structural)
@@ -885,7 +1228,6 @@ struct MathKeypadView: View {
             .padding(.horizontal, 16)
             .padding(.top, 14)
             
-            // Grid-based Math Keypad
             Grid(horizontalSpacing: 8, verticalSpacing: 8) {
                 if isExpanded {
                     GridRow {
@@ -904,7 +1246,6 @@ struct MathKeypadView: View {
                         KeypadButton(text: "[", type: .structural, style: .operator) { viewModel.insert("[", type: .structural); playHaptic() }
                         KeypadButton(text: "]", type: .structural, style: .operator) { viewModel.insert("]", type: .structural); playHaptic() }
                     }
-                    
                     GridRow {
                         KeypadButton(text: "{", type: .structural, style: .operator) { viewModel.insert("\\{", type: .structural); playHaptic() }
                         KeypadButton(text: "}", type: .structural, style: .operator) { viewModel.insert("\\}", type: .structural); playHaptic() }
@@ -941,7 +1282,7 @@ struct MathKeypadView: View {
                     KeypadButton(text: "( )", type: .structural, style: .operator) {
                         viewModel.insert("(", type: .structural)
                         viewModel.insert(")", type: .structural)
-                        viewModel.moveCursorLeft() // Auto-pair and trap cursor
+                        viewModel.moveCursorLeft()
                         playHaptic()
                     }
                     KeypadButton(text: "+", type: .operatorSymbol, style: .operator) { viewModel.insert("+", type: .operatorSymbol); playHaptic() }
@@ -979,8 +1320,6 @@ struct MathKeypadView: View {
         #endif
     }
 }
-
-// MARK: - Keypad Button System
 
 enum KeypadButtonStyleType {
     case number, `operator`, action, confirm, destructive, variable, function
@@ -1059,5 +1398,13 @@ struct KeypadPressStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
             .opacity(configuration.isPressed ? 0.85 : 1.0)
             .animation(.snappy(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Selection Tracking
+struct TokenFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [Int: CGRect] = [:]
+    static func reduce(value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]) {
+        value.merge(nextValue()) { $1 }
     }
 }

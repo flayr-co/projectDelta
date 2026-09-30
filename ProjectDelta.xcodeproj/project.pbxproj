@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		52098B90305B47F300A0DBB0 /* QuestionNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52098B8F305B47F300A0DBB0 /* QuestionNote.swift */; };
 		520B96842BA5375600332AF3 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520B96832BA5375600332AF3 /* AdminView.swift */; };
 		520B96862BA538BD00332AF3 /* AdminViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520B96852BA538BD00332AF3 /* AdminViewModel.swift */; };
 		520F68A2304AABFA0092A83D /* KeypadTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520F68A1304AABFA0092A83D /* KeypadTab.swift */; };
@@ -58,6 +59,7 @@
 		5297E4382AD63C8B00220FC6 /* CardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5297E4372AD63C8B00220FC6 /* CardView.swift */; };
 		5297E43A2AD6434A00220FC6 /* CustomButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5297E4392AD6434A00220FC6 /* CustomButtonView.swift */; };
 		5297E4792AD7AA2800220FC6 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 5297E4782AD7AA2800220FC6 /* GoogleService-Info.plist */; };
+		52AB7257305C288300F85170 /* NotebookDirectoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AB7256305C288300F85170 /* NotebookDirectoryView.swift */; };
 		52AFCA0A2BBF381B0081A309 /* ProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52AFCA092BBF381B0081A309 /* ProgressBar.swift */; };
 		52BB1A502FE28C6D00A5800A /* TestMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52BB1A4F2FE28C6D00A5800A /* TestMode.swift */; };
 		52BB1A522FE28C8200A5800A /* UniversalTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52BB1A512FE28C8200A5800A /* UniversalTestView.swift */; };
@@ -80,6 +82,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		52098B8F305B47F300A0DBB0 /* QuestionNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionNote.swift; sourceTree = "<group>"; };
 		520B96832BA5375600332AF3 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
 		520B96852BA538BD00332AF3 /* AdminViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminViewModel.swift; sourceTree = "<group>"; };
 		520F68A1304AABFA0092A83D /* KeypadTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeypadTab.swift; sourceTree = "<group>"; };
@@ -132,6 +135,7 @@
 		5297E4372AD63C8B00220FC6 /* CardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardView.swift; sourceTree = "<group>"; };
 		5297E4392AD6434A00220FC6 /* CustomButtonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomButtonView.swift; sourceTree = "<group>"; };
 		5297E4782AD7AA2800220FC6 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		52AB7256305C288300F85170 /* NotebookDirectoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookDirectoryView.swift; sourceTree = "<group>"; };
 		52AFCA092BBF381B0081A309 /* ProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBar.swift; sourceTree = "<group>"; };
 		52BB1A4F2FE28C6D00A5800A /* TestMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestMode.swift; sourceTree = "<group>"; };
 		52BB1A512FE28C8200A5800A /* UniversalTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalTestView.swift; sourceTree = "<group>"; };
@@ -273,6 +277,7 @@
 				5254A5CC2AF19F4200AAAA72 /* MainTabView.swift */,
 				5222C55E304EA07F00C02521 /* MathScratchpadView.swift */,
 				52643E002FCACAEB00859741 /* MetricsCarouselView.swift */,
+				52AB7256305C288300F85170 /* NotebookDirectoryView.swift */,
 				52AFCA092BBF381B0081A309 /* ProgressBar.swift */,
 				521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */,
 				5258BD5B2AE344C200F21A50 /* SettingsRowView.swift */,
@@ -304,6 +309,7 @@
 		52D998E82AD8BEC7007F90A6 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				52098B8F305B47F300A0DBB0 /* QuestionNote.swift */,
 				52D998EF2ADB3120007F90A6 /* Test.swift */,
 				5258BD442ADF403B00F21A50 /* Question.swift */,
 				5258BD5D2AE4753F00F21A50 /* User.swift */,
@@ -459,12 +465,14 @@
 				529376592B3F6ADC001CC66A /* UserProgressDonut.swift in Sources */,
 				5297E4382AD63C8B00220FC6 /* CardView.swift in Sources */,
 				527F987E2AEC85030031F9E6 /* CloseButtonView.swift in Sources */,
+				52098B90305B47F300A0DBB0 /* QuestionNote.swift in Sources */,
 				52AFCA0A2BBF381B0081A309 /* ProgressBar.swift in Sources */,
 				5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */,
 				5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */,
 				52D998F02ADB3120007F90A6 /* Test.swift in Sources */,
 				527F98782AEC518E0031F9E6 /* Subject.swift in Sources */,
 				52BB1A502FE28C6D00A5800A /* TestMode.swift in Sources */,
+				52AB7257305C288300F85170 /* NotebookDirectoryView.swift in Sources */,
 				52C68AC32FB64BBF001CD906 /* LessonEditorView.swift in Sources */,
 				52DAF6922BED5EF2006EE19F /* TextStylingUtility.swift in Sources */,
 				52D1A80F2BFFD07100B5C40B /* DynamicGraphView.swift in Sources */,

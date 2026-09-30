@@ -2,8 +2,6 @@
 //  ProfileView.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/20/23.
-//
 
 import SwiftUI
 import PhotosUI
@@ -13,19 +11,15 @@ struct ProfileView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var showProfileDetail = false
     
-    // Native PhotosUI integration replaces UIKit wrappers
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var isProcessingImage = false
     
     @AppStorage("isDarkMode") private var isDarkMode = false
-        
-    // NEW: Super Admin State & Flayr LLC Auth Check
     @State private var showSuperAdminConsole = false
         
     private var isFlayrOwner: Bool {
         guard let email = viewModel.currentUser?.email.lowercased() else { return false }
-        // Add your active test email here
-        return email.hasSuffix("@flayr.co") || email == "jakemeissner9@gmail.com" || email == "jakecmeissner@gmail.com" || email == "your.test.account@gmail.com"
+        return email.hasSuffix("@flayr.co") || email == "jakemeissner9@gmail.com" || email == "jakecmeissner@gmail.com"
     }
     
     var body: some View {
@@ -156,10 +150,19 @@ struct ProfileView: View {
                         Divider().opacity(0.5)
                         
                         NavigationLink {
+                            NotebookDirectoryView()
+                        } label: {
+                            macOSSettingRow(icon: "book.pages.fill", title: "My Notebook", color: .teal)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Divider().opacity(0.5)
+                        
+                        NavigationLink {
                             QuizSnapshotsHistoryView()
                                 .environment(viewModel)
                         } label: {
-                            macOSSettingRow(icon: "chart.bar.xaxis", title: "View your progress", color: .cyan)
+                            macOSSettingRow(icon: "chart.bar.xaxis", title: "View your progress", color: .indigo)
                         }
                         .buttonStyle(.plain)
                         
@@ -175,7 +178,7 @@ struct ProfileView: View {
                 }
             }
             .padding(40)
-            .frame(maxWidth: 1000) // Constrain width for ultrawide
+            .frame(maxWidth: 1000)
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(Color.platformSystemGroupedBackground)
@@ -315,10 +318,16 @@ struct ProfileView: View {
                 }
                 
                 NavigationLink {
+                    NotebookDirectoryView()
+                } label: {
+                    SettingsRowView(imageName: "book.pages.fill", title: "My Notebook", tintColor: .teal)
+                }
+                
+                NavigationLink {
                     QuizSnapshotsHistoryView()
                         .environment(viewModel)
                 } label: {
-                    SettingsRowView(imageName: "chart.bar.xaxis", title: "View your progress", tintColor: .cyan)
+                    SettingsRowView(imageName: "chart.bar.xaxis", title: "View your progress", tintColor: .indigo)
                 }
                 
                 Button {
@@ -330,7 +339,7 @@ struct ProfileView: View {
                 }
             }
         }
-        .padding(.bottom, 100) // Padding to clear floating tab bar only on mobile where tabbar exists
+        .padding(.bottom, 100)
     }
     #endif // os(iOS)
     
@@ -339,7 +348,6 @@ struct ProfileView: View {
         Task {
             if let item = newValue {
                 isProcessingImage = true
-                // Retrieve raw data to remain completely abstracted from UIKit/AppKit
                 if let imageData = try? await item.loadTransferable(type: Data.self) {
                     await viewModel.uploadProfileImage(imageData, for: user)
                 }

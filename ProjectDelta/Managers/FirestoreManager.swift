@@ -2,14 +2,13 @@
 //  FirestoreManager.swift
 //  ProjectDelta
 //
-//  Created by Jake Meissner on 10/14/23.
-//
 
 import Foundation
 import Firebase
 import FirebaseFirestore
 
 class FirestoreManager {
+    static let shared = FirestoreManager()
     private var db: Firestore
     
     init() {
@@ -103,4 +102,36 @@ class FirestoreManager {
             }
         }
     }
+    
+    // MARK: - Scratchpad Notes
+    
+    func saveQuestionNote(userId: String, questionId: String, note: QuestionNote) async throws {
+        let ref = db.collection("Users").document(userId).collection("Notes").document(questionId)
+        try ref.setData(from: note)
+    }
+    
+    func fetchQuestionNote(userId: String, questionId: String) async throws -> QuestionNote? {
+        let ref = db.collection("Users").document(userId).collection("Notes").document(questionId)
+        return try await ref.getDocument(as: QuestionNote.self)
+    }
+    
+    func deleteQuestionNote(userId: String, questionId: String) async throws {
+        let ref = db.collection("Users").document(userId).collection("Notes").document(questionId)
+        try await ref.delete()
+    }
+    
+    func fetchNotesForLesson(userId: String, subject: String, subtopic: String) async throws -> [QuestionNote] {
+        let cleanSubject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanSubtopic = subtopic.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let snapshot = try await db.collection("Users").document(userId).collection("Notes")
+            .whereField("subject", isEqualTo: cleanSubject)
+            .whereField("subtopic", isEqualTo: cleanSubtopic)
+        // .order(by:) removed to completely bypass the Firestore Composite Index requirement
+            .getDocuments()
+        
+        let notes = snapshot.documents.compactMap { try? $0.data(as: QuestionNote.self) }
+        return notes.sorted { $0.lastEdited > $1.lastEdited } // Sort locally instead
+    }
+    
 }
