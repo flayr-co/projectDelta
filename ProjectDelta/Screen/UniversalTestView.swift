@@ -547,101 +547,71 @@ struct UniversalTestView: View {
     #endif
 
     // MARK: - iOS Layout
-    #if os(iOS)
+        #if os(iOS)
     private var iOSLayout: some View {
-        GeometryReader { fullGeo in
-            VStack(spacing: 0) {
-                iOSHeader
-                    .zIndex(2)
-                    
-                if mode.isTimed && !buttonTapped {
-                    introView
-                } else if testViewModel.isGeneratingQuiz {
-                    Spacer()
-                    VStack(spacing: 16) {
-                        ProgressView().controlSize(.large).tint(themeColor)
-                        Text("Configuring assessment...").font(.system(.subheadline, design: .rounded, weight: .semibold)).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                } else if testViewModel.isQuizComplete {
-                    quizEndView
-                } else if !testViewModel.questions.isEmpty {
-                    
-                    // Main Split View Architecture
-                    VStack(spacing: 0) {
-                        // Top Panel: Test Content
-                        ZStack(alignment: .bottom) {
-                            TabView(selection: $currentQuestionIndex) {
-                                ForEach(0..<testViewModel.questions.count, id: \.self) { index in
-                                    QuestionContentPage(index: index, mode: mode, themeColor: themeColor)
-                                        .tag(index)
-                                }
-                            }
-                            .tabViewStyle(.page(indexDisplayMode: .never))
-                            .onChange(of: currentQuestionIndex) { _, newValue in
-                                if selectedQuestionIndex != newValue { selectedQuestionIndex = newValue }
-                            }
-                            
-                            LinearGradient(
-                                colors: [
-                                    Color.clear,
-                                    (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99)).opacity(0.85),
-                                    (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99))
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: 120)
-                            .allowsHitTesting(false)
-                            
-                            bottomNavigationBar
-                        }
-                        .frame(height: isScratchpadVisible ? fullGeo.size.height * (1.0 - scratchpadRatio) : nil)
-                        
-                        // Bottom Panel: Resizable Scratchpad
-                        if isScratchpadVisible {
-                            VStack(spacing: 0) {
-                                // Drag Handle Bar
-                                ZStack {
-                                    Color(colorScheme == .dark ? UIColor.secondarySystemBackground : UIColor.systemBackground)
-                                        .shadow(color: .black.opacity(0.05), radius: 4, y: -2)
-                                    Capsule()
-                                        .fill(Color.secondary.opacity(0.3))
-                                        .frame(width: 40, height: 5)
-                                }
-                                .frame(height: 24)
-                                .contentShape(Rectangle())
-                                .gesture(
-                                    DragGesture()
-                                        .onChanged { val in
-                                            if !isDraggingDivider {
-                                                isDraggingDivider = true
-                                                initialDragRatio = scratchpadRatio
-                                            }
-                                            // Pulling UP makes scratchpad larger
-                                            let delta = -val.translation.height / fullGeo.size.height
-                                            scratchpadRatio = max(0.2, min(0.85, initialDragRatio + delta))
-                                        }
-                                        .onEnded { _ in isDraggingDivider = false }
-                                )
-                                .zIndex(10)
-                                
-                                MathScratchpadView(viewModel: scratchpadViewModel)
-                            }
-                            .frame(height: fullGeo.size.height * scratchpadRatio)
-                            .background(colorScheme == .dark ? Color(red: 0.08, green: 0.09, blue: 0.11) : Color(red: 0.98, green: 0.98, blue: 0.99))
-                            .clipShape(.rect(topLeadingRadius: 28, topTrailingRadius: 28))
-                            .shadow(color: .black.opacity(0.15), radius: 20, y: -5)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                            .zIndex(100)
-                        }
-                    }
-                } else {
-                    Spacer()
-                    ContentUnavailableView("No Questions Found", systemImage: "doc.questionmark", description: Text("No questions mapped to this module."))
-                    Spacer()
+        VStack(spacing: 0) {
+            iOSHeader
+                .zIndex(2)
+            
+            if mode.isTimed && !buttonTapped {
+                introView
+            } else if testViewModel.isGeneratingQuiz {
+                Spacer()
+                VStack(spacing: 16) {
+                    ProgressView().controlSize(.large).tint(themeColor)
+                    Text("Configuring assessment...").font(.system(.subheadline, design: .rounded, weight: .semibold)).foregroundStyle(.secondary)
                 }
+                Spacer()
+            } else if testViewModel.isQuizComplete {
+                quizEndView
+            } else if !testViewModel.questions.isEmpty {
+                // Top Panel: Test Content
+                ZStack(alignment: .bottom) {
+                    TabView(selection: $currentQuestionIndex) {
+                        ForEach(0..<testViewModel.questions.count, id: \.self) { index in
+                            QuestionContentPage(index: index, mode: mode, themeColor: themeColor)
+                                .tag(index)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .onChange(of: currentQuestionIndex) { _, newValue in
+                        if selectedQuestionIndex != newValue { selectedQuestionIndex = newValue }
+                    }
+                    
+                    LinearGradient(
+                        colors: [
+                            Color.clear,
+                            (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99)).opacity(0.85),
+                            (colorScheme == .dark ? Color.black : Color(red: 0.96, green: 0.97, blue: 0.99))
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 120)
+                    .allowsHitTesting(false)
+                    
+                    bottomNavigationBar
+                }
+            } else {
+                Spacer()
+                ContentUnavailableView("No Questions Found", systemImage: "doc.questionmark", description: Text("No questions mapped to this module."))
+                Spacer()
             }
+        }
+        // Native Bottom Sheet for Scratchpad
+        .sheet(isPresented: $isScratchpadVisible) {
+            MathScratchpadView(viewModel: scratchpadViewModel)
+                .presentationDetents([.fraction(0.55), .fraction(0.95)])
+                .presentationDragIndicator(.visible)
+            // Allows user to interact with the question while sheet is at 55%
+                .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.55)))
+                .presentationCornerRadius(28)
+                .onDisappear {
+                    // Triggers auto-save if they swipe the sheet down to dismiss
+                    if currentQuestionIndex < testViewModel.questions.count {
+                        saveScratchpadState(for: testViewModel.questions[currentQuestionIndex])
+                    }
+                }
         }
     }
     

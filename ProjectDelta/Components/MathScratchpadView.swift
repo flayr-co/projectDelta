@@ -80,6 +80,32 @@ class MathScratchpadViewModel {
         hasBeenEdited = true
     }
     
+    func convertToFraction(range: ClosedRange<Int>, on lineIndex: Int) {
+        saveState()
+        let line = lines[lineIndex]
+        let selectedTokens = Array(line[range])
+        
+        var newTokens: [MathToken] = []
+        newTokens.append(MathToken(value: "\\frac{", type: .function))
+        
+        if let divIndex = selectedTokens.firstIndex(where: { $0.value == "÷" || $0.value == "/" }) {
+            let numTokens = Array(selectedTokens[..<divIndex])
+            let denTokens = Array(selectedTokens[(divIndex + 1)...])
+            newTokens.append(contentsOf: numTokens)
+            newTokens.append(MathToken(value: "}{", type: .structural))
+            newTokens.append(contentsOf: denTokens)
+        } else {
+            newTokens.append(contentsOf: selectedTokens)
+            newTokens.append(MathToken(value: "}{", type: .structural))
+        }
+        
+        newTokens.append(MathToken(value: "}", type: .structural))
+        
+        lines[lineIndex].replaceSubrange(range, with: newTokens)
+        cursorIndex = range.lowerBound + newTokens.count
+        hasBeenEdited = true
+    }
+    
     var isEmpty: Bool {
         lines.allSatisfy { $0.isEmpty }
     }
@@ -273,8 +299,11 @@ class MathScratchpadViewModel {
         
         let monolithToken = MathToken(value: cleanInput, type: .structural)
         self.lines[0] = [monolithToken]
-        self.activeLineIndex = 0
-        self.cursorIndex = 1
+        
+        // Auto-generate the next empty line so the user can immediately paste or start typing
+        self.lines.append([])
+        self.activeLineIndex = 1
+        self.cursorIndex = 0
         
         // Auto-loads do not flag as user edits, preventing DB pollution
         self.hasBeenEdited = false
@@ -399,12 +428,18 @@ struct MathScratchpadView: View {
     @Bindable var viewModel: MathScratchpadViewModel
     @Environment(\.colorScheme) var colorScheme
     @FocusState private var isCanvasFocused: Bool
+    
+    // Hardware/Software Keyboard Bridge State
+    @FocusState private var isNativeKeyboardFocused: Bool
+    @State private var nativeInputString: String = " "
+    @State private var showCustomKeypad: Bool = true
+    
     @State private var isKeypadExpanded: Bool = false
     @State private var draggedLineIndex: Int? = nil
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Drag-Friendly Header
             HStack {
                 HStack(spacing: 8) {
                     Image(systemName: "pencil.and.scribble")
@@ -418,6 +453,26 @@ struct MathScratchpadView: View {
                 Spacer()
                 
                 HStack(spacing: 12) {
+                    // Native Keyboard Toggle
+                    Button(action: {
+                        withAnimation(.snappy) {
+                            if isNativeKeyboardFocused {
+                                isNativeKeyboardFocused = false
+                                showCustomKeypad = true
+                            } else {
+                                showCustomKeypad = false
+                                isNativeKeyboardFocused = true
+                            }
+                        }
+                    }) {
+                        Image(systemName: isNativeKeyboardFocused ? "keyboard.chevron.compact.down" : "keyboard")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(isNativeKeyboardFocused ? Color.white : Color.blue)
+                            .padding(8)
+                            .background(isNativeKeyboardFocused ? Color.blue : Color.blue.opacity(0.12), in: .circle)
+                    }
+                    .buttonStyle(.plain)
+                    
                     Button(action: {
                         withAnimation(.snappy) { viewModel.isCalculatorEnabled.toggle() }
                     }) {
@@ -444,123 +499,175 @@ struct MathScratchpadView: View {
             .padding(.horizontal, 24)
             .padding(.top, 20)
             .padding(.bottom, 12)
+            .contentShape(Rectangle()) // Makes the entire header a reliable drag target for the sheet
             
             // Equation Canvas
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
+            ZStack {
+                // Invisible Native Keyboard Bridge
+                TextField("", text: $nativeInputString)
+                    .focused($isNativeKeyboardFocused)
+                    .autocorrectionDisabled()
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
+                    .opacity(0)
+                    .frame(width: 0, height: 0)
+                    .onChange(of: nativeInputString) { oldValue, newValue in
+                        guard newValue != " " else { return }
                         
-                        #if os(macOS)
-                        HoverInsertLineButton { viewModel.insertLine(at: 0) }
-                        #else
-                        Color.clear.frame(height: 16)
-                        #endif
-                        
-                        ForEach(0..<viewModel.lines.count, id: \.self) { lineIndex in
-                            MathLineView(
-                                viewModel: viewModel,
-                                tokens: viewModel.lines[lineIndex],
-                                isActive: lineIndex == viewModel.activeLineIndex,
-                                cursorIndex: lineIndex == viewModel.activeLineIndex ? viewModel.cursorIndex : nil,
-                                lineIndex: lineIndex,
-                                onCursorTap: { newIndex in
-                                    withAnimation(.snappy) {
-                                        viewModel.moveCursor(to: newIndex, on: lineIndex)
-                                    }
-                                }
-                            )
-                            .id(lineIndex)
-                            .onDrag {
-                                self.draggedLineIndex = lineIndex
-                                return NSItemProvider(object: String(lineIndex) as NSString)
+                        if newValue.isEmpty {
+                            viewModel.backspace()
+                        } else if newValue.count > 1 {
+                            let lastChar = newValue.last!
+                            if lastChar.isNumber {
+                                viewModel.insert(String(lastChar), type: .number)
+                            } else if lastChar.isLetter {
+                                viewModel.insert(String(lastChar), type: .variable)
+                            } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">", "|"].contains(lastChar) {
+                                let mappedChar = lastChar == "/" ? "÷" : (lastChar == "*" ? "×" : String(lastChar))
+                                viewModel.insert(mappedChar, type: .operatorSymbol)
+                            } else if ["(", ")", "[", "]", "{", "}"].contains(lastChar) {
+                                viewModel.insert(String(lastChar), type: .structural)
+                            } else if lastChar == "\n" {
+                                viewModel.newLine()
                             }
-                            .onDrop(of: [.plainText], delegate: LineDropDelegate(item: lineIndex, viewModel: viewModel, draggedItem: $draggedLineIndex))
+                        }
+                        
+                        // Reset bridge safely to capture subsequent inputs
+                        nativeInputString = " "
+                    }
+                
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
                             
                             #if os(macOS)
-                            HoverInsertLineButton { viewModel.insertLine(at: lineIndex + 1) }
+                            HoverInsertLineButton { viewModel.insertLine(at: 0) }
                             #else
                             Color.clear.frame(height: 16)
                             #endif
+                            
+                            ForEach(0..<viewModel.lines.count, id: \.self) { lineIndex in
+                                MathLineView(
+                                    viewModel: viewModel,
+                                    tokens: viewModel.lines[lineIndex],
+                                    isActive: lineIndex == viewModel.activeLineIndex,
+                                    cursorIndex: lineIndex == viewModel.activeLineIndex ? viewModel.cursorIndex : nil,
+                                    lineIndex: lineIndex,
+                                    onCursorTap: { newIndex in
+                                        withAnimation(.snappy) {
+                                            viewModel.moveCursor(to: newIndex, on: lineIndex)
+                                        }
+                                    }
+                                )
+                                .id(lineIndex)
+                                .onDrag {
+                                    self.draggedLineIndex = lineIndex
+                                    return NSItemProvider(object: String(lineIndex) as NSString)
+                                }
+                                .onDrop(of: [.plainText], delegate: LineDropDelegate(item: lineIndex, viewModel: viewModel, draggedItem: $draggedLineIndex))
+                                
+                                #if os(macOS)
+                                HoverInsertLineButton { viewModel.insertLine(at: lineIndex + 1) }
+                                #else
+                                Color.clear.frame(height: 16)
+                                #endif
+                            }
+                            
+                            // Essential clearance padding to push the active line completely above the custom keypad
+                            Color.clear.frame(height: 30).id("BottomClearance")
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .background(DotGridBackground())
-                .focusable()
-                .focused($isCanvasFocused)
-                // Hardware Keyboard Intercepts
-                .onKeyPress(phases: [.down, .repeat]) { press in
-                    if press.modifiers.contains(.command) {
-                        if press.key == KeyEquivalent("c") {
-                            viewModel.copyActiveLine()
-                            return .handled
+                    .background(DotGridBackground())
+                    .focusable()
+                    .focused($isCanvasFocused)
+                    // Hardware Keyboard Intercepts
+                    .onKeyPress(phases: [.down, .repeat]) { press in
+                        if press.modifiers.contains(.command) {
+                            if press.key == KeyEquivalent("c") {
+                                viewModel.copyActiveLine()
+                                return .handled
+                            }
+                            if press.key == KeyEquivalent("v") {
+                                viewModel.pasteToActiveLine()
+                                return .handled
+                            }
+                            if press.key == KeyEquivalent("z") {
+                                viewModel.undo()
+                                return .handled
+                            }
                         }
-                        if press.key == KeyEquivalent("v") {
-                            viewModel.pasteToActiveLine()
-                            return .handled
-                        }
-                        if press.key == KeyEquivalent("z") {
-                            viewModel.undo()
-                            return .handled
-                        }
-                    }
-                    
-                    if press.key == .delete || press.key == KeyEquivalent("\u{7F}") || press.key == KeyEquivalent("\u{08}") {
-                        viewModel.backspace()
-                        return .handled
-                    }
-                    if press.key == .return {
-                        viewModel.newLine()
-                        return .handled
-                    }
-                    if press.key == .rightArrow {
-                        viewModel.moveCursorRight()
-                        return .handled
-                    }
-                    if press.key == .leftArrow {
-                        viewModel.moveCursorLeft()
-                        return .handled
-                    }
-                    if press.key == .space {
-                        return .handled
-                    }
-                    
-                    if let char = press.characters.first {
-                        if char.isNumber {
-                            viewModel.insert(String(char), type: .number)
-                            return .handled
-                        } else if char.isLetter {
-                            viewModel.insert(String(char), type: .variable)
-                            return .handled
-                        } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">", "|"].contains(char) {
-                            let mappedChar = char == "/" ? "÷" : (char == "*" ? "×" : String(char))
-                            viewModel.insert(mappedChar, type: .operatorSymbol)
-                            return .handled
-                        } else if ["(", ")", "[", "]", "{", "}"].contains(char) {
-                            viewModel.insert(String(char), type: .structural)
+                        
+                        if press.key == .delete || press.key == KeyEquivalent("\u{7F}") || press.key == KeyEquivalent("\u{08}") {
+                            viewModel.backspace()
                             return .handled
                         }
+                        if press.key == .return {
+                            viewModel.newLine()
+                            return .handled
+                        }
+                        if press.key == .rightArrow {
+                            viewModel.moveCursorRight()
+                            return .handled
+                        }
+                        if press.key == .leftArrow {
+                            viewModel.moveCursorLeft()
+                            return .handled
+                        }
+                        if press.key == .space {
+                            return .handled
+                        }
+                        
+                        if let char = press.characters.first {
+                            if char.isNumber {
+                                viewModel.insert(String(char), type: .number)
+                                return .handled
+                            } else if char.isLetter {
+                                viewModel.insert(String(char), type: .variable)
+                                return .handled
+                            } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">", "|"].contains(char) {
+                                let mappedChar = char == "/" ? "÷" : (char == "*" ? "×" : String(char))
+                                viewModel.insert(mappedChar, type: .operatorSymbol)
+                                return .handled
+                            } else if ["(", ")", "[", "]", "{", "}"].contains(char) {
+                                viewModel.insert(String(char), type: .structural)
+                                return .handled
+                            }
+                        }
+                        return .ignored
                     }
-                    return .ignored
-                }
-                .onChange(of: viewModel.activeLineIndex) { _, newIndex in
-                    withAnimation(.snappy) {
-                        proxy.scrollTo(newIndex, anchor: .bottom)
-                    }
-                }
-                .onChange(of: isKeypadExpanded) { _, _ in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    .onChange(of: viewModel.activeLineIndex) { _, newIndex in
                         withAnimation(.snappy) {
-                            proxy.scrollTo(viewModel.activeLineIndex, anchor: .bottom)
+                            proxy.scrollTo("BottomClearance", anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: viewModel.cursorIndex) { _, _ in
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            withAnimation(.snappy) {
+                                proxy.scrollTo("BottomClearance", anchor: .bottom)
+                            }
+                        }
+                    }
+                    .onChange(of: isKeypadExpanded) { _, _ in
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            withAnimation(.snappy) {
+                                proxy.scrollTo("BottomClearance", anchor: .bottom)
+                            }
                         }
                     }
                 }
             }
             
             // Custom Keypad
-            MathKeypadView(viewModel: viewModel, isExpanded: $isKeypadExpanded)
+            if showCustomKeypad {
+                MathKeypadView(viewModel: viewModel, isExpanded: $isKeypadExpanded)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 6)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .background(
             ZStack {
@@ -573,6 +680,11 @@ struct MathScratchpadView: View {
         )
         .onAppear {
             isCanvasFocused = true
+        }
+        .onChange(of: isNativeKeyboardFocused) { _, isFocused in
+            if isFocused {
+                withAnimation(.snappy) { showCustomKeypad = false }
+            }
         }
     }
 }
@@ -732,6 +844,13 @@ struct MathLineView: View {
         }.joined()
     }
     
+    private func playSelectionHaptic() {
+        #if os(iOS)
+        let generator = UISelectionFeedbackGenerator()
+        generator.selectionChanged()
+        #endif
+    }
+    
     var body: some View {
         HStack(spacing: 8) {
             Capsule()
@@ -781,9 +900,10 @@ struct MathLineView: View {
                                     .onTapGesture {
                                         onCursorTap(i + 1)
                                     }
-                                    .onLongPressGesture(minimumDuration: 0.4) {
+                                    .onLongPressGesture(minimumDuration: 0.3) {
                                         selectedRange = i...i
                                         showSelectionMenu = true
+                                        playSelectionHaptic()
                                     }
                                     #endif
                             }
@@ -792,20 +912,23 @@ struct MathLineView: View {
                         .onPreferenceChange(TokenFramePreferenceKey.self) { frames in
                             self.tokenFrames = frames
                         }
-                        .gesture(
-                            DragGesture(minimumDistance: 4)
+                        .highPriorityGesture(
+                            DragGesture(minimumDistance: 4, coordinateSpace: .named("LineSpace\(lineIndex)"))
                                 .onChanged { value in
                                     if let idx = tokenIndex(at: value.location) {
                                         if dragStartIndex == nil { dragStartIndex = idx }
                                         let start = min(dragStartIndex!, idx)
                                         let end = max(dragStartIndex!, idx)
-                                        selectedRange = start...end
+                                        if selectedRange != start...end {
+                                            selectedRange = start...end
+                                            playSelectionHaptic()
+                                        }
                                     }
                                 }
                                 .onEnded { _ in
                                     dragStartIndex = nil
                                     if selectedRange != nil {
-                                        showSelectionMenu = true // Triggers popover immediately
+                                        showSelectionMenu = true
                                     }
                                 }
                         )
@@ -821,10 +944,6 @@ struct MathLineView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .fill(colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(emeraldAccent.opacity(0.4), lineWidth: 1.5)
                         )
                         .popover(isPresented: $showSelectionMenu, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
                             formattingPopoverContent
@@ -888,6 +1007,23 @@ struct MathLineView: View {
         VStack(alignment: .leading, spacing: 14) {
             if selectedRange != nil {
                 HStack(spacing: 16) {
+                    
+                    // Convert to fraction (a/b)
+                    Button {
+                        viewModel.convertToFraction(range: selectedRange!, on: lineIndex)
+                        closeMenu()
+                    } label: {
+                        Text("a/b")
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundColor(colorScheme == .dark ? .white : .black)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.15), in: .rect(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Divider().frame(height: 20)
+                    
                     Button {
                         viewModel.applyScratchOff(to: selectedRange!, on: lineIndex)
                         closeMenu()
@@ -1122,8 +1258,8 @@ struct MathKeypadView: View {
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                         isExpanded.toggle()
@@ -1131,16 +1267,28 @@ struct MathKeypadView: View {
                     }
                 }) {
                     Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.up.circle.fill")
-                        .font(.system(size: 22))
+                        .font(.system(size: 20))
                         .foregroundStyle(isExpanded ? Color.orange : Color.blue)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 40, height: 40)
                         .background(Color.primary.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(KeypadPressStyle())
                 
+                KeypadButton(icon: "arrow.left", style: .action) {
+                    viewModel.moveCursorLeft()
+                    playHaptic()
+                }
+                .frame(width: 40)
+                
+                KeypadButton(icon: "arrow.right", style: .action) {
+                    viewModel.moveCursorRight()
+                    playHaptic()
+                }
+                .frame(width: 40)
+                
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         ForEach(["x", "y", "θ", "π", "e"], id: \.self) { variable in
                             let isFunc = variable == "π" || variable == "e"
                             let val = variable == "π" ? "\\pi" : variable
@@ -1148,10 +1296,10 @@ struct MathKeypadView: View {
                                 viewModel.insert(val, type: isFunc ? .function : .variable)
                                 playHaptic()
                             }
-                            .frame(width: 48)
+                            .frame(width: 42)
                         }
                         
-                        Divider().frame(height: 22)
+                        Divider().frame(height: 20)
                         
                         ForEach(["sin", "cos", "tan", "ln", "log"], id: \.self) { fn in
                             KeypadButton(text: fn, type: .function, style: .function) {
@@ -1161,10 +1309,10 @@ struct MathKeypadView: View {
                                 viewModel.moveCursorLeft()
                                 playHaptic()
                             }
-                            .frame(width: 52)
+                            .frame(width: 48)
                         }
                         
-                        Divider().frame(height: 22)
+                        Divider().frame(height: 20)
                         
                         KeypadButton(text: "lim", type: .function, style: .function) {
                             viewModel.insert("\\lim_{x \\to ", type: .function)
@@ -1176,7 +1324,7 @@ struct MathKeypadView: View {
                             viewModel.moveCursorLeft()
                             playHaptic()
                         }
-                        .frame(width: 54)
+                        .frame(width: 50)
                         
                         KeypadButton(text: "d/dx", type: .function, style: .function) {
                             viewModel.insert("\\frac{d}{dx}[", type: .function)
@@ -1184,7 +1332,7 @@ struct MathKeypadView: View {
                             viewModel.moveCursorLeft()
                             playHaptic()
                         }
-                        .frame(width: 56)
+                        .frame(width: 52)
                         
                         KeypadButton(text: "∑", type: .function, style: .function) {
                             viewModel.insert("\\sum_{", type: .function)
@@ -1196,7 +1344,7 @@ struct MathKeypadView: View {
                             viewModel.moveCursorLeft()
                             playHaptic()
                         }
-                        .frame(width: 48)
+                        .frame(width: 44)
                         
                         KeypadButton(text: "|x|", type: .function, style: .function) {
                             viewModel.insert("|", type: .structural)
@@ -1204,7 +1352,7 @@ struct MathKeypadView: View {
                             viewModel.moveCursorLeft()
                             playHaptic()
                         }
-                        .frame(width: 48)
+                        .frame(width: 44)
                         
                         KeypadButton(text: "√", type: .function, style: .function) {
                             viewModel.insert("\\sqrt{", type: .function)
@@ -1212,23 +1360,15 @@ struct MathKeypadView: View {
                             viewModel.moveCursorLeft()
                             playHaptic()
                         }
-                        .frame(width: 48)
-                        
-                        Divider().frame(height: 22)
-                        
-                        KeypadButton(icon: "arrow.right", style: .action) {
-                            viewModel.moveCursorRight()
-                            playHaptic()
-                        }
-                        .frame(width: 54)
+                        .frame(width: 44)
                     }
                 }
             }
-            .frame(height: 44)
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
+            .frame(height: 40)
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
             
-            Grid(horizontalSpacing: 8, verticalSpacing: 8) {
+            Grid(horizontalSpacing: 6, verticalSpacing: 6) {
                 if isExpanded {
                     GridRow {
                         KeypadButton(text: "a/b", type: .function, style: .action) {
@@ -1289,14 +1429,14 @@ struct MathKeypadView: View {
                     KeypadButton(icon: "return", style: .confirm) { viewModel.newLine(); playHaptic() }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 28)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 12)
         }
         .background(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
                 .fill(colorScheme == .dark ? Color(red: 0.12, green: 0.13, blue: 0.15) : Color(white: 0.94))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
                         .stroke(
                             LinearGradient(
                                 colors: colorScheme == .dark ? [Color.white.opacity(0.12), Color.white.opacity(0.02)] : [Color.black.opacity(0.06), Color.clear],
@@ -1338,23 +1478,24 @@ struct KeypadButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(backgroundColor)
                     .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.08), radius: style == .confirm ? 6 : 2, y: style == .confirm ? 4 : 1)
                 
                 if let icon = icon {
                     Image(systemName: icon)
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(foregroundColor)
                 } else if let text = text {
                     Text(text)
-                        .font(.system(size: 24, weight: type == .operatorSymbol ? .bold : .medium, design: .rounded))
+                        .font(.system(size: 22, weight: type == .operatorSymbol ? .bold : .medium, design: .rounded))
                         .italic(type == .variable)
                         .foregroundStyle(foregroundColor)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            // Compact 44pt height completely eliminates sheet overflow clipping
+            .frame(height: 44)
         }
         .buttonStyle(KeypadPressStyle())
         .keyboardShortcut(shortcut)
