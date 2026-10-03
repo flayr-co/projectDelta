@@ -153,27 +153,82 @@ struct UniversalTestView: View {
     }
     
     private func extractMath(from question: Question) -> String {
-        if !question.parsedBlocks.isEmpty {
-            if let mathBlock = question.parsedBlocks.first(where: { $0.type == QuestionBlockType.math.rawValue }) {
-                return mathBlock.content
+        var candidateMath: [String] = []
+        
+        // 1. Scan explicit math blocks using strict Type equality
+        for block in question.parsedBlocks {
+            if block.type == QuestionBlockType.math.rawValue {
+                let clean = block.content.replacingOccurrences(of: "$$", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !clean.isEmpty { candidateMath.append(clean) }
             }
         }
+        
+        if !candidateMath.isEmpty {
+            return candidateMath.max(by: { $0.count < $1.count }) ?? candidateMath[0]
+        }
+        
+        // 2. Scan text blocks for display math
+        for block in question.parsedBlocks {
+            if block.type == QuestionBlockType.text.rawValue {
+                let text = block.content
+                if text.contains("[MATH]") {
+                    let comps = text.components(separatedBy: "[MATH]")
+                    if comps.count > 1, let first = comps[1].components(separatedBy: "[/MATH]").first {
+                        candidateMath.append(String(first).trimmingCharacters(in: .whitespacesAndNewlines))
+                    }
+                }
+                if text.contains("$$") {
+                    let comps = text.components(separatedBy: "$$")
+                    for i in stride(from: 1, to: comps.count, by: 2) {
+                        candidateMath.append(comps[i].trimmingCharacters(in: .whitespacesAndNewlines))
+                    }
+                }
+            }
+        }
+        
+        if !candidateMath.isEmpty {
+            return candidateMath.max(by: { $0.count < $1.count }) ?? candidateMath[0]
+        }
+        
+        // 3. Fallback on raw questionText
         let text = question.questionText
         if text.contains("[MATH]") {
-            let components = text.components(separatedBy: "[MATH]")
-            if components.count > 1, let first = components[1].components(separatedBy: "[/MATH]").first {
+            let comps = text.components(separatedBy: "[MATH]")
+            if comps.count > 1, let first = comps[1].components(separatedBy: "[/MATH]").first {
                 return String(first).trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
         if text.contains("$$") {
-            let components = text.components(separatedBy: "$$")
-            if components.count > 2 { return String(components[1]).trimmingCharacters(in: .whitespacesAndNewlines) }
+            let comps = text.components(separatedBy: "$$")
+            if comps.count > 1 {
+                return comps[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
         }
-        if text.contains("$") {
-            let components = text.components(separatedBy: "$")
-            if components.count > 2 { return String(components[1]).trimmingCharacters(in: .whitespacesAndNewlines) }
+        
+        // 4. Last resort: inline math $...$
+        for block in question.parsedBlocks {
+            let inlineComps = block.content.components(separatedBy: "$")
+            if inlineComps.count >= 3 {
+                for i in stride(from: 1, to: inlineComps.count, by: 2) {
+                    candidateMath.append(inlineComps[i].trimmingCharacters(in: .whitespacesAndNewlines))
+                }
+            }
         }
-        return text.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let rawInlineComps = text.components(separatedBy: "$")
+        if rawInlineComps.count >= 3 {
+            for i in stride(from: 1, to: rawInlineComps.count, by: 2) {
+                candidateMath.append(rawInlineComps[i].trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+        }
+        
+        // Prefer substantial equations over short variables like "(x, y)"
+        let substantialMath = candidateMath.filter { $0.count > 6 }
+        if let longest = substantialMath.max(by: { $0.count < $1.count }) {
+            return longest
+        }
+        
+        return candidateMath.max(by: { $0.count < $1.count }) ?? ""
     }
 
     // MARK: - Scratchpad Auto-Save Logic
@@ -190,7 +245,18 @@ struct UniversalTestView: View {
 
     private func loadScratchpadState(for question: Question) async {
         isScratchpadLoading = true
+        
+        func handleExtraction() {
+            let extractedEquation = extractMath(from: question)
+            if !extractedEquation.isEmpty {
+                scratchpadViewModel.loadEquation(extractedEquation)
+            } else {
+                scratchpadViewModel.clearAll()
+            }
+        }
+
         guard let userId = authViewModel.currentUser?.id, let questionId = question.id else {
+            handleExtraction()
             isScratchpadLoading = false
             return
         }
@@ -200,17 +266,12 @@ struct UniversalTestView: View {
                 scratchpadViewModel.importStateFromJSON(note.content)
                 hasExistingNote = true
             } else {
-                let extractedEquation = extractMath(from: question)
-                if !extractedEquation.isEmpty {
-                    scratchpadViewModel.loadEquation(extractedEquation)
-                } else {
-                    scratchpadViewModel.clearAll()
-                }
+                handleExtraction()
                 hasExistingNote = false
             }
         } catch {
-            print("Failed to load note: \(error.localizedDescription)")
-            scratchpadViewModel.clearAll()
+            handleExtraction()
+            hasExistingNote = false
         }
         
         isScratchpadLoading = false
@@ -547,12 +608,12 @@ struct UniversalTestView: View {
     #endif
 
     // MARK: - iOS Layout
-        #if os(iOS)
+    #if os(iOS)
     private var iOSLayout: some View {
         VStack(spacing: 0) {
             iOSHeader
                 .zIndex(2)
-            
+                
             if mode.isTimed && !buttonTapped {
                 introView
             } else if testViewModel.isGeneratingQuiz {
@@ -603,7 +664,7 @@ struct UniversalTestView: View {
             MathScratchpadView(viewModel: scratchpadViewModel)
                 .presentationDetents([.fraction(0.55), .fraction(0.95)])
                 .presentationDragIndicator(.visible)
-            // Allows user to interact with the question while sheet is at 55%
+                // Allows user to interact with the question while sheet is at 55%
                 .presentationBackgroundInteraction(.enabled(upThrough: .fraction(0.55)))
                 .presentationCornerRadius(28)
                 .onDisappear {

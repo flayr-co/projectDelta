@@ -9,7 +9,7 @@ import Observation
 // MARK: - Core Data Models
 
 enum TokenType: String, Hashable, Codable {
-    case number, variable, operatorSymbol, function, structural
+    case number, variable, operatorSymbol, function, structural, graph
 }
 
 struct MathToken: Identifiable, Hashable, Codable {
@@ -183,6 +183,16 @@ class MathScratchpadViewModel {
         cursorIndex += 1
     }
     
+    func insertGraph(_ graphContent: String) {
+        saveState()
+        if !lines[activeLineIndex].isEmpty {
+            newLine()
+        }
+        lines[activeLineIndex] = [MathToken(value: graphContent, type: .graph)]
+        newLine()
+        hasBeenEdited = true
+    }
+    
     func backspace() {
         saveState()
         hasBeenEdited = true
@@ -293,15 +303,16 @@ class MathScratchpadViewModel {
     }
     
     func loadEquation(_ equation: String) {
-        self.lines = [[]]
         let cleanInput = equation.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanInput.isEmpty else { return }
+        guard !cleanInput.isEmpty else {
+            clearAll()
+            return
+        }
         
         let monolithToken = MathToken(value: cleanInput, type: .structural)
-        self.lines[0] = [monolithToken]
         
-        // Auto-generate the next empty line so the user can immediately paste or start typing
-        self.lines.append([])
+        // Render the extracted problem on line 1, and drop the user's active cursor on a fresh line 2
+        self.lines = [[monolithToken], []]
         self.activeLineIndex = 1
         self.cursorIndex = 0
         
@@ -437,6 +448,10 @@ struct MathScratchpadView: View {
     @State private var isKeypadExpanded: Bool = false
     @State private var draggedLineIndex: Int? = nil
     
+    // Graph Integration State
+    @State private var showGraphBuilder: Bool = false
+    @State private var graphContent: String = ""
+    
     var body: some View {
         VStack(spacing: 0) {
             // Drag-Friendly Header
@@ -473,6 +488,19 @@ struct MathScratchpadView: View {
                     }
                     .buttonStyle(.plain)
                     
+                    // Graph Insertion Toggle
+                    Button(action: {
+                        withAnimation(.snappy) { showGraphBuilder = true }
+                    }) {
+                        Image(systemName: "chart.xyaxis.line")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(Color.purple)
+                            .padding(8)
+                            .background(Color.purple.opacity(0.12), in: .circle)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    // Calculator Mode Toggle
                     Button(action: {
                         withAnimation(.snappy) { viewModel.isCalculatorEnabled.toggle() }
                     }) {
@@ -484,6 +512,7 @@ struct MathScratchpadView: View {
                     }
                     .buttonStyle(.plain)
                     
+                    // Trash
                     Button(action: {
                         withAnimation(.snappy) { viewModel.clearAll() }
                     }) {
@@ -523,7 +552,7 @@ struct MathScratchpadView: View {
                                 viewModel.insert(String(lastChar), type: .number)
                             } else if lastChar.isLetter {
                                 viewModel.insert(String(lastChar), type: .variable)
-                            } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">", "|"].contains(lastChar) {
+                            } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">", "|", "!", "~"].contains(lastChar) {
                                 let mappedChar = lastChar == "/" ? "÷" : (lastChar == "*" ? "×" : String(lastChar))
                                 viewModel.insert(mappedChar, type: .operatorSymbol)
                             } else if ["(", ")", "[", "]", "{", "}"].contains(lastChar) {
@@ -628,7 +657,7 @@ struct MathScratchpadView: View {
                             } else if char.isLetter {
                                 viewModel.insert(String(char), type: .variable)
                                 return .handled
-                            } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">", "|"].contains(char) {
+                            } else if ["+", "-", "=", "/", "*", "^", ".", "<", ">", "|", "!", "~"].contains(char) {
                                 let mappedChar = char == "/" ? "÷" : (char == "*" ? "×" : String(char))
                                 viewModel.insert(mappedChar, type: .operatorSymbol)
                                 return .handled
@@ -638,25 +667,6 @@ struct MathScratchpadView: View {
                             }
                         }
                         return .ignored
-                    }
-                    .onChange(of: viewModel.activeLineIndex) { _, newIndex in
-                        withAnimation(.snappy) {
-                            proxy.scrollTo("BottomClearance", anchor: .bottom)
-                        }
-                    }
-                    .onChange(of: viewModel.cursorIndex) { _, _ in
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            withAnimation(.snappy) {
-                                proxy.scrollTo("BottomClearance", anchor: .bottom)
-                            }
-                        }
-                    }
-                    .onChange(of: isKeypadExpanded) { _, _ in
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.snappy) {
-                                proxy.scrollTo("BottomClearance", anchor: .bottom)
-                            }
-                        }
                     }
                 }
             }
@@ -685,6 +695,42 @@ struct MathScratchpadView: View {
             if isFocused {
                 withAnimation(.snappy) { showCustomKeypad = false }
             }
+        }
+        .sheet(isPresented: $showGraphBuilder) {
+            NavigationStack {
+                InteractiveGraphBuilderView(content: $graphContent, graphType: "equation")
+                    .padding()
+                    .navigationTitle("Plot Graph")
+                    #if os(iOS)
+                    .navigationBarTitleDisplayMode(.inline)
+                    #endif
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") {
+                                graphContent = ""
+                                showGraphBuilder = false
+                            }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Insert") {
+                                if !graphContent.isEmpty {
+                                    viewModel.insertGraph(graphContent)
+                                    graphContent = ""
+                                }
+                                showGraphBuilder = false
+                            }
+                            .fontWeight(.bold)
+                            .disabled(graphContent.isEmpty)
+                        }
+                    }
+            }
+            #if os(iOS)
+            .presentationDetents([.medium, .large])
+            .presentationCornerRadius(28)
+            #endif
+            #if os(macOS)
+            .frame(width: 600, height: 500)
+            #endif
         }
     }
 }
@@ -751,9 +797,10 @@ struct FlowLayout: Layout {
         let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing, lineSpacing: lineSpacing)
         for row in result.rows {
             var currentX = bounds.minX
-            let rowY = bounds.minY + row.yOffset
             for element in row.elements {
-                element.subview.place(at: CGPoint(x: currentX, y: rowY), proposal: .unspecified)
+                // Perfect vertical centering within the row
+                let yOffset = bounds.minY + row.yOffset + (row.height - element.size.height) / 2
+                element.subview.place(at: CGPoint(x: currentX, y: yOffset), proposal: .unspecified)
                 currentX += element.size.width + spacing
             }
         }
@@ -818,7 +865,8 @@ struct MathLineView: View {
     @State private var showSelectionMenu: Bool = false
     
     private var renderedLatexString: String {
-        tokens.map { token in
+        // Filter out graph tokens so they don't break the LaTeX compiler
+        tokens.filter { $0.type != .graph }.map { token in
             var val = token.value
             let isSafe = token.type == .number || token.type == .variable || token.type == .operatorSymbol
             
@@ -859,7 +907,41 @@ struct MathLineView: View {
                 .shadow(color: isActive ? emeraldAccent.opacity(0.5) : Color.clear, radius: 4, y: 0)
                 .padding(.vertical, 6)
             
-            if isActive {
+            if tokens.count == 1 && tokens.first?.type == .graph {
+                // Interactive Graph Block Rendering
+                let graphString = tokens.first!.value
+                VStack(spacing: 8) {
+                    InlineGraphRenderer(graphString: graphString, themeColor: emeraldAccent)
+                        .frame(height: 220)
+                        .allowsHitTesting(false)
+                        .padding(10)
+                        .background(colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(isActive ? emeraldAccent.opacity(0.5) : Color.clear, lineWidth: isActive ? 2 : 1)
+                        )
+                    
+                    if isActive {
+                        Button(role: .destructive) {
+                            if let idx = viewModel.lines.firstIndex(where: { $0.first?.id == tokens.first?.id }) {
+                                viewModel.lines.remove(at: idx)
+                                if viewModel.lines.isEmpty { viewModel.lines = [[]] }
+                                viewModel.activeLineIndex = max(0, min(viewModel.activeLineIndex, viewModel.lines.count - 1))
+                                viewModel.cursorIndex = viewModel.lines[viewModel.activeLineIndex].count
+                            }
+                        } label: {
+                            Label("Delete Graph", systemImage: "trash")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.red)
+                        }
+                        .padding(.bottom, 8)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .onTapGesture { onCursorTap(1) }
+                
+            } else if isActive {
                 VStack(alignment: .leading, spacing: 12) {
                     let latexString = renderedLatexString
                     
@@ -869,7 +951,7 @@ struct MathLineView: View {
                         .padding(.leading, 8)
                         .opacity(latexString.isEmpty ? 0 : 1)
                     
-                    HStack(alignment: .top) {
+                    HStack(alignment: .center) {
                         FlowLayout(spacing: 0, lineSpacing: 8) {
                             Color.clear
                                 .frame(width: 6, height: 20)
@@ -1168,6 +1250,10 @@ struct TokenView: View {
         case "\\sum": return "∑"
         case "\\sqrt": return "√"
         case "\\frac": return "frac"
+        case "\\leq": return "≤"
+        case "\\geq": return "≥"
+        case "\\neq": return "≠"
+        case "\\approx": return "≈"
         case "{": return "("
         case "}": return ")"
         case "\\{": return "{"
@@ -1228,6 +1314,7 @@ struct TokenView: View {
         case .operatorSymbol, .structural: return 2
         case .function: return 2
         case .number, .variable: return 0.5
+        case .graph: return 0
         }
     }
     
@@ -1235,6 +1322,7 @@ struct TokenView: View {
         switch type {
         case .operatorSymbol: return .heavy
         case .number, .variable: return .semibold
+        case .graph: return .regular
         default: return .bold
         }
     }
@@ -1246,6 +1334,7 @@ struct TokenView: View {
         case .operatorSymbol: return Color(red: 1.0, green: 0.60, blue: 0.15)
         case .function: return colorScheme == .dark ? Color(red: 0.85, green: 0.55, blue: 1.0) : Color.purple
         case .structural: return .secondary.opacity(0.6)
+        case .graph: return .clear
         }
     }
 }
@@ -1289,6 +1378,7 @@ struct MathKeypadView: View {
                 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
+                        // Section 1: Core Variables
                         ForEach(["x", "y", "θ", "π", "e"], id: \.self) { variable in
                             let isFunc = variable == "π" || variable == "e"
                             let val = variable == "π" ? "\\pi" : variable
@@ -1301,67 +1391,111 @@ struct MathKeypadView: View {
                         
                         Divider().frame(height: 20)
                         
-                        ForEach(["sin", "cos", "tan", "ln", "log"], id: \.self) { fn in
-                            KeypadButton(text: fn, type: .function, style: .function) {
-                                if fn == "log" { viewModel.insert("\\log_{10}(", type: .function) }
-                                else { viewModel.insert("\\\(fn)(", type: .function) }
-                                viewModel.insert(")", type: .structural)
-                                viewModel.moveCursorLeft()
+                        // Section 2: Inequalities & Relations
+                        ForEach(["<", ">", "≤", "≥", "≠", "≈"], id: \.self) { sym in
+                            let val: String = {
+                                switch sym {
+                                case "≤": return "\\leq"
+                                case "≥": return "\\geq"
+                                case "≠": return "\\neq"
+                                case "≈": return "\\approx"
+                                default: return sym
+                                }
+                            }()
+                            KeypadButton(text: sym, type: .operatorSymbol, style: .operator) {
+                                viewModel.insert(val, type: .operatorSymbol)
                                 playHaptic()
                             }
-                            .frame(width: 48)
+                            .frame(width: 42)
                         }
                         
                         Divider().frame(height: 20)
                         
-                        KeypadButton(text: "lim", type: .function, style: .function) {
-                            viewModel.insert("\\lim_{x \\to ", type: .function)
-                            viewModel.insert("}", type: .structural)
-                            viewModel.insert("(", type: .structural)
-                            viewModel.insert(")", type: .structural)
-                            viewModel.moveCursorLeft()
-                            viewModel.moveCursorLeft()
-                            viewModel.moveCursorLeft()
-                            playHaptic()
+                        // Section 3: Advanced Calculus
+                        Group {
+                            KeypadButton(text: "lim", type: .function, style: .function) {
+                                viewModel.insert("\\lim_{x \\to ", type: .function)
+                                viewModel.insert("}", type: .structural)
+                                viewModel.insert("(", type: .structural)
+                                viewModel.insert(")", type: .structural)
+                                viewModel.moveCursorLeft()
+                                viewModel.moveCursorLeft()
+                                viewModel.moveCursorLeft()
+                                playHaptic()
+                            }
+                            .frame(width: 50)
+                            
+                            KeypadButton(text: "d/dx", type: .function, style: .function) {
+                                viewModel.insert("\\frac{d}{dx}[", type: .function)
+                                viewModel.insert("]", type: .structural)
+                                viewModel.moveCursorLeft()
+                                playHaptic()
+                            }
+                            .frame(width: 52)
+                            
+                            KeypadButton(text: "∫", type: .function, style: .function) {
+                                viewModel.insert("\\int", type: .function)
+                                playHaptic()
+                            }
+                            .frame(width: 42)
+                            
+                            KeypadButton(text: "∑", type: .function, style: .function) {
+                                viewModel.insert("\\sum_{", type: .function)
+                                viewModel.insert("}", type: .structural)
+                                viewModel.insert("^{", type: .structural)
+                                viewModel.insert("}", type: .structural)
+                                viewModel.moveCursorLeft()
+                                viewModel.moveCursorLeft()
+                                viewModel.moveCursorLeft()
+                                playHaptic()
+                            }
+                            .frame(width: 44)
+                            
+                            KeypadButton(text: "∞", type: .number, style: .function) {
+                                viewModel.insert("\\infty", type: .number)
+                                playHaptic()
+                            }
+                            .frame(width: 44)
                         }
-                        .frame(width: 50)
                         
-                        KeypadButton(text: "d/dx", type: .function, style: .function) {
-                            viewModel.insert("\\frac{d}{dx}[", type: .function)
-                            viewModel.insert("]", type: .structural)
-                            viewModel.moveCursorLeft()
-                            playHaptic()
-                        }
-                        .frame(width: 52)
+                        Divider().frame(height: 20)
                         
-                        KeypadButton(text: "∑", type: .function, style: .function) {
-                            viewModel.insert("\\sum_{", type: .function)
-                            viewModel.insert("}", type: .structural)
-                            viewModel.insert("^{", type: .structural)
-                            viewModel.insert("}", type: .structural)
-                            viewModel.moveCursorLeft()
-                            viewModel.moveCursorLeft()
-                            viewModel.moveCursorLeft()
-                            playHaptic()
+                        // Section 4: Trigonometry & Logarithms
+                        Group {
+                            ForEach(["sin", "cos", "tan", "ln", "log"], id: \.self) { fn in
+                                KeypadButton(text: fn, type: .function, style: .function) {
+                                    if fn == "log" { viewModel.insert("\\log_{10}(", type: .function) }
+                                    else { viewModel.insert("\\\(fn)(", type: .function) }
+                                    viewModel.insert(")", type: .structural)
+                                    viewModel.moveCursorLeft()
+                                    playHaptic()
+                                }
+                                .frame(width: 48)
+                            }
                         }
-                        .frame(width: 44)
                         
-                        KeypadButton(text: "|x|", type: .function, style: .function) {
-                            viewModel.insert("|", type: .structural)
-                            viewModel.insert("|", type: .structural)
-                            viewModel.moveCursorLeft()
-                            playHaptic()
-                        }
-                        .frame(width: 44)
+                        Divider().frame(height: 20)
                         
-                        KeypadButton(text: "√", type: .function, style: .function) {
-                            viewModel.insert("\\sqrt{", type: .function)
-                            viewModel.insert("}", type: .structural)
-                            viewModel.moveCursorLeft()
-                            playHaptic()
+                        // Section 5: Standard Formatting
+                        Group {
+                            KeypadButton(text: "|x|", type: .function, style: .function) {
+                                viewModel.insert("|", type: .structural)
+                                viewModel.insert("|", type: .structural)
+                                viewModel.moveCursorLeft()
+                                playHaptic()
+                            }
+                            .frame(width: 44)
+                            
+                            KeypadButton(text: "√", type: .function, style: .function) {
+                                viewModel.insert("\\sqrt{", type: .function)
+                                viewModel.insert("}", type: .structural)
+                                viewModel.moveCursorLeft()
+                                playHaptic()
+                            }
+                            .frame(width: 44)
                         }
-                        .frame(width: 44)
                     }
+                    .padding(.horizontal, 10)
                 }
             }
             .frame(height: 40)
