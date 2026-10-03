@@ -1015,18 +1015,26 @@ struct UniversalTestView: View {
                                                             .fixedSize(horizontal: false, vertical: true)
                                                     }
                                                 } else if block.type == QuestionBlockType.math.rawValue {
-                                                    LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
-                                                        .frame(maxWidth: .infinity, alignment: .center)
-                                                        .padding(.vertical, 16)
-                                                        .padding(.horizontal, 16)
-                                                        .background(
-                                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                                .fill(colorScheme == .dark ? Color(white: 0.08) : Color(white: 0.96))
-                                                                .overlay(
-                                                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                                                )
-                                                        )
+                                                    let mathLines = block.content.parsedMathToLatex
+                                                        .components(separatedBy: .newlines)
+                                                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                                                        .filter { !$0.isEmpty }
+                                                    let formattedMath = mathLines.joined(separator: " \\\\ ")
+                                                    
+                                                    ScrollView(.horizontal, showsIndicators: false) {
+                                                        LatexView(latex: "$$\n\\begin{aligned}\n\(formattedMath)\n\\end{aligned}\n$$")
+                                                            .padding(.vertical, 16)
+                                                            .padding(.horizontal, 16)
+                                                    }
+                                                    .frame(maxWidth: .infinity, alignment: .center)
+                                                    .background(
+                                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                            .fill(colorScheme == .dark ? Color(white: 0.08) : Color(white: 0.96))
+                                                            .overlay(
+                                                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                                            )
+                                                    )
                                                 } else if block.type == QuestionBlockType.graph.rawValue {
                                                     InlineGraphRenderer(graphString: block.content, themeColor: themeColor)
                                                         .frame(height: 180)
@@ -1303,29 +1311,37 @@ struct IsolatedQuestionCard: View {
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         } else if block.type == QuestionBlockType.math.rawValue {
-                            LatexView(latex: "$$\n\(block.content.parsedMathToLatex)\n$$")
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 22)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .fill(colorScheme == .dark ? Color(red: 0.05, green: 0.06, blue: 0.07) : Color(white: 0.96))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                                .stroke(
-                                                    LinearGradient(
-                                                        colors: colorScheme == .dark
-                                                            ? [themeColor.opacity(0.3), Color.white.opacity(0.05)]
-                                                            : [Color.black.opacity(0.08), Color.clear],
-                                                        startPoint: .topLeading,
-                                                        endPoint: .bottomTrailing
-                                                    ),
-                                                    lineWidth: 1
-                                                )
-                                        )
-                                        .shadow(color: colorScheme == .dark ? Color.black.opacity(0.5) : Color.clear, radius: 8, y: 4)
-                                )
-                            
+                            let mathLines = block.content.parsedMathToLatex
+                                .components(separatedBy: .newlines)
+                                .map { $0.trimmingCharacters(in: .whitespaces) }
+                                .filter { !$0.isEmpty }
+                            let formattedMath = mathLines.joined(separator: " \\\\ ")
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LatexView(latex: "$$\n\\begin{aligned}\n\(formattedMath)\n\\end{aligned}\n$$")
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 22)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .fill(colorScheme == .dark ? Color(red: 0.05, green: 0.06, blue: 0.07) : Color(white: 0.96))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                            .stroke(
+                                                LinearGradient(
+                                                    colors: colorScheme == .dark
+                                                        ? [themeColor.opacity(0.3), Color.white.opacity(0.05)]
+                                                        : [Color.black.opacity(0.08), Color.clear],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                ),
+                                                lineWidth: 1
+                                            )
+                                    )
+                                    .shadow(color: colorScheme == .dark ? Color.black.opacity(0.5) : Color.clear, radius: 8, y: 4)
+                            )
+                                                    
                             if let caption = block.caption, !caption.isEmpty {
                                 Text(LocalizedStringKey(caption.parsedInlineMathToMarkdown))
                                     .font(.system(size: 15, weight: .medium, design: .rounded))

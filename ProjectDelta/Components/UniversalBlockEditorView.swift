@@ -535,12 +535,20 @@ fileprivate struct BlockEditCell: View {
                         .foregroundColor(.teal)
                         .textCase(.uppercase)
                     
-                    LatexView(latex: "$$ \(previewContent) $$")
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.primary.opacity(0.04))
-                        .cornerRadius(12)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+                    let mathLines = previewContent
+                        .components(separatedBy: .newlines)
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                    let formattedMath = mathLines.joined(separator: " \\\\ ")
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LatexView(latex: "$$\n\\begin{aligned}\n\(formattedMath)\n\\end{aligned}\n$$")
+                            .padding()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.primary.opacity(0.04))
+                    .cornerRadius(12)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.08), lineWidth: 1))
                 }
                 .transition(.opacity)
             }
@@ -970,11 +978,19 @@ struct LiveBlockRenderView: View {
                         .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
                         .cornerRadius(12)
                 } else {
-                    LatexView(latex: "$$ " + block.content.parsedMathToLatex + " $$")
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
-                        .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-                        .cornerRadius(12)
+                    let mathLines = block.content.parsedMathToLatex
+                        .components(separatedBy: .newlines)
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                    let formattedMath = mathLines.joined(separator: " \\\\ ")
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LatexView(latex: "$$\n\\begin{aligned}\n\(formattedMath)\n\\end{aligned}\n$$")
+                            .padding()
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
+                    .cornerRadius(12)
                 }
                 
                 if let caption = block.caption, !caption.isEmpty {
@@ -1008,11 +1024,19 @@ struct LiveBlockRenderView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .math(let latex):
-            LatexView(latex: "$$ \(latex) $$")
-                .padding(24)
-                .frame(maxWidth: .infinity)
-                .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
-                .cornerRadius(16)
+            let mathLines = latex
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            let formattedMath = mathLines.joined(separator: " \\\\ ")
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                LatexView(latex: "$$\n\\begin{aligned}\n\(formattedMath)\n\\end{aligned}\n$$")
+                    .padding(24)
+            }
+            .frame(maxWidth: .infinity)
+            .background(colorScheme == .dark ? Color.black.opacity(0.4) : Color.gray.opacity(0.1))
+            .cornerRadius(16)
         case .graph(let graphStr):
             InlineGraphRenderer(graphString: graphStr, themeColor: colorScheme == .dark ? .teal : .blue)
         }
