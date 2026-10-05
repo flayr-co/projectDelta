@@ -267,11 +267,12 @@ struct HomeView: View {
                 colors: [.orange, .red],
                 destination: SubjectGridView(navigationSource: .practice).navigationBarBackButtonHidden(true)
             )
+            // macOS version:
             ActionCardButton(
-                title: "Leaderboard",
-                icon: "trophy.fill",
+                title: "Forces",
+                icon: "atom",
                 colors: [.yellow, .orange],
-                destination: LeaderboardView().navigationBarBackButtonHidden(true)
+                destination: FundamentalForcesView()
             )
             ActionCardButton(
                 title: "Spectroscopy",
@@ -380,10 +381,10 @@ struct HomeView: View {
                             )
                             
                             iOSActionCard(
-                                title: "Leaderboard",
-                                icon: "trophy.fill",
+                                title: "Forces",
+                                icon: "atom",
                                 colors: [.yellow, .orange],
-                                destination: LeaderboardView().navigationBarBackButtonHidden(true)
+                                destination: FundamentalForcesView()
                             )
                             
                             iOSActionCard(
