@@ -117,22 +117,75 @@ extension String {
     var parsedInlineMathToMarkdown: String {
         var parsed = self
         
-        // Convert \bm{text} and unbraced \bmX (e.g. \bmx, \bm0, \bmf) to bold markdown
-        parsed = parsed.replacing(#/\\bm\{([^}]+)\}/#) { match in
-            "**\(match.output.1)**"
-        }
-        parsed = parsed.replacing(#/\\bm([a-zA-Z0-9().]+)/#) { match in
-            "**\(match.output.1)**"
+        // 1. Symbol & Function Replacements
+        let symbolReplacements: [String: String] = [
+            "\\theta": "θ", "\\pi": "π", "\\alpha": "α", "\\beta": "β",
+            "\\infty": "∞", "\\int": "∫", "\\sum": "∑",
+            "\\sin": "sin", "\\cos": "cos", "\\tan": "tan",
+            "\\sec": "sec", "\\csc": "csc", "\\cot": "cot",
+            "\\ln": "ln", "\\log": "log",
+            "\\leq": "≤", "\\geq": "≥", "\\neq": "≠", "\\approx": "≈",
+            " * ": " × "
+        ]
+        
+        for (latex, unicode) in symbolReplacements {
+            parsed = parsed.replacingOccurrences(of: latex, with: unicode)
         }
         
-        // Convert \textbf{text} to native SwiftUI Markdown (**text**)
-        parsed = parsed.replacing(#/\\textbf\{([^}]+)\}/#) { match in
-            "**\(match.output.1)**"
+        // 2. Fractions and Roots
+        if let rootRegex = try? NSRegularExpression(pattern: "\\\\sqrt\\{([^\\}]+)\\}") {
+            parsed = rootRegex.stringByReplacingMatches(in: parsed, range: NSRange(parsed.startIndex..., in: parsed), withTemplate: "√($1)")
+        }
+        if let fracRegex = try? NSRegularExpression(pattern: "\\\\frac\\{([^\\}]+)\\}\\{([^\\}]+)\\}") {
+            parsed = fracRegex.stringByReplacingMatches(in: parsed, range: NSRange(parsed.startIndex..., in: parsed), withTemplate: "$1/$2")
         }
         
-        // Convert \textit{text} to native SwiftUI Markdown (*text*)
-        parsed = parsed.replacing(#/\\textit\{([^}]+)\}/#) { match in
-            "*\(match.output.1)*"
+        // 3. Superscripts
+        let superscripts: [Character: String] = [
+            "0":"⁰", "1":"¹", "2":"²", "3":"³", "4":"⁴",
+            "5":"⁵", "6":"⁶", "7":"⁷", "8":"⁸", "9":"⁹",
+            "-":"⁻", "+":"⁺", "x":"ˣ", "y":"ʸ", "n":"ⁿ",
+            "(":"⁽", ")":"⁾", "/":"ᐟ"
+        ]
+        
+        // Process parenthesized exponents: ^(3/2) -> ⁽³ᐟ²⁾
+        if let parenRegex = try? NSRegularExpression(pattern: "\\^\\(([a-zA-Z0-9/\\-+]+)\\)") {
+            let matches = parenRegex.matches(in: parsed, range: NSRange(parsed.startIndex..., in: parsed))
+            for match in matches.reversed() {
+                if let groupRange = Range(match.range(at: 1), in: parsed),
+                   let fullRange = Range(match.range, in: parsed) {
+                    let groupText = String(parsed[groupRange])
+                    let superText = groupText.compactMap { superscripts[$0] }.joined()
+                    parsed.replaceSubrange(fullRange, with: superText)
+                }
+            }
+        }
+        
+        // Process standard exponents: ^2 -> ²
+        if let stdRegex = try? NSRegularExpression(pattern: "\\^([a-zA-Z0-9\\-]+)") {
+            let matches = stdRegex.matches(in: parsed, range: NSRange(parsed.startIndex..., in: parsed))
+            for match in matches.reversed() {
+                if let groupRange = Range(match.range(at: 1), in: parsed),
+                   let fullRange = Range(match.range, in: parsed) {
+                    let groupText = String(parsed[groupRange])
+                    let superText = groupText.compactMap { superscripts[$0] }.joined()
+                    parsed.replaceSubrange(fullRange, with: superText)
+                }
+            }
+        }
+        
+        // 4. Bold / Italic
+        if let bmRegex = try? NSRegularExpression(pattern: "\\\\bm\\{([^\\}]+)\\}") {
+            parsed = bmRegex.stringByReplacingMatches(in: parsed, range: NSRange(parsed.startIndex..., in: parsed), withTemplate: "**$1**")
+        }
+        if let bm2Regex = try? NSRegularExpression(pattern: "\\\\bm([a-zA-Z0-9().]+)") {
+            parsed = bm2Regex.stringByReplacingMatches(in: parsed, range: NSRange(parsed.startIndex..., in: parsed), withTemplate: "**$1**")
+        }
+        if let bfRegex = try? NSRegularExpression(pattern: "\\\\textbf\\{([^\\}]+)\\}") {
+            parsed = bfRegex.stringByReplacingMatches(in: parsed, range: NSRange(parsed.startIndex..., in: parsed), withTemplate: "**$1**")
+        }
+        if let itRegex = try? NSRegularExpression(pattern: "\\\\textit\\{([^\\}]+)\\}") {
+            parsed = itRegex.stringByReplacingMatches(in: parsed, range: NSRange(parsed.startIndex..., in: parsed), withTemplate: "*$1*")
         }
         
         return parsed

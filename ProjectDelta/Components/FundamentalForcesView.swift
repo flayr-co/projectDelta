@@ -484,7 +484,7 @@ private struct ElectromagnetismAnimation: View {
                         .shadow(color: colors.first!.opacity(0.8), radius: 15)
                     
                     Text("Electron")
-                        .diagramLabel(color: .secondary)
+                        .diagramLabel(color: .white) // Fixed for Light Mode Contrast
                         .offset(y: 45)
                 }
                 
@@ -503,7 +503,7 @@ private struct ElectromagnetismAnimation: View {
                         .shadow(color: colors.last!.opacity(0.8), radius: 15)
                     
                     Text("Proton")
-                        .diagramLabel(color: .secondary)
+                        .diagramLabel(color: .white) // Fixed for Light Mode Contrast
                         .offset(y: 45)
                 }
             }
@@ -636,6 +636,7 @@ private struct WeakNuclearAnimation: View {
                 .animation(.easeInOut, value: decayPhase)
         }
         .onReceive(timer) { _ in
+            // Multi-stage animation: 0 (Stable) -> 1 (Decay & W-Boson) -> 2 (Particles diverge) -> 0 (Reset)
             if decayPhase == 0 {
                 decayPhase = 1
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { decayPhase = 2 }

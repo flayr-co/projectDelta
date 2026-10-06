@@ -15,13 +15,15 @@ public struct GraphData: Codable, Equatable {
         public var yValues: [Double]
         public var isDashed: Bool?
         public var isPoint: Bool?
+        public var isShaded: Bool? // NEW: Shading Support
         
-        public init(label: String, xValues: [Double], yValues: [Double], isDashed: Bool? = nil, isPoint: Bool? = nil) {
+        public init(label: String, xValues: [Double], yValues: [Double], isDashed: Bool? = nil, isPoint: Bool? = nil, isShaded: Bool? = nil) {
             self.label = label
             self.xValues = xValues
             self.yValues = yValues
             self.isDashed = isDashed
             self.isPoint = isPoint
+            self.isShaded = isShaded
         }
     }
     
@@ -367,7 +369,6 @@ struct DynamicGraphView: View {
         .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 1.5))
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.05), radius: 15, y: 8)
         .frame(maxWidth: .infinity)
-        // Fluid boundaries allow perfect geometry adaptation on Mac and iOS
         .frame(minHeight: isFullScreenMode ? 400 : 550, maxHeight: isFullScreenMode ? .infinity : 850)
         .padding(.horizontal, isFullScreenMode ? 0 : nil)
         .padding(.vertical, isFullScreenMode ? 0 : 8)
@@ -400,9 +401,8 @@ struct DynamicGraphView: View {
                     
                     DynamicGraphView(data: data, isFullScreenMode: true)
                         .padding()
-                        .padding(.top, 20) // Clearance for the new exit button
+                        .padding(.top, 20)
                     
-                    // Explicit overlay button to guarantee visibility on macOS
                     Button(action: { showFullScreen = false }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 22))
@@ -424,7 +424,6 @@ struct DynamicGraphView: View {
         guard size.width > 0 && size.height > 0 else { return }
         
         Task.detached(priority: .userInitiated) {
-            // Establish a balanced default window centered on the origin
             var minX = -10.0
             var maxX = 10.0
             var minY = -10.0
@@ -438,7 +437,6 @@ struct DynamicGraphView: View {
                         importantPoints.append(CGPoint(x: x, y: y))
                     }
                 } else if let e = MathEngine.compile(series.label) {
-                    // Sample standard anchors to ensure the equation trajectory is visible
                     let yOrigin = e(0)
                     if yOrigin.isFinite && abs(yOrigin) < 100 { importantPoints.append(CGPoint(x: 0, y: yOrigin)) }
                     
@@ -450,7 +448,6 @@ struct DynamicGraphView: View {
                 }
             }
             
-            // Expand the default bounding box if our explicit points exceed it
             if !importantPoints.isEmpty {
                 let xs = importantPoints.map { $0.x }
                 let ys = importantPoints.map { $0.y }
@@ -466,7 +463,6 @@ struct DynamicGraphView: View {
                 if pMaxY > maxY { maxY = pMaxY }
             }
             
-            // Enforce a minimum window span of 20 units to prevent excessive zooming on localized data
             let minWindow: Double = 20.0
             if (maxX - minX) < minWindow {
                 let mid = (maxX + minX) / 2.0
@@ -479,7 +475,6 @@ struct DynamicGraphView: View {
                 maxY = mid + minWindow / 2.0
             }
             
-            // Apply generous 20% margin to prevent drawing edge-to-edge
             let xPad = (maxX - minX) * 0.20
             let yPad = (maxY - minY) * 0.20
             minX -= xPad
@@ -487,7 +482,6 @@ struct DynamicGraphView: View {
             minY -= yPad
             maxY += yPad
             
-            // 1:1 Aspect Ratio Normalization: Symmetrically expand the tighter axis to fill the viewport flawlessly
             let viewAspect = Double(size.width / size.height)
             let mathWidth = maxX - minX
             let mathHeight = maxY - minY
@@ -638,6 +632,7 @@ struct DynamicGraphView: View {
     
     private func drawEquationCurve(context: GraphicsContext, evaluator: @escaping (Double) -> Double, origin: CGPoint, scale: CGFloat, canvasSize: CGSize, color: Color, isDashed: Bool = false, isVertical: Bool = false, series: GraphData.Series? = nil) {
         var path = Path()
+        var shadePath = Path()
         
         if isVertical, let s = series, let xVal = s.xValues.first {
             let screenX = origin.x + CGFloat(xVal) * scale
@@ -645,7 +640,10 @@ struct DynamicGraphView: View {
             path.addLine(to: CGPoint(x: screenX, y: canvasSize.height))
         } else {
             var isFirst = true
+            var isFirstShade = true
             var previousScreenY: CGFloat? = nil
+            var startX: CGFloat = 0
+            var endX: CGFloat = 0
             
             for screenX in stride(from: 0, through: canvasSize.width, by: 1.5) {
                 let mathX = Double((screenX - origin.x) / scale)
@@ -672,11 +670,32 @@ struct DynamicGraphView: View {
                     } else {
                         path.addLine(to: pt)
                     }
+                    
+                    // Build Shade Path
+                    if series?.isShaded == true {
+                        if isFirstShade {
+                            shadePath.move(to: CGPoint(x: screenX, y: origin.y))
+                            shadePath.addLine(to: pt)
+                            startX = screenX
+                            isFirstShade = false
+                        } else {
+                            shadePath.addLine(to: pt)
+                        }
+                        endX = screenX
+                    }
+                    
                     previousScreenY = screenY
                 } else {
                     isFirst = true
                     previousScreenY = nil
                 }
+            }
+            
+            // Finalize and fill Shade Path
+            if series?.isShaded == true && !isFirstShade {
+                shadePath.addLine(to: CGPoint(x: endX, y: origin.y))
+                shadePath.closeSubpath()
+                context.fill(shadePath, with: .color(color.opacity(colorScheme == .dark ? 0.25 : 0.15)))
             }
         }
         
@@ -693,9 +712,7 @@ struct DynamicGraphView: View {
             let cleanLabel = seriesLabel.replacingOccurrences(of: " [DASHED]", with: "").formatAsMathPower
             let font = Font.system(size: 13, weight: .bold, design: .monospaced)
             
-            // Replaced the line-colored text with standard .primary text
             let resolvedText = context.resolve(Text(cleanLabel).font(font).foregroundColor(.primary))
-            
             let textSize = resolvedText.measure(in: CGSize(width: 200, height: 50))
             
             if isVertical, let xVal = series?.xValues.first {
@@ -725,7 +742,11 @@ struct DynamicGraphView: View {
         guard validCount > 0 else { return }
         
         var path = Path()
+        var shadePath = Path()
         var isFirst = true
+        var isFirstShade = true
+        var startX: CGFloat = 0
+        var endX: CGFloat = 0
         
         let sortedIndices = (0..<validCount).sorted { series.xValues[$0] < series.xValues[$1] }
         
@@ -749,12 +770,30 @@ struct DynamicGraphView: View {
                 path.addLine(to: pt)
             }
             
+            if series.isShaded == true {
+                if isFirstShade {
+                    shadePath.move(to: CGPoint(x: screenX, y: origin.y))
+                    shadePath.addLine(to: pt)
+                    startX = screenX
+                    isFirstShade = false
+                } else {
+                    shadePath.addLine(to: pt)
+                }
+                endX = screenX
+            }
+            
             if validCount <= 24 {
                 let rect = CGRect(x: screenX - 5, y: screenY - 5, width: 10, height: 10)
                 let pointPath = Path(ellipseIn: rect)
                 context.fill(pointPath, with: .color(colorScheme == .dark ? Color(red: 0.12, green: 0.13, blue: 0.15) : .white))
                 context.stroke(pointPath, with: .color(color), lineWidth: 3)
             }
+        }
+        
+        if series.isShaded == true && !isFirstShade {
+            shadePath.addLine(to: CGPoint(x: endX, y: origin.y))
+            shadePath.closeSubpath()
+            context.fill(shadePath, with: .color(color.opacity(colorScheme == .dark ? 0.25 : 0.15)))
         }
         
         let strokeStyle = StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round, dash: isDashed ? [8, 10] : [])
@@ -1108,12 +1147,14 @@ enum GraphContentParser {
     }
 
     private static func pointsGraphData(from content: String) -> GraphData? {
+        let isShaded = content.contains("[SHADE]") // Decode the Shading Tag
         let cleanedContent = content
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "type=points", with: "")
             .replacingOccurrences(of: "points=", with: "")
             .replacingOccurrences(of: "&", with: "")
             .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: "[SHADE]", with: "") // Strip from coordinates parsing
 
         var xValues: [Double] = []
         var yValues: [Double] = []
@@ -1134,7 +1175,9 @@ enum GraphContentParser {
         }
 
         guard !xValues.isEmpty else { return nil }
-        return GraphData(xValues: xValues, yValues: yValues)
+        
+        let series = GraphData.Series(label: "Data Points", xValues: xValues, yValues: yValues, isDashed: false, isPoint: false, isShaded: isShaded)
+        return GraphData(xValues: xValues, yValues: yValues, series: [series])
     }
 
     private static func equationGraphData(from content: String) -> GraphData {
@@ -1156,7 +1199,14 @@ enum GraphContentParser {
                 
                 let isDashed = rawTrimmed.contains("[DASHED]")
                 let isExplicitPoint = rawTrimmed.contains("[POINT]")
-                let trimmed = rawTrimmed.replacingOccurrences(of: "[DASHED]", with: "").replacingOccurrences(of: "[POINT]", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let isShaded = rawTrimmed.contains("[SHADE]") // Detect Shading
+                
+                let trimmed = rawTrimmed
+                    .replacingOccurrences(of: "[DASHED]", with: "")
+                    .replacingOccurrences(of: "[POINT]", with: "")
+                    .replacingOccurrences(of: "[SHADE]", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                
                 let isAutoPoint = trimmed.hasPrefix("(") && trimmed.contains(",") && trimmed.contains(")")
                 let isPoint = isExplicitPoint || isAutoPoint
                 let eqString = trimmed.replacingOccurrences(of: "y=", with: "").replacingOccurrences(of: "y =", with: "").trimmingCharacters(in: .whitespaces)
@@ -1172,7 +1222,7 @@ enum GraphContentParser {
                                 pointLabel = "(\(x.cleanGraphString), \(y.cleanGraphString))"
                             }
                             
-                            allSeries.append(GraphData.Series(label: pointLabel, xValues: [x], yValues: [y], isDashed: isDashed, isPoint: true))
+                            allSeries.append(GraphData.Series(label: pointLabel, xValues: [x], yValues: [y], isDashed: isDashed, isPoint: true, isShaded: isShaded))
                             continue
                         }
                     }
@@ -1180,7 +1230,7 @@ enum GraphContentParser {
                 
                 if trimmed.replacingOccurrences(of: " ", with: "").starts(with: "x=") {
                     let xVal = Double(eqString.replacingOccurrences(of: "x=", with: "").replacingOccurrences(of: "x =", with: "")) ?? 0.0
-                    allSeries.append(GraphData.Series(label: trimmed, xValues: [xVal, xVal], yValues: [-1000.0, 1000.0], isDashed: isDashed, isPoint: false))
+                    allSeries.append(GraphData.Series(label: trimmed, xValues: [xVal, xVal], yValues: [-1000.0, 1000.0], isDashed: isDashed, isPoint: false, isShaded: isShaded))
                     if index == 0 { primaryX = [xVal, xVal]; primaryY = [-10.0, 10.0] }
                     continue
                 }
@@ -1189,6 +1239,7 @@ enum GraphContentParser {
                     var modifiedSeries = sampled
                     modifiedSeries.label = trimmed.hasPrefix("y") ? trimmed : "y = \(trimmed)"
                     modifiedSeries.isDashed = isDashed
+                    modifiedSeries.isShaded = isShaded
                     allSeries.append(modifiedSeries)
                     if index == 0 {
                         primaryX = sampled.xValues
@@ -1201,7 +1252,7 @@ enum GraphContentParser {
                     let xValues = [-1000.0, 1000.0]
                     let yValues = xValues.map { line.slope * $0 + line.intercept }
                     let label = trimmed.hasPrefix("y") ? trimmed : "y = \(trimmed)"
-                    allSeries.append(GraphData.Series(label: label, xValues: xValues, yValues: yValues, isDashed: isDashed, isPoint: false))
+                    allSeries.append(GraphData.Series(label: label, xValues: xValues, yValues: yValues, isDashed: isDashed, isPoint: false, isShaded: isShaded))
                     
                     if index == 0 {
                         primaryX = xValues
@@ -1222,7 +1273,14 @@ enum GraphContentParser {
         
         let isDashed = cleanedContent.contains("[DASHED]")
         let isExplicitPoint = cleanedContent.contains("[POINT]")
-        let trimmed = cleanedContent.replacingOccurrences(of: "[DASHED]", with: "").replacingOccurrences(of: "[POINT]", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let isShaded = cleanedContent.contains("[SHADE]")
+        
+        let trimmed = cleanedContent
+            .replacingOccurrences(of: "[DASHED]", with: "")
+            .replacingOccurrences(of: "[POINT]", with: "")
+            .replacingOccurrences(of: "[SHADE]", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
         let isAutoPoint = trimmed.hasPrefix("(") && trimmed.contains(",") && trimmed.contains(")")
         let isPoint = isExplicitPoint || isAutoPoint
         let eqString = trimmed.replacingOccurrences(of: "y=", with: "").replacingOccurrences(of: "y =", with: "").trimmingCharacters(in: .whitespaces)
@@ -1238,7 +1296,7 @@ enum GraphContentParser {
                         pointLabel = "(\(x.cleanGraphString), \(y.cleanGraphString))"
                     }
                     
-                    return GraphData(xValues: [x], yValues: [y], series: [GraphData.Series(label: pointLabel, xValues: [x], yValues: [y], isDashed: isDashed, isPoint: true)])
+                    return GraphData(xValues: [x], yValues: [y], series: [GraphData.Series(label: pointLabel, xValues: [x], yValues: [y], isDashed: isDashed, isPoint: true, isShaded: isShaded)])
                 }
             }
         }
@@ -1246,13 +1304,14 @@ enum GraphContentParser {
         if let sampled = MathEngine.samplePoints(for: eqString.replacingOccurrences(of: " ", with: "")) {
             var mod = sampled
             mod.isDashed = isDashed
+            mod.isShaded = isShaded
             return GraphData(xValues: sampled.xValues, yValues: sampled.yValues, series: [mod])
         }
         
         let noSpaces = cleanedContent.replacingOccurrences(of: " ", with: "")
         if noSpaces.starts(with: "x=") {
-            let xValue = Double(noSpaces.replacingOccurrences(of: "[DASHED]", with: "").replacingOccurrences(of: "x=", with: "")) ?? 0.0
-            return GraphData(xValues: [xValue, xValue], yValues: [-1000.0, 1000.0], series: [GraphData.Series(label: "x = \(xValue)", xValues: [xValue, xValue], yValues: [-1000.0, 1000.0], isDashed: isDashed, isPoint: false)])
+            let xValue = Double(noSpaces.replacingOccurrences(of: "[DASHED]", with: "").replacingOccurrences(of: "[SHADE]", with: "").replacingOccurrences(of: "x=", with: "")) ?? 0.0
+            return GraphData(xValues: [xValue, xValue], yValues: [-1000.0, 1000.0], series: [GraphData.Series(label: "x = \(xValue)", xValues: [xValue, xValue], yValues: [-1000.0, 1000.0], isDashed: isDashed, isPoint: false, isShaded: isShaded)])
         }
         
         for inequalityOperator in [">=", "<=", ">", "<"] {
@@ -1278,7 +1337,7 @@ enum GraphContentParser {
         let line = lineValues(from: equation)
         let xValues = [-10.0, 10.0]
         let yValues = xValues.map { line.slope * $0 + line.intercept }
-        return GraphData(xValues: xValues, yValues: yValues)
+        return GraphData(xValues: xValues, yValues: yValues, series: [GraphData.Series(label: trimmed, xValues: xValues, yValues: yValues, isDashed: isDashed, isPoint: false, isShaded: isShaded)])
     }
     
     private static func lineValues(from equation: String) -> (slope: Double, intercept: Double) {

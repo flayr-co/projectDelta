@@ -22,6 +22,12 @@ struct LessonEditorView: View {
     @State private var pages: [Page] = []
     @State private var lessonTests: [Test] = []
     
+    // MARK: - Bulk Import/Export States
+    @State private var showingBulkPageImporter = false
+    @State private var bulkPageImportText = ""
+    @State private var showingBulkPageExporter = false
+    @State private var bulkPageExportText = ""
+    
     var lesson: Lesson
     var subject: Subject
     var onSave: (() -> Void)? = nil
@@ -115,6 +121,27 @@ struct LessonEditorView: View {
                                 .font(.system(size: 17, weight: .bold, design: .rounded))
                             
                             Spacer()
+                            
+                            // NEW: Bulk Export
+                            Button(action: {
+                                bulkPageExportText = generateBulkPageExport()
+                                showingBulkPageExporter = true
+                            }) {
+                                Image(systemName: "doc.text.magnifyingglass")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(glowingPurple)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 10)
+                            
+                            // NEW: Bulk Import
+                            Button(action: { showingBulkPageImporter = true }) {
+                                Image(systemName: "list.clipboard.fill")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(glowingPurple)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 10)
                             
                             Button(action: addNewPage) {
                                 Image(systemName: "plus.circle.fill")
@@ -267,6 +294,199 @@ struct LessonEditorView: View {
             .padding(.top, 12)
             .background(.ultraThinMaterial)
         }
+        // MARK: - Bulk Import/Export Sheets
+        .sheet(isPresented: $showingBulkPageImporter) {
+            NavigationStack {
+                VStack {
+                    TextEditor(text: $bulkPageImportText)
+                        .font(.system(.body, design: .monospaced))
+                        .padding(12)
+                        .background(Color.platformSecondarySystemBackground)
+                        .cornerRadius(12)
+                        .padding()
+                }
+                .navigationTitle("Bulk Import Pages")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingBulkPageImporter = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Import All") { processBulkPageImport() }
+                            .fontWeight(.bold)
+                            .tint(glowingPurple)
+                    }
+                }
+                .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
+            }
+        }
+        .sheet(isPresented: $showingBulkPageExporter) {
+            NavigationStack {
+                VStack {
+                    TextEditor(text: .constant(bulkPageExportText))
+                        .font(.system(.body, design: .monospaced))
+                        .padding(12)
+                        .background(Color.platformSecondarySystemBackground)
+                        .cornerRadius(12)
+                        .padding()
+                }
+                .navigationTitle("Bulk Export Pages")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { showingBulkPageExporter = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Copy") {
+                            #if canImport(UIKit)
+                            UIPasteboard.general.string = bulkPageExportText
+                            #elseif canImport(AppKit)
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(bulkPageExportText, forType: .string)
+                            #endif
+                            showingBulkPageExporter = false
+                        }
+                        .fontWeight(.bold)
+                        .tint(.indigo)
+                    }
+                }
+                .background(Color.platformSystemGroupedBackground.ignoresSafeArea())
+            }
+        }
+    }
+    
+    // MARK: - Bulk Page Engines
+    
+    private func processBulkPageImport() {
+        let pageChunks = bulkPageImportText.components(separatedBy: "===PAGE===")
+        var newPages: [Page] = []
+        var currentNumber = pages.count + 1
+        
+        for chunk in pageChunks {
+            let trimmed = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            
+            let parsedBlocks = parseRawBlocks(from: trimmed)
+            
+            let contentString: String
+            if let data = try? JSONEncoder().encode(parsedBlocks), let json = String(data: data, encoding: .utf8) {
+                contentString = json
+            } else {
+                contentString = "[]"
+            }
+            
+            newPages.append(Page(id: UUID().uuidString, content: contentString, pageNumber: currentNumber, readyButtonDisplayed: true))
+            currentNumber += 1
+        }
+        
+        if !newPages.isEmpty {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                // If there's only one auto-generated placeholder page, replace it
+                if pages.count == 1 && (pages.first?.content == "[]" || pages.first?.content == lesson.description) {
+                    pages = newPages
+                } else {
+                    pages.append(contentsOf: newPages)
+                }
+                recalculatePageNumbers()
+            }
+        }
+        bulkPageImportText = ""
+        showingBulkPageImporter = false
+    }
+    
+    private func generateBulkPageExport() -> String {
+        var result = ""
+        for page in pages {
+            result += "===PAGE===\n"
+            let blocks = parseContentToBlocks(page.content)
+            for block in blocks {
+                let tag: String
+                if block.type == QuestionBlockType.text.rawValue { tag = "TEXT" }
+                else if block.type == QuestionBlockType.math.rawValue { tag = "MATH" }
+                else if block.type == QuestionBlockType.graph.rawValue { tag = "GRAPH" }
+                else { tag = block.type.uppercased() }
+                
+                result += "[\(tag)]\n\(block.content)\n"
+                if tag == "MATH", let cap = block.caption, !cap.isEmpty {
+                    result += "[CAPTION]\(cap)[/CAPTION]\n"
+                }
+                result += "[/\(tag)]\n\n"
+            }
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    private func parseRawBlocks(from text: String) -> [QuestionBlockModel] {
+        var remaining = text
+        var newBlocks: [QuestionBlockModel] = []
+        let tags = ["TEXT", "MATH", "GRAPH"]
+        
+        while !remaining.isEmpty {
+            var earliestTag: String? = nil
+            var earliestIndex: String.Index? = nil
+            
+            for tag in tags {
+                if let range = remaining.range(of: "[\(tag)]") {
+                    if earliestIndex == nil || range.lowerBound < earliestIndex! {
+                        earliestIndex = range.lowerBound
+                        earliestTag = tag
+                    }
+                }
+            }
+            
+            guard let startTag = earliestTag, let startIndex = earliestIndex else { break }
+            let endTagStr = "[/\(startTag)]"
+            
+            let contentStart = remaining.range(of: "[\(startTag)]")!.upperBound
+            remaining = String(remaining[contentStart...])
+            
+            if let endRange = remaining.range(of: endTagStr) {
+                var content = String(remaining[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                var block = QuestionBlockModel(
+                    type: startTag == "TEXT" ? QuestionBlockType.text.rawValue : (startTag == "MATH" ? QuestionBlockType.math.rawValue : QuestionBlockType.graph.rawValue),
+                    content: content
+                )
+                
+                if startTag == "MATH" {
+                    if let capStart = content.range(of: "[CAPTION]"), let capEnd = content.range(of: "[/CAPTION]") {
+                        let captionText = String(content[capStart.upperBound..<capEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        block.caption = captionText
+                        content = String(content[..<capStart.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        block.content = content
+                    }
+                }
+                
+                remaining = String(remaining[endRange.upperBound...])
+                newBlocks.append(block)
+            } else {
+                break
+            }
+        }
+        return newBlocks
+    }
+    
+    private func parseContentToBlocks(_ content: String) -> [QuestionBlockModel] {
+        let textData = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !textData.isEmpty else { return [] }
+        
+        if let data = textData.data(using: .utf8) {
+            if let decoded = try? JSONDecoder().decode([QuestionBlockModel].self, from: data) {
+                return decoded
+            }
+            if let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                return jsonArray.compactMap { dict in
+                    let type = dict["type"] as? String ?? QuestionBlockType.text.rawValue
+                    let content = dict["content"] as? String ?? ""
+                    let graphType = dict["graphType"] as? String
+                    return QuestionBlockModel(type: type, content: content, graphType: graphType)
+                }
+            }
+        }
+        return [QuestionBlockModel(type: QuestionBlockType.text.rawValue, content: content)]
     }
     
     // MARK: - Local Test Retrieval & Deletion

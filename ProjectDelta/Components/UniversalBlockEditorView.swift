@@ -315,11 +315,12 @@ fileprivate struct BlockEditCell: View {
     @State private var debounceTask: Task<Void, Never>? = nil
     
     // Custom Math Prompt States
-    enum MathPromptType { case fraction, exponent, root, highlight }
+    enum MathPromptType { case fraction, exponent, root, highlight, integral, limit, series }
     @State private var showMathPrompt = false
     @State private var mathPromptType: MathPromptType = .fraction
     @State private var mathArg1: String = ""
     @State private var mathArg2: String = ""
+    @State private var mathArg3: String = ""
     
     init(block: Binding<QuestionBlockModel>, onDelete: @escaping () -> Void) {
         self._block = block
@@ -667,7 +668,15 @@ fileprivate struct BlockEditCell: View {
                     EditorToolbarButton(display: "HL") {
                         mathPromptType = .highlight; mathArg1 = ""; showMathPrompt = true
                     }
-                    EditorToolbarButton(display: "∫") { block.content.append("\\int") }
+                    EditorToolbarButton(display: "∫a→b") {
+                        mathPromptType = .integral; mathArg1 = ""; mathArg2 = ""; mathArg3 = ""; showMathPrompt = true
+                    }
+                    EditorToolbarButton(display: "lim") {
+                        mathPromptType = .limit; mathArg1 = ""; mathArg2 = ""; showMathPrompt = true
+                    }
+                    EditorToolbarButton(display: "∑") {
+                        mathPromptType = .series; mathArg1 = ""; mathArg2 = ""; mathArg3 = ""; showMathPrompt = true
+                    }
                     EditorToolbarButton(display: "°") { block.content.append("^{\\circ}") }
                 }
             }
@@ -692,8 +701,18 @@ fileprivate struct BlockEditCell: View {
             .textInputAutocapitalization(.never)
             #endif
         
-        if mathPromptType == .fraction {
-            TextField("Denominator (e.g. 2 or x)", text: $mathArg2)
+        // Add second text field based on type
+        if mathPromptType == .fraction || mathPromptType == .integral || mathPromptType == .limit || mathPromptType == .series {
+            TextField(mathPromptType == .limit ? "Approaches (e.g. \\infty)" : "Upper Bound / Denominator", text: $mathArg2)
+                .autocorrectionDisabled()
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                #endif
+        }
+        
+        // Add third text field for Integrals and Series functions
+        if mathPromptType == .integral || mathPromptType == .series {
+            TextField("Expression (e.g. x^2 dx)", text: $mathArg3)
                 .autocorrectionDisabled()
                 #if os(iOS)
                 .textInputAutocapitalization(.never)
@@ -718,6 +737,12 @@ fileprivate struct BlockEditCell: View {
                     block.content.append("^{\(mathArg1)}")
                 case .root:
                     block.content.append("\\sqrt{\(mathArg1)}")
+                case .integral:
+                    block.content.append("\\int_{\(mathArg1)}^{\(mathArg2)} \(mathArg3)")
+                case .limit:
+                    block.content.append("\\lim_{x \\to \(mathArg2)} \(mathArg1)")
+                case .series:
+                    block.content.append("\\sum_{n=\(mathArg1)}^{\(mathArg2)} \(mathArg3)")
                 default: break
                 }
             }
@@ -730,6 +755,9 @@ fileprivate struct BlockEditCell: View {
         case .exponent: return "Insert Exponent"
         case .root: return "Insert Square Root"
         case .highlight: return "Highlight Text"
+        case .integral: return "Insert Definite Integral"
+        case .limit: return "Insert Limit"
+        case .series: return "Insert Infinite Series"
         }
     }
     
@@ -739,6 +767,9 @@ fileprivate struct BlockEditCell: View {
         case .exponent: return "Exponent (e.g. 2x)"
         case .root: return "Value (e.g. x+5)"
         case .highlight: return "Text to highlight"
+        case .integral: return "Lower Bound (e.g. 0)"
+        case .limit: return "Variable (e.g. x)"
+        case .series: return "Start Index (e.g. 1)"
         }
     }
     
@@ -748,6 +779,9 @@ fileprivate struct BlockEditCell: View {
         case .exponent: return "Enter the exponent value. It will be added to the end of the current expression."
         case .root: return "Enter the value inside the square root."
         case .highlight: return "Enter the text or equation you want to highlight."
+        case .integral: return "Enter the lower bound, upper bound, and the expression to integrate."
+        case .limit: return "Enter the variable, the value it approaches, and the expression."
+        case .series: return "Enter the start index, end index, and series expression."
         }
     }
     
@@ -798,7 +832,14 @@ fileprivate struct BlockEditCell: View {
                     let currentExpr = index < expressions.count ? expressions[index] : ""
                     let isDashed = currentExpr.contains("[DASHED]")
                     let isExplicitPoint = currentExpr.contains("[POINT]")
-                    let rawText = currentExpr.replacingOccurrences(of: "[DASHED]", with: "").replacingOccurrences(of: "[POINT]", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let isShaded = currentExpr.contains("[SHADE]") // NEW: Detect Shading
+                    
+                    let rawText = currentExpr
+                        .replacingOccurrences(of: "[DASHED]", with: "")
+                        .replacingOccurrences(of: "[POINT]", with: "")
+                        .replacingOccurrences(of: "[SHADE]", with: "") // NEW: Strip Shading Tag
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    
                     let isAutoPoint = rawText.hasPrefix("(") && rawText.contains(",") && rawText.contains(")")
                     let isPoint = isExplicitPoint || isAutoPoint
                     
@@ -817,6 +858,7 @@ fileprivate struct BlockEditCell: View {
                                     var updated = newValue
                                     if isDashed { updated += " [DASHED]" }
                                     if isExplicitPoint { updated += " [POINT]" }
+                                    if isShaded { updated += " [SHADE]" } // NEW: Re-apply Shading Tag
                                     var newExpressions = expressions
                                     if index < newExpressions.count { newExpressions[index] = updated } else { newExpressions.append(updated) }
                                     block.content = newExpressions.joined(separator: "\n")
@@ -883,6 +925,22 @@ fileprivate struct BlockEditCell: View {
                                 }
                                 .font(.caption.weight(.bold))
                                 .foregroundColor(isExplicitPoint ? .purple : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Button(action: {
+                                var newExpressions = expressions
+                                let base = currentExpr.replacingOccurrences(of: " [SHADE]", with: "").replacingOccurrences(of: "[SHADE]", with: "")
+                                let updated = isShaded ? base : base + " [SHADE]"
+                                if index < newExpressions.count { newExpressions[index] = updated } else { newExpressions.append(updated) }
+                                block.content = newExpressions.joined(separator: "\n")
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: isShaded ? "square.bottomhalf.filled" : "square")
+                                    Text("Shade Area")
+                                }
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(isShaded ? .purple : .secondary)
                             }
                             .buttonStyle(.plain)
                             

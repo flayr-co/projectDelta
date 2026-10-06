@@ -217,6 +217,11 @@ struct LessonManagerView: View {
     @State private var showingAddLesson = false
     @State private var selectedLesson: Lesson?
     
+    // Bulk Import States
+    @State private var showingBulkImport = false
+    @State private var bulkImportText = ""
+    @State private var isBulkImporting = false
+    
     var body: some View {
         ZStack(alignment: .top) {
             Color.platformSystemGroupedBackground.ignoresSafeArea()
@@ -260,19 +265,35 @@ struct LessonManagerView: View {
         .task { await viewModel.fetchLessons(for: subject.id ?? "") }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: { showingAddLesson = true }) {
-                    HStack {
-                        Image(systemName: "plus")
-                        Text("New Lesson")
+                HStack(spacing: 12) {
+                    Button(action: { showingBulkImport = true }) {
+                        HStack {
+                            Image(systemName: "list.bullet.clipboard.fill")
+                            Text("Bulk Import")
+                        }
+                        .font(.system(size: 13, weight: .bold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.orange.opacity(0.15))
+                        .foregroundColor(.orange)
+                        .clipShape(Capsule())
                     }
-                    .font(.system(size: 13, weight: .bold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.teal.opacity(0.15))
-                    .foregroundColor(.teal)
-                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { showingAddLesson = true }) {
+                        HStack {
+                            Image(systemName: "plus")
+                            Text("New Lesson")
+                        }
+                        .font(.system(size: 13, weight: .bold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.teal.opacity(0.15))
+                        .foregroundColor(.teal)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
         .sheet(isPresented: $showingAddLesson) {
@@ -289,6 +310,56 @@ struct LessonManagerView: View {
                 )
             }
         }
+        .sheet(isPresented: $showingBulkImport) {
+            NavigationStack {
+                ZStack {
+                    Color.platformSystemGroupedBackground.ignoresSafeArea()
+                    
+                    VStack {
+                        TextEditor(text: $bulkImportText)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(12)
+                            .background(Color.platformSecondarySystemBackground)
+                            .cornerRadius(12)
+                            .padding()
+                    }
+                    
+                    if isBulkImporting {
+                        ZStack {
+                            Color.black.opacity(0.4).ignoresSafeArea()
+                            VStack(spacing: 16) {
+                                ProgressView().scaleEffect(1.2).tint(.white)
+                                Text("Building Curriculum...")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                            }
+                            .padding(24)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(20)
+                        }
+                    }
+                }
+                .navigationTitle("Bulk Import Curriculum")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingBulkImport = false }
+                            .disabled(isBulkImporting)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Import") {
+                            processBulkLessons()
+                        }
+                        .fontWeight(.bold)
+                        .tint(.orange)
+                        .disabled(isBulkImporting || bulkImportText.isEmpty)
+                    }
+                }
+            }
+            .interactiveDismissDisabled(isBulkImporting)
+        }
         .onChange(of: showingAddLesson) { _, isShowing in
             if !isShowing {
                 Task { await viewModel.fetchLessons(for: subject.id ?? "") }
@@ -297,6 +368,57 @@ struct LessonManagerView: View {
         .onChange(of: selectedLesson) { _, lesson in
             if lesson == nil {
                 Task { await viewModel.fetchLessons(for: subject.id ?? "") }
+            }
+        }
+    }
+    
+    private func processBulkLessons() {
+        isBulkImporting = true
+        let lines = bulkImportText.components(separatedBy: .newlines)
+        var startIndex = viewModel.lessons.count + 1
+        
+        Task {
+            for line in lines {
+                let cleanLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Ignore empty lines or header/category tags
+                if cleanLine.isEmpty || cleanLine.hasPrefix("##") { continue }
+                
+                // Strip markdown bold asterisks
+                var text = cleanLine.replacingOccurrences(of: "**", with: "")
+                
+                // Strip leading numbers and dots (e.g., "1. ")
+                if let regex = try? NSRegularExpression(pattern: "^\\d+\\.\\s*"),
+                   let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) {
+                    text = String(text[Range(match.range, in: text)!.upperBound...])
+                }
+                
+                // Split at the colon
+                let parts = text.components(separatedBy: ":")
+                let name = parts[0].trimmingCharacters(in: .whitespaces)
+                let description = parts.count > 1 ? parts[1...].joined(separator: ":").trimmingCharacters(in: .whitespaces) : ""
+                
+                guard !name.isEmpty else { continue }
+                
+                let newLesson = Lesson(
+                    id: nil,
+                    name: name,
+                    description: description,
+                    completed: false,
+                    lessonNumber: startIndex,
+                    pages: [Page(id: UUID().uuidString, content: description, pageNumber: 1, readyButtonDisplayed: true)] // Auto-generate the first page with the description
+                )
+                
+                try? await viewModel.addLesson(to: subject, lesson: newLesson)
+                startIndex += 1
+            }
+            
+            await viewModel.fetchLessons(for: subject.id ?? "")
+            await viewModel.fetchSubjects()
+            
+            await MainActor.run {
+                bulkImportText = ""
+                isBulkImporting = false
+                showingBulkImport = false
             }
         }
     }

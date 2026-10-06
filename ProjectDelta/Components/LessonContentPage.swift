@@ -312,11 +312,13 @@ struct LessonContentPage: View {
         case .text(let textContent):
             let sanitizedText = cleanLegacyText(textContent)
             
-            if sanitizedText.contains("$") || sanitizedText.contains("\\") {
+            // REMOVED the backslash condition! Now, unless the text is explicitly
+            // wrapped in $ signs, it goes through our native Markdown formatter.
+            if sanitizedText.contains("$") {
                 LatexView(latex: sanitizedText, isTextMode: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text(LocalizedStringKey(sanitizedText))
+                Text(LocalizedStringKey(sanitizedText.parsedInlineMathToMarkdown))
                     .font(.system(size: 18, weight: .medium, design: .rounded))
                     .lineSpacing(8)
                     .foregroundColor(.primary.opacity(0.85))
@@ -356,7 +358,8 @@ struct LessonContentPage: View {
 #endif
                 
                 if let caption = caption, !caption.isEmpty {
-                    Text(LocalizedStringKey(caption))
+                    // NEW: Appended .parsedInlineMathToMarkdown to the caption string
+                    Text(LocalizedStringKey(caption.parsedInlineMathToMarkdown))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 4)
