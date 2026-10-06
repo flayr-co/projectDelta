@@ -47,6 +47,8 @@
 		5263B8732BFBB5CB00CE0DD0 /* ProfileViewDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */; };
 		52643E012FCACAEB00859741 /* MetricsCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52643E002FCACAEB00859741 /* MetricsCarouselView.swift */; };
 		5266741D30736291001C3E74 /* FundamentalForcesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5266741C30736291001C3E74 /* FundamentalForcesView.swift */; };
+		5266741F30754933001C3E74 /* SubatomicParticlesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5266741E30754933001C3E74 /* SubatomicParticlesView.swift */; };
+		5266742130754AA2001C3E74 /* PhysicsHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5266742030754AA2001C3E74 /* PhysicsHubView.swift */; };
 		52668ED12BFD06FA0019965F /* LatexView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52668ED02BFD06FA0019965F /* LatexView.swift */; };
 		526CF3002FD75619001DA9D2 /* UniversalBlockEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */; };
 		527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98712AEB22990031F9E6 /* GreetingText.swift */; };
@@ -123,6 +125,8 @@
 		5263B8722BFBB5CB00CE0DD0 /* ProfileViewDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewDetail.swift; sourceTree = "<group>"; };
 		52643E002FCACAEB00859741 /* MetricsCarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricsCarouselView.swift; sourceTree = "<group>"; };
 		5266741C30736291001C3E74 /* FundamentalForcesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundamentalForcesView.swift; sourceTree = "<group>"; };
+		5266741E30754933001C3E74 /* SubatomicParticlesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubatomicParticlesView.swift; sourceTree = "<group>"; };
+		5266742030754AA2001C3E74 /* PhysicsHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicsHubView.swift; sourceTree = "<group>"; };
 		52668ED02BFD06FA0019965F /* LatexView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatexView.swift; sourceTree = "<group>"; };
 		526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalBlockEditorView.swift; sourceTree = "<group>"; };
 		527F98712AEB22990031F9E6 /* GreetingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingText.swift; sourceTree = "<group>"; };
@@ -281,9 +285,11 @@
 				5222C55E304EA07F00C02521 /* MathScratchpadView.swift */,
 				52643E002FCACAEB00859741 /* MetricsCarouselView.swift */,
 				52AB7256305C288300F85170 /* NotebookDirectoryView.swift */,
+				5266742030754AA2001C3E74 /* PhysicsHubView.swift */,
 				52AFCA092BBF381B0081A309 /* ProgressBar.swift */,
 				521887B82FB4FB7F00D97803 /* QuizSnapshot.swift */,
 				5258BD5B2AE344C200F21A50 /* SettingsRowView.swift */,
+				5266741E30754933001C3E74 /* SubatomicParticlesView.swift */,
 				527F987B2AEC5D410031F9E6 /* SubjectGridView.swift */,
 				52FA58222BBC993D0063091C /* TableOfContentsView.swift */,
 				526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */,
@@ -448,6 +454,7 @@
 				5222C55F304EA08D00C02521 /* MathScratchpadView.swift in Sources */,
 				5222C5613058F9EA00C02521 /* OfflineStorageManager.swift in Sources */,
 				527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */,
+				5266741F30754933001C3E74 /* SubatomicParticlesView.swift in Sources */,
 				5254A5CF2AF1ABAC00AAAA72 /* HomeView.swift in Sources */,
 				52643E012FCACAEB00859741 /* MetricsCarouselView.swift in Sources */,
 				5254A5D12AF1C19300AAAA72 /* DisplayCards.swift in Sources */,
@@ -488,6 +495,7 @@
 				5258BD562AE3264400F21A50 /* InputView.swift in Sources */,
 				52668ED12BFD06FA0019965F /* LatexView.swift in Sources */,
 				52CDD6553000BF0600705307 /* SuperAdminConsoleView.swift in Sources */,
+				5266742130754AA2001C3E74 /* PhysicsHubView.swift in Sources */,
 				5254A5D32AF1D40300AAAA72 /* LessonView.swift in Sources */,
 				5213E86D2B9F95ED007B9314 /* LessonViewModel.swift in Sources */,
 				52BB1A522FE28C8200A5800A /* UniversalTestView.swift in Sources */,

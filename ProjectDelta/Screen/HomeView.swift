@@ -269,10 +269,10 @@ struct HomeView: View {
             )
             // macOS version:
             ActionCardButton(
-                title: "Forces",
+                title: "How It Works",
                 icon: "atom",
                 colors: [.yellow, .orange],
-                destination: FundamentalForcesView()
+                destination: PhysicsHubView()
             )
             ActionCardButton(
                 title: "Spectroscopy",
@@ -381,10 +381,10 @@ struct HomeView: View {
                             )
                             
                             iOSActionCard(
-                                title: "Forces",
+                                title: "How It Works",
                                 icon: "atom",
                                 colors: [.yellow, .orange],
-                                destination: FundamentalForcesView()
+                                destination: PhysicsHubView()
                             )
                             
                             iOSActionCard(

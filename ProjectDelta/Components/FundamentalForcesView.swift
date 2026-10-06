@@ -116,7 +116,6 @@ struct FundamentalForcesView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: isWide ? 40 : 32) {
                     
-                    // Dynamic Header
                     VStack(spacing: 16) {
                         Image(systemName: currentForce.icon)
                             .font(.system(size: isWide ? 72 : 64, weight: .light))
@@ -135,7 +134,6 @@ struct FundamentalForcesView: View {
                     }
                     .padding(.bottom, 8)
                     
-                    // Fixed Segmented Control
                     HStack(spacing: 8) {
                         ForEach(ForceType.allCases, id: \.self) { force in
                             Button(action: {
@@ -170,16 +168,13 @@ struct FundamentalForcesView: View {
                     }
                     .padding(.bottom, isWide ? 20 : 12)
                     
-                    // Content Grid
                     if isWide {
                         HStack(alignment: .top, spacing: 40) {
-                            // Left Column (Visuals & Mechanics)
                             VStack(spacing: cardSpacing) {
                                 forceVisualizerBox(isWide: true)
                                 metricsBox()
                                 bosonExplanationBox()
                             }
-                            // Right Column (Education & Context)
                             VStack(spacing: cardSpacing) {
                                 overviewBox()
                                 analogyBox()
@@ -188,7 +183,6 @@ struct FundamentalForcesView: View {
                             }
                         }
                     } else {
-                        // Mobile Layout
                         VStack(spacing: cardSpacing) {
                             forceVisualizerBox(isWide: false)
                             metricsBox()
@@ -253,6 +247,7 @@ struct FundamentalForcesView: View {
                 .font(.system(size: 17, weight: .regular, design: .rounded))
                 .lineSpacing(8)
                 .foregroundStyle(.primary.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true) // Prevents truncation
         }
     }
     
@@ -263,6 +258,7 @@ struct FundamentalForcesView: View {
                 .font(.system(size: 17, weight: .medium, design: .rounded))
                 .lineSpacing(8)
                 .foregroundStyle(.primary.opacity(0.95))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
     
@@ -275,11 +271,13 @@ struct FundamentalForcesView: View {
                     .foregroundStyle(.secondary)
                     .lineSpacing(6)
                     .padding(.bottom, 8)
+                    .fixedSize(horizontal: false, vertical: true)
                 
                 Text(currentForce.messengerExplanation)
                     .font(.system(size: 17, weight: .regular, design: .rounded))
                     .lineSpacing(8)
                     .foregroundStyle(.primary.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -291,6 +289,7 @@ struct FundamentalForcesView: View {
                 .font(.system(size: 17, weight: .regular, design: .rounded))
                 .lineSpacing(8)
                 .foregroundStyle(.primary.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
     
@@ -307,6 +306,7 @@ struct FundamentalForcesView: View {
                         Text(role)
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(.primary.opacity(0.95))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -353,6 +353,7 @@ private struct ForceCard<Content: View>: View {
                     Text(title)
                         .font(.title2.weight(.heavy))
                         .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Divider().opacity(0.6)
             }
@@ -427,7 +428,6 @@ private struct GravityAnimation: View {
     
     var body: some View {
         ZStack {
-            // Simulated 3D Gravity Well (Warped Spacetime)
             ForEach(1...5, id: \.self) { i in
                 Ellipse()
                     .stroke(LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom), lineWidth: 2)
@@ -436,7 +436,6 @@ private struct GravityAnimation: View {
                     .opacity(0.8 - (Double(i) * 0.15))
             }
             
-            // Core Mass
             Circle()
                 .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 48, height: 48)
@@ -445,7 +444,6 @@ private struct GravityAnimation: View {
                 .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: phase)
                 .offset(y: -10)
             
-            // Educational Labels
             Text("Mass")
                 .font(.caption2.weight(.heavy))
                 .foregroundColor(.white)
@@ -467,7 +465,6 @@ private struct ElectromagnetismAnimation: View {
     
     var body: some View {
         ZStack {
-            // Emitting Fields
             HStack(spacing: 120) {
                 ZStack {
                     ForEach(0..<3) { i in
@@ -484,7 +481,7 @@ private struct ElectromagnetismAnimation: View {
                         .shadow(color: colors.first!.opacity(0.8), radius: 15)
                     
                     Text("Electron")
-                        .diagramLabel(color: .white) // Fixed for Light Mode Contrast
+                        .diagramLabel(color: .white)
                         .offset(y: 45)
                 }
                 
@@ -503,12 +500,11 @@ private struct ElectromagnetismAnimation: View {
                         .shadow(color: colors.last!.opacity(0.8), radius: 15)
                     
                     Text("Proton")
-                        .diagramLabel(color: .white) // Fixed for Light Mode Contrast
+                        .diagramLabel(color: .white)
                         .offset(y: 45)
                 }
             }
             
-            // Exchanged Photon
             Circle()
                 .fill(.white)
                 .frame(width: 12)
@@ -536,7 +532,6 @@ private struct StrongNuclearAnimation: View {
     
     var body: some View {
         ZStack {
-            // "Gluon" Springs
             Path { path in
                 path.move(to: CGPoint(x: 100, y: 50))
                 path.addLine(to: CGPoint(x: 60, y: 120))
@@ -547,22 +542,18 @@ private struct StrongNuclearAnimation: View {
             .frame(width: 200, height: 200)
             .scaleEffect(jiggle ? 1.1 : 0.9)
             
-            // "Quark" Nodes undergoing Color Charge Exchange
             Group {
                 Circle().fill(.red).frame(width: 44).offset(y: -50)
                 Circle().fill(.green).frame(width: 44).offset(x: -40, y: 20)
                 Circle().fill(.blue).frame(width: 44).offset(x: 40, y: 20)
             }
             .shadow(color: colors.first!.opacity(0.8), radius: 15)
-            .hueRotation(.degrees(colorShift ? 360 : 0)) // Simulates QCD color exchange beautifully
-            
-            // Animators
+            .hueRotation(.degrees(colorShift ? 360 : 0))
             .rotationEffect(.degrees(rotation))
             .animation(.linear(duration: 8).repeatForever(autoreverses: false), value: rotation)
             .animation(.spring(response: 0.2, dampingFraction: 0.1).repeatForever(autoreverses: true), value: jiggle)
             .animation(.easeInOut(duration: 2).repeatForever(autoreverses: false), value: colorShift)
             
-            // Labels
             Text("Quarks (QCD)")
                 .diagramLabel(color: .white)
                 .offset(y: -8)
@@ -587,7 +578,6 @@ private struct WeakNuclearAnimation: View {
     
     var body: some View {
         ZStack {
-            // W- Boson Path
             Capsule()
                 .fill(LinearGradient(colors: [colors.last!.opacity(0.9), .clear], startPoint: .leading, endPoint: .trailing))
                 .frame(width: decayPhase > 0 ? 120 : 0, height: 6)
@@ -596,7 +586,6 @@ private struct WeakNuclearAnimation: View {
                 .opacity(decayPhase == 2 ? 0 : 1)
                 .animation(.easeOut(duration: 0.6), value: decayPhase)
             
-            // Decay Particle (Beta/Electron)
             Circle()
                 .fill(.cyan)
                 .frame(width: 20)
@@ -606,7 +595,6 @@ private struct WeakNuclearAnimation: View {
                 .opacity(decayPhase > 0 ? 1 : 0)
                 .animation(.easeOut(duration: 0.8), value: decayPhase)
             
-            // Neutrino (Splits off)
             Circle()
                 .fill(.white)
                 .frame(width: 12)
@@ -616,7 +604,6 @@ private struct WeakNuclearAnimation: View {
                 .opacity(decayPhase > 0 ? 1 : 0)
                 .animation(.easeOut(duration: 0.8), value: decayPhase)
             
-            // Changing Nucleon (Neutron to Proton)
             Circle()
                 .fill(decayPhase == 0 ? colors.last! : colors.first!)
                 .frame(width: 68)
@@ -624,7 +611,6 @@ private struct WeakNuclearAnimation: View {
                 .scaleEffect(decayPhase == 1 ? 0.85 : 1.05)
                 .animation(.spring(response: 0.3, dampingFraction: 0.4), value: decayPhase)
             
-            // Labels
             Text(decayPhase == 0 ? "Neutron" : "Proton")
                 .font(.caption2.weight(.heavy))
                 .foregroundColor(.white)
@@ -636,7 +622,6 @@ private struct WeakNuclearAnimation: View {
                 .animation(.easeInOut, value: decayPhase)
         }
         .onReceive(timer) { _ in
-            // Multi-stage animation: 0 (Stable) -> 1 (Decay & W-Boson) -> 2 (Particles diverge) -> 0 (Reset)
             if decayPhase == 0 {
                 decayPhase = 1
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { decayPhase = 2 }
@@ -644,12 +629,5 @@ private struct WeakNuclearAnimation: View {
                 decayPhase = 0
             }
         }
-    }
-}
-
-#Preview {
-    NavigationStack {
-        FundamentalForcesView()
-            .preferredColorScheme(.dark)
     }
 }
