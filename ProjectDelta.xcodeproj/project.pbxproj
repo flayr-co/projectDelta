@@ -49,6 +49,7 @@
 		5266741D30736291001C3E74 /* FundamentalForcesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5266741C30736291001C3E74 /* FundamentalForcesView.swift */; };
 		5266741F30754933001C3E74 /* SubatomicParticlesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5266741E30754933001C3E74 /* SubatomicParticlesView.swift */; };
 		5266742130754AA2001C3E74 /* PhysicsHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5266742030754AA2001C3E74 /* PhysicsHubView.swift */; };
+		5266742330756A20001C3E74 /* EMInteractionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5266742230756A20001C3E74 /* EMInteractionView.swift */; };
 		52668ED12BFD06FA0019965F /* LatexView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52668ED02BFD06FA0019965F /* LatexView.swift */; };
 		526CF3002FD75619001DA9D2 /* UniversalBlockEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */; };
 		527F98722AEB22990031F9E6 /* GreetingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 527F98712AEB22990031F9E6 /* GreetingText.swift */; };
@@ -127,6 +128,7 @@
 		5266741C30736291001C3E74 /* FundamentalForcesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FundamentalForcesView.swift; sourceTree = "<group>"; };
 		5266741E30754933001C3E74 /* SubatomicParticlesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubatomicParticlesView.swift; sourceTree = "<group>"; };
 		5266742030754AA2001C3E74 /* PhysicsHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicsHubView.swift; sourceTree = "<group>"; };
+		5266742230756A20001C3E74 /* EMInteractionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EMInteractionView.swift; sourceTree = "<group>"; };
 		52668ED02BFD06FA0019965F /* LatexView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatexView.swift; sourceTree = "<group>"; };
 		526CF2FF2FD75619001DA9D2 /* UniversalBlockEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversalBlockEditorView.swift; sourceTree = "<group>"; };
 		527F98712AEB22990031F9E6 /* GreetingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingText.swift; sourceTree = "<group>"; };
@@ -278,6 +280,7 @@
 				5222C5623058FA1700C02521 /* DownloadButtonView.swift */,
 				52D1A80E2BFFD07100B5C40B /* DynamicGraphView.swift */,
 				5251682A302AE4040070EE8C /* ElectromagneticWaveAnalyzerView.swift */,
+				5266742230756A20001C3E74 /* EMInteractionView.swift */,
 				5266741C30736291001C3E74 /* FundamentalForcesView.swift */,
 				5258BD552AE3264400F21A50 /* InputView.swift */,
 				5258B5A52FB8337600F1600A /* LessonContentPage.swift */,
@@ -479,6 +482,7 @@
 				52098B90305B47F300A0DBB0 /* QuestionNote.swift in Sources */,
 				52AFCA0A2BBF381B0081A309 /* ProgressBar.swift in Sources */,
 				5229BB082AD0CC8A0094395D /* ProjectDeltaApp.swift in Sources */,
+				5266742330756A20001C3E74 /* EMInteractionView.swift in Sources */,
 				5213E86F2B9FD3DA007B9314 /* AnimatedActionButton.swift in Sources */,
 				52D998F02ADB3120007F90A6 /* Test.swift in Sources */,
 				527F98782AEC518E0031F9E6 /* Subject.swift in Sources */,
